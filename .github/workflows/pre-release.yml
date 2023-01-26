@@ -74,5 +74,5 @@ jobs:
           prerelease: true
           title: ${{ needs.generate-version.outputs.version }}
           files: |
-            target/vc-issuer-0.0.1-PRE-1.jar
+            target/vc-issuer-${{ needs.generate-version.outputs.version }}.jar
             LICENSE
