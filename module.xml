@@ -1,0 +1,11 @@
+<module xmlns="urn:jboss:module:1.3" name="com.example">
+    <resources>
+        <resource-root path="vc-issuer-SNAPSHOT-2.jar"/>
+    </resources>
+    <dependencies>
+        <module name="org.keycloak.keycloak-core"/>
+        <module name="org.keycloak.keycloak-server-spi"/>
+        <module name="org.keycloak.keycloak-server-spi-private"/>
+        <module name="javax.ws.rs.api"/>
+    </dependencies>
+</module>

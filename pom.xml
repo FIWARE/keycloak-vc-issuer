@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.fiware.keycloak</groupId>
+    <artifactId>vc-issuer</artifactId>
+    <version>SNAPSHOT-2</version>
+    <packaging>jar</packaging>
+
+    <name>Keycloak VC-Issuer</name>
+    <description>Keycloak plugin to support issuing of verifiable credentials</description>
+    <url>https://github.com/wistefan/keycloak-vc-issuer</url>
+    <inceptionYear>2023</inceptionYear>
+    <organization>
+        <name>FIWARE Foundation e.V.</name>
+        <url>https://fiware.org</url>
+    </organization>
+    <licenses>
+        <license>
+            <name>Apache License 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>wistefan</id>
+            <name>Stefan Wiedemann</name>
+            <url>https://github.com/wistefan</url>
+            <email>stefan.wiedemann@fiware.org</email>
+            <organization>FIWARE Foundation e.V.</organization>
+            <organizationUrl>https://fiware.org</organizationUrl>
+        </developer>
+    </developers>
+    <properties>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+
+        <!-- project info -->
+        <project.author.name>Stefan Wiedemann</project.author.name>
+        <project.author.email>stefan.wiedemann@fiware.org</project.author.email>
+        <project.description>Keycloak-VC-Issuer is an extension to keycloak, that allows the issuing of
+            VerifiableCredentials for users.
+        </project.description>
+        <project.summary>Keycloak plugin for issuing Verifiable Credentials.</project.summary>
+        <project.url>https://github.com/wistefan/keycloak-vc-issuer</project.url>
+        <project.license.name>GNU Affero General Public License v3.0</project.license.name>
+        <project.license.identifier>Apache License 2.0</project.license.identifier>
+        <project.license.url>https://www.apache.org/licenses/LICENSE-2.0</project.license.url>
+        <project.title>FIWARE Keycloak VC Issuer</project.title>
+        <project.vendor>FIWARE Foundation, e.V.</project.vendor>
+        <project.contact.domain>fiware.org</project.contact.domain>
+        <project.contact.email>stefan.wiedemann@fiware.org</project.contact.email>
+
+        <!-- lazy dev -->
+        <version.org.projectlombok>1.18.24</version.org.projectlombok>
+
+        <!-- keycloak -->
+        <org.keycloak.version>20.0.3</org.keycloak.version>
+
+        <!-- it-test -->
+        <version.io.kokuwa.maven.k3s-plugin>0.6.2</version.io.kokuwa.maven.k3s-plugin>
+    </properties>
+
+    <dependencies>
+        <!-- lazy dev -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>${version.org.projectlombok}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.auto.service</groupId>
+            <artifactId>auto-service</artifactId>
+            <version>1.0.1</version>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-server-spi</artifactId>
+            <version>${org.keycloak.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-common</artifactId>
+            <version>${org.keycloak.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-core</artifactId>
+            <version>${org.keycloak.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-server-spi-private</artifactId>
+            <version>${org.keycloak.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-model-map</artifactId>
+            <version>${org.keycloak.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-model-jpa</artifactId>
+            <version>${org.keycloak.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-services</artifactId>
+            <version>${org.keycloak.version}</version>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <resources>
+            <resource>
+                <directory>${basedir}/src/main/resources</directory>
+                <filtering>true</filtering>
+                <excludes>
+                    <!-- only copy the "compiled" frontend, not the src and npm...-->
+                    <exclude>**/src/**</exclude>
+                </excludes>
+            </resource>
+        </resources>
+    </build>
+    <profiles>
+        <profile>
+            <id>test</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <configuration>
+                            <!-- Uncomment to enable incremental compilation -->
+                            <!-- <useIncrementalCompilation>false</useIncrementalCompilation> -->
+                            <annotationProcessorPaths>
+                                <path>
+                                    <groupId>org.projectlombok</groupId>
+                                    <artifactId>lombok</artifactId>
+                                    <version>${version.org.projectlombok}</version>
+                                </path>
+                            </annotationProcessorPaths>
+                        </configuration>
+                    </plugin>
+                    <!-- copy project dependencies -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>micronaut-lib</id>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>copy-dependencies</goal>
+                                </goals>
+                                <configuration>
+                                    <includeScope>runtime</includeScope>
+                                    <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                                    <silent>true</silent>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <configuration>
+                            <archive>
+                                <manifest>
+                                    <addClasspath>true</addClasspath>
+                                    <classpathPrefix>lib/</classpathPrefix>
+                                </manifest>
+                            </archive>
+                        </configuration>
+                    </plugin>
+                    <!-- run tests -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>test</id>
+                                <phase>integration-test</phase>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>verify</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>verify</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>io.kokuwa.maven</groupId>
+                        <artifactId>k3s-maven-plugin</artifactId>
+                        <version>${version.io.kokuwa.maven.k3s-plugin}</version>
+                        <executions>
+                            <execution>
+                                <id>prepare-test-cluster</id>
+                                <goals>
+                                    <goal>create</goal>
+                                    <goal>start</goal>
+                                    <goal>image</goal>
+                                    <goal>kubectl</goal>
+                                    <goal>rm</goal>
+                                </goals>
+                                <configuration>
+                                    <streamLogs>true</streamLogs>
+                                    <portBindings>
+                                        <portBinding>8080:80</portBinding>
+                                    </portBindings>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>dev</id>
+            <build>
+                <plugins>
+                    <!-- run tests -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <skip>true</skip>
+                            <failIfNoTests>false</failIfNoTests>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>io.kokuwa.maven</groupId>
+                        <artifactId>k3s-maven-plugin</artifactId>
+                        <version>${version.io.kokuwa.maven.k3s-plugin}</version>
+                        <executions>
+                            <execution>
+                                <id>prepare-test-cluster</id>
+                                <goals>
+                                    <goal>create</goal>
+                                    <goal>start</goal>
+                                    <goal>image</goal>
+                                    <goal>kubectl</goal>
+                                </goals>
+                                <configuration>
+                                    <dockerImages>
+                                        <dockerImage>wistefan/keycloak</dockerImage>
+                                    </dockerImages>
+                                    <streamLogs>true</streamLogs>
+                                    <portBindings>
+                                        <portBinding>8080:80</portBinding>
+                                    </portBindings>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>
