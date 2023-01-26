@@ -67,6 +67,13 @@ jobs:
           mvn clean package
           ls -l target/
 
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.generate-version.outputs.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: target/vc-issuer-${{ needs.generate-version.outputs.version }}.jar
+
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
