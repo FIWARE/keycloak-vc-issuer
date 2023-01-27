@@ -37,6 +37,9 @@
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
 
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
         <!-- project info -->
         <project.author.name>Stefan Wiedemann</project.author.name>
         <project.author.email>stefan.wiedemann@fiware.org</project.author.email>
@@ -59,8 +62,19 @@
         <!-- keycloak -->
         <org.keycloak.version>20.0.3</org.keycloak.version>
 
-        <!-- it-test -->
+        <!-- test -->
         <version.io.kokuwa.maven.k3s-plugin>0.6.2</version.io.kokuwa.maven.k3s-plugin>
+        <version.org.junit.jupiter>5.9.2</version.org.junit.jupiter>
+        <version.org.mockito.mockito-all>1.10.19</version.org.mockito.mockito-all>
+        <version.org.mockito.mockito-junit-jupiter>5.0.0</version.org.mockito.mockito-junit-jupiter>
+        <coveralls.token>myToken</coveralls.token>
+        <version.org.eluder.coveralls.maven-plugin>2.2.0</version.org.eluder.coveralls.maven-plugin>
+        <version.com.github.spotbugs.maven-plugin>4.5.2.0</version.com.github.spotbugs.maven-plugin>
+        <version.org.apache.maven.plugins.maven-site-plugin>3.9.1</version.org.apache.maven.plugins.maven-site-plugin>
+        <version.org.jacoco.maven-plugin>0.8.7</version.org.jacoco.maven-plugin>
+        <jacoco.reportFolder>${project.build.directory}/site/jacoco</jacoco.reportFolder>
+        <jacoco.utReportFile>${jacoco.reportFolder}/test.exec</jacoco.utReportFile>
+        <spotbugs.reportFolder>${project.build.directory}/site/spotbugs</spotbugs.reportFolder>
     </properties>
 
     <dependencies>
@@ -120,6 +134,33 @@
             <version>${org.keycloak.version}</version>
             <scope>provided</scope>
         </dependency>
+
+        <!-- Testing -->
+        <!-- https://mvnrepository.com/artifact/org.keycloak/keycloak-test-helper -->
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-test-helper</artifactId>
+            <version>${org.keycloak.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${version.org.junit.jupiter}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-all</artifactId>
+            <version>${version.org.mockito.mockito-all}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>${version.org.mockito.mockito-junit-jupiter}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -133,58 +174,130 @@
                 </excludes>
             </resource>
         </resources>
+        <plugins>
+            <!-- copy project dependencies -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>micronaut-lib</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <includeScope>runtime</includeScope>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <silent>true</silent>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addClasspath>true</addClasspath>
+                            <classpathPrefix>lib/</classpathPrefix>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!-- Uncomment to enable incremental compilation -->
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${version.org.projectlombok}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.0.0-M3</version>
+                <configuration>
+                    <argLine>@{argLine} --add-opens java.base/java.lang=ALL-UNNAMED</argLine>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.eluder.coveralls</groupId>
+                <artifactId>coveralls-maven-plugin</artifactId>
+                <version>${version.org.eluder.coveralls.maven-plugin}</version>
+                <configuration>
+                    <repoToken>${coveralls.token}</repoToken>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${version.org.jacoco.maven-plugin}</version>
+                <configuration>
+                    <!-- exclude empty implementations -->
+                    <excludes>
+                        <exclude>org/fiware/keycloak/SIOP2ClientModel.java</exclude>
+                        <exclude>org/fiware/keycloak/SIOP2ClientRegistrationContext.java</exclude>
+                        <exclude>org/fiware/keycloak/SIOP2ClientRegistrationProviderFactory.java</exclude>
+                        <exclude>org/fiware/keycloak/SIOP2LoginProtocol.java</exclude>
+                        <exclude>org/fiware/keycloak/SIOP2LoginProtocolFactory.java</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>pre-unit-tests</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                        <configuration>
+                            <!-- Sets the path to the file which contains the execution data. -->
+                            <destFile>${jacoco.utReportFile}</destFile>
+                        </configuration>
+                    </execution>
+                    <!-- Ensures that the code coverage report for unit tests is created after unit tests have been run -->
+                    <execution>
+                        <id>post-unit-test</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                        <configuration>
+                            <dataFile>${jacoco.utReportFile}</dataFile>
+                            <outputDirectory>${jacoco.reportFolder}</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>${version.com.github.spotbugs.maven-plugin}</version>
+                <configuration>
+                    <xmlOutput>true</xmlOutput>
+                    <failOnError>false</failOnError>
+                    <xmlOutputDirectory>${spotbugs.reportFolder}</xmlOutputDirectory>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-site-plugin</artifactId>
+                <version>${version.org.apache.maven.plugins.maven-site-plugin}</version>
+            </plugin>
+        </plugins>
     </build>
     <profiles>
         <profile>
             <id>test</id>
             <build>
                 <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-compiler-plugin</artifactId>
-                        <configuration>
-                            <!-- Uncomment to enable incremental compilation -->
-                            <!-- <useIncrementalCompilation>false</useIncrementalCompilation> -->
-                            <annotationProcessorPaths>
-                                <path>
-                                    <groupId>org.projectlombok</groupId>
-                                    <artifactId>lombok</artifactId>
-                                    <version>${version.org.projectlombok}</version>
-                                </path>
-                            </annotationProcessorPaths>
-                        </configuration>
-                    </plugin>
-                    <!-- copy project dependencies -->
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-dependency-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>micronaut-lib</id>
-                                <phase>prepare-package</phase>
-                                <goals>
-                                    <goal>copy-dependencies</goal>
-                                </goals>
-                                <configuration>
-                                    <includeScope>runtime</includeScope>
-                                    <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                                    <silent>true</silent>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-jar-plugin</artifactId>
-                        <configuration>
-                            <archive>
-                                <manifest>
-                                    <addClasspath>true</addClasspath>
-                                    <classpathPrefix>lib/</classpathPrefix>
-                                </manifest>
-                            </archive>
-                        </configuration>
-                    </plugin>
+
                     <!-- run tests -->
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>

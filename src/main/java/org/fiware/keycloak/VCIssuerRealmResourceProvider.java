@@ -1,48 +1,27 @@
 package org.fiware.keycloak;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.zxing.BarcodeFormat;
-import com.google.zxing.WriterException;
-import com.google.zxing.client.j2se.MatrixToImageWriter;
-import com.google.zxing.common.BitMatrix;
-import com.google.zxing.qrcode.QRCodeWriter;
-import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
-import com.google.zxing.qrcode.encoder.ByteMatrix;
-import com.google.zxing.qrcode.encoder.Encoder;
-import com.google.zxing.qrcode.encoder.QRCode;
-import liquibase.pro.packaged.G;
-import org.apache.http.HttpStatus;
 import org.fiware.keycloak.model.Role;
 import org.fiware.keycloak.model.VCClaims;
 import org.fiware.keycloak.model.VCConfig;
 import org.fiware.keycloak.model.VCData;
 import org.fiware.keycloak.model.VCRequest;
 import org.jboss.logging.Logger;
-import org.jetbrains.annotations.NotNull;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RoleModel;
-import org.keycloak.models.TokenManager;
 import org.keycloak.models.UserModel;
 import org.keycloak.services.ErrorResponseException;
 import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.resource.RealmResourceProvider;
 
+import javax.validation.constraints.NotNull;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.awt.image.BufferedImage;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.ZoneId;
@@ -54,25 +33,31 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Real-Resource to provide functionality for issuing VerfiableCredentials to users, depending on there roles in
+ * registered SIOP-2 clients
+ */
 public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	private static final Logger LOGGER = Logger.getLogger(VCIssuerRealmResourceProvider.class);
 	private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_DATE_TIME
 			.withZone(ZoneId.of(ZoneOffset.UTC.getId()));
+	public static final String LD_PROOF_TYPE = "LD_PROOF";
 
 	private final KeycloakSession session;
 	private final String issuerDid;
-	private final String waltidAddress;
-	private final ObjectMapper objectMapper;
+	private final AppAuthManager.BearerTokenAuthenticator bearerTokenAuthenticator;
+	private final WaltIdClient waltIdClient;
 
-	public VCIssuerRealmResourceProvider(KeycloakSession session, String issuerDid, String waltidAddress,
-			ObjectMapper objectMapper) {
+	public VCIssuerRealmResourceProvider(KeycloakSession session, String issuerDid, WaltIdClient waltIdClient,
+			AppAuthManager.BearerTokenAuthenticator authenticator) {
 		this.session = session;
 		this.issuerDid = issuerDid;
-		this.waltidAddress = waltidAddress;
-		this.objectMapper = objectMapper;
+		this.waltIdClient = waltIdClient;
+		this.bearerTokenAuthenticator = authenticator;
 	}
 
 	@Override
@@ -82,138 +67,117 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	@Override
 	public void close() {
+		// no specific resources to close.
 	}
 
+	/**
+	 * Returns a list of types supported by this realm-resource. Will evaluate all registered SIOP-2 clients and return
+	 * there supported types. A user can request credentials for all of them.
+	 *
+	 * @return the list of supported VC-Types by this realm.
+	 */
 	@GET
 	@Path("types")
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getTypes() {
-		AppAuthManager.BearerTokenAuthenticator bearerTokenAuthenticator = new AppAuthManager.BearerTokenAuthenticator(
-				session);
-		LOGGER.debugf("Context %s", session.getContext().getRealm());
+	public List<String> getTypes() {
 		AuthenticationManager.AuthResult authResult = bearerTokenAuthenticator.authenticate();
 		if (authResult == null) {
-			return Response.status(Response.Status.UNAUTHORIZED).build();
+			throw new ErrorResponseException("unauthorized", "Types is only available to authorized users.",
+					Response.Status.UNAUTHORIZED);
 		}
 		UserModel userModel = authResult.getUser();
-		LOGGER.infof("User is %s", userModel.getId());
+		LOGGER.debugf("User is %s", userModel.getId());
 
-		List<String> supportedTypes = List.copyOf(getClientModelsFromSession().stream()
-				.peek(clientModel -> LOGGER.infof("The client %s", clientModel.getClientId()))
+		return List.copyOf(getClientModelsFromSession().stream()
 				.map(ClientModel::getAttributes)
 				.filter(Objects::nonNull)
-				.peek(attrs -> LOGGER.infof("The attrs %s", attrs))
-				.map(attrs -> attrs.get(VCClientRegistrationProvider.SUPPORTED_VC_TYPES))
+				.map(attrs -> attrs.get(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES))
 				.filter(Objects::nonNull)
 				.flatMap(vcTypes -> Arrays.stream(vcTypes.split(",")))
-				.peek(type -> LOGGER.infof("The type %s", type))
-				// to set removes duplicates
+				// collect to a set to remove duplicates
 				.collect(Collectors.toSet()));
-		return Response.status(200).entity(supportedTypes).build();
+
 	}
 
+	/**
+	 * Returns a verifiable credential of the given type, containing the information and roles assigned to the
+	 * authenticated user.
+	 * In order to support the often used retrieval method by wallets, the token can also be provided as a
+	 * query-parameter. If the parameter is empty, the token is taken from the authorization-header.
+	 *
+	 * @param vcType type of the VerifiableCredential to be returend.
+	 * @param token  optional JWT to be used instead of retrieving it from the header.
+	 * @return the vc.
+	 */
 	@GET
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getVC(@QueryParam("type") String vcType, @QueryParam("token") String token) {
-		LOGGER.infof("Get %s", token);
+	public String getVC(@QueryParam("type") String vcType, @QueryParam("token") String token) {
+		LOGGER.debugf("Get a VC of type %s. Token parameter is %s.", vcType, token);
 
-		if (vcType == null || vcType.isEmpty()) {
-			return Response.status(Response.Status.BAD_REQUEST).build();
-		}
+		UserModel userModel = getUserFromSession(Optional.ofNullable(token));
 
-		AppAuthManager.BearerTokenAuthenticator bearerTokenAuthenticator = new AppAuthManager.BearerTokenAuthenticator(
-				session);
+		List<ClientModel> clients = getClientsOfType(vcType);
 
-		LOGGER.infof("Context %s", session.getContext().getRealm());
-		if(token != null && !token.isEmpty()) {
-			bearerTokenAuthenticator.setTokenString(token);
-		} else {
-			//if no token is provided, the one from the auth-header will be taken.
-		}
-		AuthenticationManager.AuthResult authResult = bearerTokenAuthenticator.authenticate();
-		if (authResult == null) {
-			return Response.status(Response.Status.UNAUTHORIZED).build();
-		}
-		UserModel userModel = authResult.getUser();
-		LOGGER.infof("User is %s", userModel.getId());
-
-		List<ClientModel> vcClients = getClientModelsFromSession().stream()
-				.filter(clientModel -> clientModel.getAttributes().get(VCClientRegistrationProvider.SUPPORTED_VC_TYPES)
-						.contains(vcType))
-				.collect(Collectors.toList());
-
-		Optional<Long> optionalMinExpiry = vcClients.stream()
-				.map(clientModel -> clientModel.getAttributes().get(VCClientRegistrationProvider.EXPIRY_IN_MIN))
+		// get the smallest expiry, to not generate VCs with to long lifetimes.
+		Optional<Long> optionalMinExpiry = clients.stream()
+				.map(ClientModel::getAttributes)
+				.filter(Objects::nonNull)
+				.map(attributes -> attributes.get(SIOP2ClientRegistrationProvider.EXPIRY_IN_MIN))
 				.filter(Objects::nonNull)
 				.map(Long::parseLong)
 				.sorted()
 				.findFirst();
+		optionalMinExpiry.ifPresentOrElse(
+				minExpiry -> LOGGER.debugf("The min expiry is %s.", minExpiry),
+				() -> LOGGER.debugf("No min-expiry found. VC will not expire."));
+
+		List<Role> roles = clients.stream().map(this::toRolesClaim).collect(Collectors.toList());
+
+		VCRequest vcRequest = getVCRequest(vcType, userModel, clients, roles, optionalMinExpiry);
+
+		return waltIdClient.getVCFromWaltId(vcRequest);
+	}
+
+	@NotNull
+	private List<ClientModel> getClientsOfType(String vcType) {
+		LOGGER.debugf("Retrieve all clients of type %s", vcType);
+		Optional.ofNullable(vcType).filter(type -> !type.isEmpty()).orElseThrow(() ->
+				new ErrorResponseException("no_type_provided",
+						"No VerifiableCredential-Type was provided in the request.",
+						Response.Status.BAD_REQUEST));
+
+		List<ClientModel> vcClients = getClientModelsFromSession().stream()
+				.filter(clientModel -> Optional.ofNullable(clientModel.getAttributes())
+						.map(attributes -> attributes.get(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES))
+						.filter(Objects::nonNull)
+						.map(types -> types.contains(vcType))
+						.orElse(false))
+				.collect(Collectors.toList());
 
 		if (vcClients.isEmpty()) {
-			LOGGER.infof("No VCClients supporting type %s registered.", vcType);
-			return Response.status(404).build();
+			LOGGER.debugf("No SIOP-2-Client supporting type %s registered.", vcType);
+			throw new ErrorResponseException("not_found",
+					String.format("No SIOP-2-Client supporting the requested type %s is registered.", vcType),
+					Response.Status.NOT_FOUND);
 		}
+		return vcClients;
+	}
 
-		List<Role> roles = vcClients.stream().map(this::toRolesClaim).collect(Collectors.toList());
+	@NotNull
+	private UserModel getUserFromSession(Optional<String> optionalToken) {
+		LOGGER.debugf("Extract user form session. Realm in context is %s", session.getContext().getRealm());
+		// set the token in the context if its specifically provide. If empty, the authorization header will
+		// automatically be evaluated
+		optionalToken.ifPresent(bearerTokenAuthenticator::setTokenString);
 
-		VCClaims vcClaims = VCClaims.builder()
-				.email(userModel.getEmail())
-				.familyName(userModel.getLastName())
-				.firstName(userModel.getFirstName())
-				.roles(roles)
-				.build();
-
-		vcClaims.setAdditionalClaims(vcClients.stream()
-				.flatMap(clientModel -> clientModel.getAttributes().entrySet().stream())
-				// only include the claims explicitly intended for vc
-				.filter(entry -> entry.getKey().startsWith(VCClientRegistrationProvider.VC_CLAIMS_PREFIX))
-				.collect(
-						Collectors.toMap(
-								// remove the prefix before sending it
-								e -> e.getKey().replaceFirst(VCClientRegistrationProvider.VC_CLAIMS_PREFIX, ""),
-								// value is taken untouched if its unique
-								Map.Entry::getValue,
-								// if multiple values for the same key exist, we add them comma separated.
-								// this needs to be improved, once more requirements are known.
-								(e1, e2) -> {
-									if (e1.equals(e2) || e1.contains(e2)) {
-										return e1;
-									} else {
-										return String.format("%s,%s", e1, e2);
-									}
-								}
-						)));
-
-		VCConfig vcConfig = VCConfig.builder()
-				.issuerDid(issuerDid)
-				// TODO: check if it needs to be configurable
-				.proofType("LD_PROOF")
-				.build();
-		optionalMinExpiry
-				.map(minExpiry -> Clock.systemUTC()
-						.instant()
-						.plus(Duration.of(minExpiry, ChronoUnit.MINUTES)))
-				.map(FORMATTER::format)
-				.ifPresent(vcConfig::setExpirationDate);
-		VCRequest vcRequest = VCRequest.builder().templateId(vcType)
-				.config(vcConfig)
-				.credentialData(VCData.builder()
-						.credentialSubject(vcClaims)
-						.build())
-				.build();
-		try {
-			HttpResponse<String> response = HttpClient.newHttpClient()
-					.send(
-							HttpRequest.newBuilder()
-									.POST(HttpRequest.BodyPublishers.ofString(
-											objectMapper.writeValueAsString(vcRequest)))
-									.uri(URI.create(waltidAddress))
-									.build(), HttpResponse.BodyHandlers.ofString());
-			return Response.ok(response.body()).build();
-		} catch (IOException | InterruptedException e) {
-			LOGGER.error("Was not able to request walt.", e);
-			return Response.status(Response.Status.BAD_GATEWAY).build();
+		AuthenticationManager.AuthResult authResult = bearerTokenAuthenticator.authenticate();
+		if (authResult == null) {
+			throw new ErrorResponseException("unauthorized", "No user found in the session.",
+					Response.Status.UNAUTHORIZED);
 		}
+		UserModel userModel = authResult.getUser();
+		LOGGER.debugf("Authorized user is %s", userModel.getId());
+		return userModel;
 	}
 
 	@NotNull
@@ -224,8 +188,77 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.collect(Collectors.toList());
 	}
 
+	@NotNull
 	private Role toRolesClaim(ClientModel cm) {
-		List<String> roleNames = cm.getRolesStream().map(RoleModel::getName).collect(Collectors.toList());
-		return Role.builder().names(roleNames).target(cm.getClientId()).build();
+		List<String> roleNames = cm.getRolesStream()
+				.map(RoleModel::getName)
+				.collect(Collectors.toList());
+		return new Role(roleNames, cm.getClientId());
+	}
+
+	@NotNull
+	private VCRequest getVCRequest(String vcType, UserModel userModel, List<ClientModel> clients, List<Role> roles,
+			Optional<Long> optionalMinExpiry) {
+		// only include non-null & non-empty claims
+		var claimsBuilder = VCClaims.builder();
+		Optional.ofNullable(userModel.getEmail()).filter(email -> !email.isEmpty()).ifPresent(claimsBuilder::email);
+		Optional.ofNullable(userModel.getFirstName()).filter(firstName -> !firstName.isEmpty())
+				.ifPresent(claimsBuilder::firstName);
+		Optional.ofNullable(userModel.getLastName()).filter(lastName -> !lastName.isEmpty())
+				.ifPresent(claimsBuilder::familyName);
+		Optional.ofNullable(roles).filter(rolesList -> !rolesList.isEmpty()).ifPresent(claimsBuilder::roles);
+		getAdditionalClaims(clients).ifPresent(claimsBuilder::additionalClaims);
+		VCClaims vcClaims = claimsBuilder.build();
+
+		var vcConfigBuilder = VCConfig.builder();
+		vcConfigBuilder.issuerDid(issuerDid)
+				.proofType(LD_PROOF_TYPE);
+		optionalMinExpiry
+				.map(minExpiry -> Clock.systemUTC()
+						.instant()
+						.plus(Duration.of(minExpiry, ChronoUnit.MINUTES)))
+				.map(FORMATTER::format)
+				.ifPresent(vcConfigBuilder::expirationDate);
+		VCConfig vcConfig = vcConfigBuilder.build();
+
+		return VCRequest.builder().templateId(vcType)
+				.config(vcConfig)
+				.credentialData(VCData.builder()
+						.credentialSubject(vcClaims)
+						.build())
+				.build();
+	}
+
+	@NotNull
+	private Optional<Map<String, String>> getAdditionalClaims(List<ClientModel> clients) {
+		Map<String, String> additionalClaims = clients.stream()
+				.map(ClientModel::getAttributes)
+				.filter(Objects::nonNull)
+				.map(Map::entrySet)
+				.flatMap(Set::stream)
+				// only include the claims explicitly intended for vc
+				.filter(entry -> entry.getKey().startsWith(SIOP2ClientRegistrationProvider.VC_CLAIMS_PREFIX))
+				.collect(
+						Collectors.toMap(
+								// remove the prefix before sending it
+								entry -> entry.getKey()
+										.replaceFirst(SIOP2ClientRegistrationProvider.VC_CLAIMS_PREFIX, ""),
+								// value is taken untouched if its unique
+								Map.Entry::getValue,
+								// if multiple values for the same key exist, we add them comma separated.
+								// this needs to be improved, once more requirements are known.
+								(entry1, entry2) -> {
+									if (entry1.equals(entry2) || entry1.contains(entry2)) {
+										return entry1;
+									} else {
+										return String.format("%s,%s", entry1, entry2);
+									}
+								}
+						));
+		if (additionalClaims.isEmpty()) {
+			return Optional.empty();
+		} else {
+			return Optional.ofNullable(additionalClaims);
+		}
 	}
 }

@@ -68,10 +68,10 @@ jobs:
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          repo_token: "${{ secrets.TOKEN }}"
           automatic_release_tag: ${{ needs.generate-version.outputs.version }}
           prerelease: true
           title: ${{ needs.generate-version.outputs.version }}
           files: |
-            target/vc-issuer-{{ needs.generate-version.outputs.version }}.jar
+            target/vc-issuer-${{ needs.generate-version.outputs.version }}.jar
             LICENSE
