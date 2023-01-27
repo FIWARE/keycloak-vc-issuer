@@ -19,6 +19,7 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -100,8 +101,8 @@ public class SIOP2ClientRegistrationProvider extends AbstractClientRegistrationP
 		ClientRepresentation clientRepresentation = new ClientRepresentation();
 		// protocol needs to be SIOP-2
 		clientRepresentation.setProtocol(SIOP2LoginProtocolFactory.PROTOCOL_ID);
-		// id and clientId can be equal, already validated to be non-null
-		clientRepresentation.setId(siop2Client.getClientDid());
+		// id and clientId cannot be equal since did's might be to long, already validated to be non-null
+		clientRepresentation.setId(UUID.randomUUID().toString());
 		clientRepresentation.setClientId(siop2Client.getClientDid());
 		// only add non-null parameters
 		Optional.ofNullable(siop2Client.getDescription()).ifPresent(clientRepresentation::setDescription);

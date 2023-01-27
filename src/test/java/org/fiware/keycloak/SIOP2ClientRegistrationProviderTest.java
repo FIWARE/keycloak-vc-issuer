@@ -53,26 +53,26 @@ public class SIOP2ClientRegistrationProviderTest {
 
 	private static Stream<Arguments> provideSIOP2Clients() {
 		return Stream.of(
-				Arguments.of(SIOP2Client.builder().clientDid("did:test:did").build(),
+				Arguments.of(
+						new SIOP2Client("did:test:did", null, null, null, null, null),
 						new ExpectedResult(getClientRepresentation("did:test:did"),
 								"A valid client should have been created.")),
-				Arguments.of(SIOP2Client.builder().clientDid("did:test:did").description("my desc").build(),
+				Arguments.of(
+						new SIOP2Client("did:test:did", null, "my desc", null, null, null),
 						new ExpectedResult(getClientRepresentation("did:test:did", null, "my desc", null),
 								"A valid client should have been created.")),
 				Arguments.of(
-						SIOP2Client.builder().clientDid("did:test:did").name("my name").description("my desc").build(),
+						new SIOP2Client("did:test:did", null, "my desc", "my name", null, null),
 						new ExpectedResult(getClientRepresentation("did:test:did", "my name", "my desc", null),
 								"A valid client should have been created.")),
-				Arguments.of(SIOP2Client.builder().clientDid("did:test:did")
-								.supportedVCTypes("PacketDeliveryService,SomethingFancy").build(),
+				Arguments.of(
+						new SIOP2Client("did:test:did", "PacketDeliveryService,SomethingFancy", null, null, null, null),
 						new ExpectedResult(getClientRepresentation("did:test:did", null, null,
 								Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES,
 										"PacketDeliveryService,SomethingFancy")),
 								"A valid client should have been created.")),
-				Arguments.of(SIOP2Client.builder().clientDid("did:test:did")
-								.supportedVCTypes("PacketDeliveryService,SomethingFancy")
-								.additionalClaims(Map.of("additional", "claim", "another", "one"))
-								.build(),
+				Arguments.of(new SIOP2Client("did:test:did", "PacketDeliveryService,SomethingFancy", null, null, null,
+								Map.of("additional", "claim", "another", "one")),
 						new ExpectedResult(getClientRepresentation("did:test:did", null, null,
 								Map.of(
 										"vc_another", "one",
@@ -80,11 +80,9 @@ public class SIOP2ClientRegistrationProviderTest {
 										SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES,
 										"PacketDeliveryService,SomethingFancy")),
 								"A valid client should have been created.")),
-				Arguments.of(SIOP2Client.builder().clientDid("did:test:did")
-								.supportedVCTypes("PacketDeliveryService,SomethingFancy")
-								.expiryInMin(1000l)
-								.additionalClaims(Map.of("additional", "claim", "another", "one"))
-								.build(),
+				Arguments.of(new SIOP2Client("did:test:did", "PacketDeliveryService,SomethingFancy", null, null,
+								1000l,
+								Map.of("additional", "claim", "another", "one")),
 						new ExpectedResult(getClientRepresentation("did:test:did", null, null,
 								Map.of(
 										"vc_another", "one",
@@ -132,6 +130,10 @@ public class SIOP2ClientRegistrationProviderTest {
 		Optional<Field> notEqualsField = Arrays.stream(ClientRepresentation.class.getDeclaredFields())
 				.peek(field -> field.setAccessible(true))
 				.filter(field -> {
+					if (field.getName() == "id") {
+						// ignore the id, since it's a random uuid
+						return false;
+					}
 					try {
 						var v1 = field.get(c1);
 						var v2 = field.get(c2);
@@ -152,6 +154,5 @@ public class SIOP2ClientRegistrationProviderTest {
 		}
 		return null;
 	}
-
 
 }
