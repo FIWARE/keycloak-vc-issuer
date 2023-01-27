@@ -15,10 +15,11 @@ import org.keycloak.representations.idm.ClientRepresentation;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
- * This factory is required to get the capability of creating {@link VCClientModel} using the SIOP-2 protocol.
+ * This factory is required to get the capability of creating {@link SIOP2ClientModel} using the SIOP-2 protocol.
  * Clients cannot be created without a matching protocol. We do not support logging into keycloak with it, nor any other
  * "native" functionality, thus we don't implement anything beside the
  */
@@ -37,16 +38,14 @@ public class SIOP2LoginProtocolFactory implements LoginProtocolFactory {
 	}
 
 	@Override public void createDefaultClientScopes(RealmModel newRealm, boolean addScopesToExistingClients) {
+		// no default scopes required
 	}
 
 	@Override public void setupClientDefaults(ClientRepresentation rep, ClientModel newClient) {
 
-		LOGGER.info("Set defaults");
+		LOGGER.debug("No default, but we use the hook to validate the representation.");
 		// validate before setting the defaults
-		VCClientRegistrationProvider.validate(rep);
-		newClient.setAttribute(VCClientRegistrationProvider.SUPPORTED_VC_TYPES, Optional.ofNullable(rep.getAttributes())
-				.map(attrs -> attrs.get(VCClientRegistrationProvider.SUPPORTED_VC_TYPES))
-				.orElse("VerifiableCredential"));
+		SIOP2ClientRegistrationProvider.validate(rep);
 	}
 
 	@Override public LoginProtocol create(KeycloakSession session) {
@@ -54,14 +53,15 @@ public class SIOP2LoginProtocolFactory implements LoginProtocolFactory {
 	}
 
 	@Override public void init(Config.Scope config) {
+		// no config required
 	}
 
 	@Override public void postInit(KeycloakSessionFactory factory) {
-
+		// nothing to do.
 	}
 
 	@Override public void close() {
-
+		// nothing to close.
 	}
 
 	@Override public String getId() {

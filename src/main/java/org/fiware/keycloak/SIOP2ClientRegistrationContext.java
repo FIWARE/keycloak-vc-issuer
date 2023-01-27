@@ -5,9 +5,12 @@ import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.services.clientregistration.AbstractClientRegistrationContext;
 import org.keycloak.services.clientregistration.ClientRegistrationProvider;
 
-public class VCClientRegistrationContext extends AbstractClientRegistrationContext {
+/**
+ * Empty registration context to fulfill client-registration integration.
+ */
+public class SIOP2ClientRegistrationContext extends AbstractClientRegistrationContext {
 
-	public VCClientRegistrationContext(KeycloakSession session,
+	public SIOP2ClientRegistrationContext(KeycloakSession session,
 			ClientRepresentation client,
 			ClientRegistrationProvider provider) {
 		super(session, client, provider);
