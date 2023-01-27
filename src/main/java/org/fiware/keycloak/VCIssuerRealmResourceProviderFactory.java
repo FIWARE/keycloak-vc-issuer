@@ -6,6 +6,7 @@ import org.jboss.logging.Logger;
 import org.keycloak.Config;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
+import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.resource.RealmResourceProvider;
 import org.keycloak.services.resource.RealmResourceProviderFactory;
 
@@ -27,7 +28,12 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 	@Override
 	public RealmResourceProvider create(KeycloakSession keycloakSession) {
 		LOGGER.debug("Create vc-issuer resource provider");
-		return new VCIssuerRealmResourceProvider(keycloakSession, issuerDid, waltidURL, OBJECT_MAPPER);
+		return new VCIssuerRealmResourceProvider(
+				keycloakSession,
+				issuerDid,
+				new WaltIdClient(waltidURL, OBJECT_MAPPER),
+				new AppAuthManager.BearerTokenAuthenticator(
+						keycloakSession));
 	}
 
 	@Override
@@ -35,7 +41,8 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 		// read the issuer did and the address of walt from the realm resource.
 		issuerDid = System.getenv("VCISSUER_ISSUER_DID");
 		waltidURL = URI.create(System.getenv("VCISSUER_WALTID_ADDRESS"));
-		LOGGER.infof("VCIssuerRealmResourceProviderFactory configured with issuerDID %s and walt-id %s.", issuerDid, waltidURL);
+		LOGGER.infof("VCIssuerRealmResourceProviderFactory configured with issuerDID %s and walt-id %s.", issuerDid,
+				waltidURL);
 	}
 
 	@Override

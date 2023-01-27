@@ -1,5 +1,6 @@
 package org.fiware.keycloak;
 
+import lombok.Builder;
 import lombok.Data;
 
 import java.util.Map;
@@ -8,6 +9,7 @@ import java.util.Map;
  * Pojo, containing all information required to create a VCClient.
  */
 @Data
+@Builder
 public class SIOP2Client {
 
 	/**

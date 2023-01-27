@@ -1,7 +1,5 @@
 package org.fiware.keycloak;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.fiware.keycloak.model.Role;
 import org.fiware.keycloak.model.VCClaims;
 import org.fiware.keycloak.model.VCConfig;
@@ -24,11 +22,6 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.ZoneId;
@@ -53,20 +46,18 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_DATE_TIME
 			.withZone(ZoneId.of(ZoneOffset.UTC.getId()));
 	public static final String LD_PROOF_TYPE = "LD_PROOF";
-	public static final String FAILED_VC_REQUEST_ERROR = "failed_vc_request";
 
 	private final KeycloakSession session;
 	private final String issuerDid;
-	// address of waltid, used to create the actual vc.
-	private final URI waltIdAddress;
-	private final ObjectMapper objectMapper;
+	private final AppAuthManager.BearerTokenAuthenticator bearerTokenAuthenticator;
+	private final WaltIdClient waltIdClient;
 
-	public VCIssuerRealmResourceProvider(KeycloakSession session, String issuerDid, URI waltIdAddress,
-			ObjectMapper objectMapper) {
+	public VCIssuerRealmResourceProvider(KeycloakSession session, String issuerDid, WaltIdClient waltIdClient,
+			AppAuthManager.BearerTokenAuthenticator authenticator) {
 		this.session = session;
 		this.issuerDid = issuerDid;
-		this.waltIdAddress = waltIdAddress;
-		this.objectMapper = objectMapper;
+		this.waltIdClient = waltIdClient;
+		this.bearerTokenAuthenticator = authenticator;
 	}
 
 	@Override
@@ -88,18 +79,16 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	@GET
 	@Path("types")
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getTypes() {
-		AppAuthManager.BearerTokenAuthenticator bearerTokenAuthenticator = new AppAuthManager.BearerTokenAuthenticator(
-				session);
-		LOGGER.debugf("Context %s", session.getContext().getRealm());
+	public List<String> getTypes() {
 		AuthenticationManager.AuthResult authResult = bearerTokenAuthenticator.authenticate();
 		if (authResult == null) {
-			return Response.status(Response.Status.UNAUTHORIZED).build();
+			throw new ErrorResponseException("unauthorized", "Types is only available to authorized users.",
+					Response.Status.UNAUTHORIZED);
 		}
 		UserModel userModel = authResult.getUser();
-		LOGGER.infof("User is %s", userModel.getId());
+		LOGGER.debugf("User is %s", userModel.getId());
 
-		List<String> supportedTypes = List.copyOf(getClientModelsFromSession().stream()
+		return List.copyOf(getClientModelsFromSession().stream()
 				.map(ClientModel::getAttributes)
 				.filter(Objects::nonNull)
 				.map(attrs -> attrs.get(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES))
@@ -107,7 +96,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.flatMap(vcTypes -> Arrays.stream(vcTypes.split(",")))
 				// collect to a set to remove duplicates
 				.collect(Collectors.toSet()));
-		return Response.status(200).entity(supportedTypes).build();
+
 	}
 
 	/**
@@ -122,7 +111,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	 */
 	@GET
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getVC(@QueryParam("type") String vcType, @QueryParam("token") String token) {
+	public String getVC(@QueryParam("type") String vcType, @QueryParam("token") String token) {
 		LOGGER.debugf("Get a VC of type %s. Token parameter is %s.", vcType, token);
 
 		UserModel userModel = getUserFromSession(Optional.ofNullable(token));
@@ -146,51 +135,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		VCRequest vcRequest = getVCRequest(vcType, userModel, clients, roles, optionalMinExpiry);
 
-		return Response.ok(getVCFromWaltId(vcRequest)).build();
-	}
-
-	@NotNull
-	private <T> String asJsonString(T javaObject) {
-		try {
-			return objectMapper.writeValueAsString(javaObject);
-		} catch (JsonProcessingException e) {
-			throw new ErrorResponseException("json_serialization_error", "Was not able to serialize object to json.",
-					Response.Status.INTERNAL_SERVER_ERROR);
-		}
-	}
-
-	@NotNull
-	private String getVCFromWaltId(VCRequest vcRequest) {
-
-		String jsonRepresentation = asJsonString(vcRequest);
-		HttpResponse<String> response = null;
-		try {
-			response = HttpClient
-					.newHttpClient()
-					.send(
-							HttpRequest.newBuilder()
-									.POST(HttpRequest.BodyPublishers.ofString(
-											jsonRepresentation))
-									.uri(waltIdAddress)
-									.build(), HttpResponse.BodyHandlers.ofString());
-		} catch (IOException | InterruptedException e) {
-			LOGGER.warn("Was not able to request walt.", e);
-			Thread.currentThread().interrupt();
-			throw new ErrorResponseException(FAILED_VC_REQUEST_ERROR, "Was not able to request a VC at walt-id.",
-					Response.Status.BAD_GATEWAY);
-		}
-		if (response == null) {
-			LOGGER.warn("Failed to get a response from walt-id.");
-			throw new ErrorResponseException(FAILED_VC_REQUEST_ERROR, "Was not able to request a VC at walt-id.",
-					Response.Status.INTERNAL_SERVER_ERROR);
-		}
-		if (response.statusCode() != Response.Status.OK.getStatusCode()) {
-			LOGGER.warnf("Was not able to retrieve vc from walt-id. Response was %s: %s", response.statusCode(),
-					response.body());
-			throw new ErrorResponseException(FAILED_VC_REQUEST_ERROR, "Was not able to request a VC at walt-id.",
-					Response.Status.BAD_GATEWAY);
-		}
-		return response.body();
+		return waltIdClient.getVCFromWaltId(vcRequest);
 	}
 
 	@NotNull
@@ -202,9 +147,11 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 						Response.Status.BAD_REQUEST));
 
 		List<ClientModel> vcClients = getClientModelsFromSession().stream()
-				.filter(clientModel -> clientModel.getAttributes()
-						.get(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES)
-						.contains(vcType))
+				.filter(clientModel -> Optional.ofNullable(clientModel.getAttributes())
+						.map(attributes -> attributes.get(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES))
+						.filter(Objects::nonNull)
+						.map(types -> types.contains(vcType))
+						.orElse(false))
 				.collect(Collectors.toList());
 
 		if (vcClients.isEmpty()) {
@@ -219,9 +166,6 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	@NotNull
 	private UserModel getUserFromSession(Optional<String> optionalToken) {
 		LOGGER.debugf("Extract user form session. Realm in context is %s", session.getContext().getRealm());
-		AppAuthManager.BearerTokenAuthenticator bearerTokenAuthenticator = new AppAuthManager.BearerTokenAuthenticator(
-				session);
-
 		// set the token in the context if its specifically provide. If empty, the authorization header will
 		// automatically be evaluated
 		optionalToken.ifPresent(bearerTokenAuthenticator::setTokenString);
@@ -249,7 +193,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		List<String> roleNames = cm.getRolesStream()
 				.map(RoleModel::getName)
 				.collect(Collectors.toList());
-		return Role.builder().names(roleNames).target(cm.getClientId()).build();
+		return new Role(roleNames, cm.getClientId());
 	}
 
 	@NotNull

@@ -96,7 +96,7 @@ public class SIOP2ClientRegistrationProvider extends AbstractClientRegistrationP
 	 * @param siop2Client pojo, containing the SIOP-2 client parameters
 	 * @return a clientrepresentation, fitting keycloaks internal model
 	 */
-	private ClientRepresentation toClientRepresentation(SIOP2Client siop2Client) {
+	protected static ClientRepresentation toClientRepresentation(SIOP2Client siop2Client) {
 		ClientRepresentation clientRepresentation = new ClientRepresentation();
 		// protocol needs to be SIOP-2
 		clientRepresentation.setProtocol(SIOP2LoginProtocolFactory.PROTOCOL_ID);
@@ -107,9 +107,8 @@ public class SIOP2ClientRegistrationProvider extends AbstractClientRegistrationP
 		Optional.ofNullable(siop2Client.getDescription()).ifPresent(clientRepresentation::setDescription);
 		Optional.ofNullable(siop2Client.getName()).ifPresent(clientRepresentation::setName);
 
-		Map<String, String> clientAttributes = new HashMap<>();
 		// add potential additional claims
-		clientAttributes.putAll(prefixClaims(siop2Client.getAdditionalClaims()));
+		Map<String, String> clientAttributes = new HashMap<>(prefixClaims(siop2Client.getAdditionalClaims()));
 
 		// only set expiry if present
 		Optional.ofNullable(siop2Client.getExpiryInMin())
@@ -117,7 +116,9 @@ public class SIOP2ClientRegistrationProvider extends AbstractClientRegistrationP
 		// only set supported VCs if present
 		Optional.ofNullable(siop2Client.getSupportedVCTypes())
 				.ifPresent(vcTypes -> clientAttributes.put(SUPPORTED_VC_TYPES, vcTypes));
-		clientRepresentation.setAttributes(clientAttributes);
+		if (!clientAttributes.isEmpty()) {
+			clientRepresentation.setAttributes(clientAttributes);
+		}
 
 		LOGGER.debugf("Generated client representation %s.", clientRepresentation);
 		return clientRepresentation;
@@ -127,7 +128,7 @@ public class SIOP2ClientRegistrationProvider extends AbstractClientRegistrationP
 	 * Prefix the map of claims, to differentiate them from potential internal once. Only the prefixed claims will be
 	 * used for creating VCs.
 	 */
-	private Map<String, String> prefixClaims(Map<String, String> claimsToPrefix) {
+	private static Map<String, String> prefixClaims(Map<String, String> claimsToPrefix) {
 		if (claimsToPrefix == null) {
 			return Map.of();
 		}
