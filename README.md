@@ -59,3 +59,6 @@ Keycloak will automatically pick-up the provider at start-time. To have the acco
 enabled for the realm:
 
 ![setup-theme](doc/siop-theme.png)
+
+In addition to Keycloak, an installation of [WaltID-SSIKit](https://github.com/walt-id/waltid-ssikit) needs to be provided. 
+Keycloak uses it, to create the actual credentials. It can f.e. be deployed via [Helm-Chart](https://github.com/i4Trust/helm-charts/tree/main/charts/vcwaltid).
