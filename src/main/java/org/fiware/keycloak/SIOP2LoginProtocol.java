@@ -1,6 +1,5 @@
 package org.fiware.keycloak;
 
-import org.jboss.logging.Logger;
 import org.keycloak.events.EventBuilder;
 import org.keycloak.models.AuthenticatedClientSessionModel;
 import org.keycloak.models.ClientSessionContext;
@@ -14,43 +13,36 @@ import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
 
+/**
+ * Empty implementation of the SIOP2LoginProtocl. Its required to be available for integration with the client-registration.
+ * Since we do not support any additional functionality(like logging into Keycloak with SIOP-2), its an empty default
+ * implementation.
+ */
 public class SIOP2LoginProtocol implements LoginProtocol {
 
-	private KeycloakSession session;
-	private RealmModel realm;
-	private UriInfo uriInfo;
-	private HttpHeaders headers;
-	private EventBuilder event;
-
 	public SIOP2LoginProtocol(KeycloakSession session) {
-		this.session = session;
 	}
 
 	@Override public SIOP2LoginProtocol setSession(KeycloakSession session) {
-		this.session = session;
 		return this;
 	}
 
 	@Override public SIOP2LoginProtocol setRealm(RealmModel realm) {
-		this.realm = realm;
 		return this;
 	}
 
 	@Override
 	public SIOP2LoginProtocol setUriInfo(UriInfo uriInfo) {
-		this.uriInfo = uriInfo;
 		return this;
 	}
 
 	@Override
 	public SIOP2LoginProtocol setHttpHeaders(HttpHeaders headers) {
-		this.headers = headers;
 		return this;
 	}
 
 	@Override
 	public SIOP2LoginProtocol setEventBuilder(EventBuilder event) {
-		this.event = event;
 		return this;
 	}
 
@@ -84,6 +76,6 @@ public class SIOP2LoginProtocol implements LoginProtocol {
 	}
 
 	@Override public void close() {
-
+		// nothing to close, just fulfilling the interface.
 	}
 }

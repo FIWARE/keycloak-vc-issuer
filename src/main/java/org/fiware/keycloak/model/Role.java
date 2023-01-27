@@ -1,11 +1,11 @@
 package org.fiware.keycloak.model;
 
-import lombok.Builder;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.util.List;
 
-@Builder
+@AllArgsConstructor
 @Data
 public class Role {
 
