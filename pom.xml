@@ -37,6 +37,9 @@
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
 
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
         <!-- project info -->
         <project.author.name>Stefan Wiedemann</project.author.name>
         <project.author.email>stefan.wiedemann@fiware.org</project.author.email>
