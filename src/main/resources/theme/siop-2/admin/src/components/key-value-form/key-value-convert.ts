@@ -1,0 +1,24 @@
+export type KeyValueType = { key: string; value: string };
+
+export function keyValueToArray(attributeArray: KeyValueType[] = []) {
+  const validAttributes = attributeArray.filter(({ key }) => key !== "");
+  const result: Record<string, string[]> = {};
+
+  for (const { key, value } of validAttributes) {
+    if (key in result) {
+      result[key].push(value);
+    } else {
+      result[key] = [value];
+    }
+  }
+
+  return result;
+}
+
+export function arrayToKeyValue(attributes: Record<string, string[]> = {}) {
+  const result = Object.entries(attributes).flatMap(([key, value]) =>
+    value.map<KeyValueType>((value) => ({ key, value }))
+  );
+
+  return result.concat({ key: "", value: "" });
+}
