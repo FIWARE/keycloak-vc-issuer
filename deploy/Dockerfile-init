@@ -1,8 +1,9 @@
 FROM busybox:1.36.0
 
 ARG PLUGIN_VERSION=0.0.1
+ENV VERSION=${PLUGIN_VERSION}
 ENV TARGET_FOLDER="/keycloak/providers"
 
 ADD target/vc-issuer-${PLUGIN_VERSION}.jar /provider/vc-issuer-${PLUGIN_VERSION}.jar
 
-CMD ["cp", "/provider/vc-issuer-${PLUGIN_VERSION}.jar", "${TARGET_FOLDER}"]
+CMD ["cp", "/provider/vc-issuer-${VERSION}.jar", "${TARGET_FOLDER}"]
