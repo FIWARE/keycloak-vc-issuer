@@ -38,11 +38,16 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 
 	@Override
 	public void init(Config.Scope config) {
-		// read the issuer did and the address of walt from the realm resource.
-		issuerDid = System.getenv("VCISSUER_ISSUER_DID");
-		waltidURL = URI.create(System.getenv("VCISSUER_WALTID_ADDRESS"));
-		LOGGER.infof("VCIssuerRealmResourceProviderFactory configured with issuerDID %s and walt-id %s.", issuerDid,
-				waltidURL);
+		try {
+			// read the issuer did and the address of walt from the realm resource.
+			issuerDid = System.getenv("VCISSUER_ISSUER_DID");
+			waltidURL = URI.create(System.getenv("VCISSUER_WALTID_ADDRESS"));
+			LOGGER.infof("VCIssuerRealmResourceProviderFactory configured with issuerDID %s and walt-id %s.", issuerDid,
+					waltidURL);
+		} catch (RuntimeException e) {
+			LOGGER.warn("Was not able to initialize the VCIssuerRealmResourceProvider. Issuing VCs is not supported.",
+					e);
+		}
 	}
 
 	@Override
