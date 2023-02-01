@@ -8,7 +8,7 @@ on:
       - reopened
       - labeled
       - unlabeled
-      
+
 env:
   REGISTRY: quay.io
   REPOSITORY: fiware
@@ -65,7 +65,7 @@ jobs:
           java-version: '11'
           java-package: jdk
 
-      - name: build jar 
+      - name: Build the jar-file 
         run: |
           mvn versions:set -DnewVersion=${{ needs.generate-version.outputs.version }}
           mvn clean package
