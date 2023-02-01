@@ -5,4 +5,4 @@ ENV TARGET_FOLDER="/keycloak/providers"
 
 ADD target/vc-issuer-${PLUGIN_VERSION}.jar /provider/vc-issuer.jar
 
-CMD ["cp", "/provider/vc-issuer.jar", "${TARGET_FOLDER}"]
+CMD ["cp", "-r", "/provider/vc-issuer.jar", "${TARGET_FOLDER}"]
