@@ -1,0 +1,2 @@
+import{_ as i,j as d,p as t}from"./index.7cbfb18a.js";import{s as o}from"./Card.37028a42.js";const c=s=>{var{children:e=null,className:r="",component:a="div",isFilled:n=!0}=s,l=i(s,["children","className","component","isFilled"]);return d(a,{...Object.assign({className:t(o.cardBody,!n&&o.modifiers.noFill,r)},l),children:e})};c.displayName="CardBody";export{c as C};
+//# sourceMappingURL=CardBody.4fff68f7.js.map
