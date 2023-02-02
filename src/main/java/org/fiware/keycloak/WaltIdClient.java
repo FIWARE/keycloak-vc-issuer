@@ -67,7 +67,7 @@ public class WaltIdClient {
 					Response.Status.INTERNAL_SERVER_ERROR);
 		}
 		if (response.statusCode() != Response.Status.OK.getStatusCode()) {
-			LOGGER.warnf("Was not able to retrieve vc from walt-id. Response was %s: %s", response.statusCode(),
+			LOGGER.warnf("Was not able to retrieve vc from walt-id. Response was {}: {}", response.statusCode(),
 					response.body());
 			throw new ErrorResponseException(FAILED_VC_REQUEST_ERROR, "Was not able to retrieve a VC at walt-id.",
 					Response.Status.BAD_GATEWAY);
