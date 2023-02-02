@@ -137,8 +137,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		String response = waltIdClient.getVCFromWaltId(vcRequest);
 
-
 		LOGGER.debugf("Respond with vc: %s", response);
+		// the typical wallet will request with a CORS header and not accept responses without.
 		return Response.ok().entity(response).header("Access-Control-Allow-Origin", "*").build();
 	}
 

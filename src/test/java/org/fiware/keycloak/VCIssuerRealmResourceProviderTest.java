@@ -156,7 +156,6 @@ public class VCIssuerRealmResourceProviderTest {
 		}
 	}
 
-	@Disabled
 	@ParameterizedTest
 	@MethodSource("provideUserAndClients")
 	public void testGetVC(UserModel userModel, Stream<ClientModel> clientModelStream,
@@ -176,7 +175,7 @@ public class VCIssuerRealmResourceProviderTest {
 		ArgumentCaptor<VCRequest> argument = ArgumentCaptor.forClass(VCRequest.class);
 
 		when(waltIdClient.getVCFromWaltId(argument.capture())).thenReturn("myVC");
-		assertEquals("myVC", testProvider.getVC("MyType", null), "The requested VC should be returned.");
+		assertEquals("myVC", testProvider.getVC("MyType", null).getEntity(), "The requested VC should be returned.");
 
 		assertEquals(expectedResult.getExpectedResult(), argument.getValue(), expectedResult.getMessage());
 	}
