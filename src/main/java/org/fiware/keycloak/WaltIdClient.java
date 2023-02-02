@@ -72,6 +72,7 @@ public class WaltIdClient {
 			throw new ErrorResponseException(FAILED_VC_REQUEST_ERROR, "Was not able to retrieve a VC at walt-id.",
 					Response.Status.BAD_GATEWAY);
 		}
+		LOGGER.debugf("Response: %s - %s", response.headers().toString(), response.body());
 		return response.body();
 	}
 
