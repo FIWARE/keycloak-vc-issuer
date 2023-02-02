@@ -10,8 +10,6 @@ import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.resource.RealmResourceProvider;
 import org.keycloak.services.resource.RealmResourceProviderFactory;
 
-import java.net.URI;
-
 /**
  * Factory implementation to provide the VCIssuer functionality as a realm resource.
  */
@@ -23,7 +21,7 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 	private static final String ID = "verifiable-credential";
 
 	private String issuerDid;
-	private String waltidURL;
+	private String waltIdURL;
 	private int corePort = 7000;
 	private int signatoryPort = 7001;
 
@@ -46,16 +44,16 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 		try {
 
 			// read the address of walt from the realm resource.
-			waltidURL = System.getenv("VCISSUER_WALTID_ADDRESS");
+			waltIdURL = System.getenv("VCISSUER_WALTID_ADDRESS");
 			initializeCorePort();
 			initializeSignatoryPort();
 			LOGGER.infof("VCIssuerRealmResourceProviderFactory configured with issuerDID {} and walt-id {}.", issuerDid,
-					waltidURL);
+					waltIdURL);
 		} catch (RuntimeException e) {
 			LOGGER.warn("Was not able to initialize the VCIssuerRealmResourceProvider. Issuing VCs is not supported.",
 					e);
 		}
-		waltIdClient = new WaltIdClient(waltidURL, corePort, signatoryPort, OBJECT_MAPPER);
+		waltIdClient = new WaltIdClient(waltIdURL, corePort, signatoryPort, OBJECT_MAPPER);
 
 		try {
 			initializeIssuerDid();

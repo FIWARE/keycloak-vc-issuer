@@ -83,7 +83,7 @@ public class WaltIdClient {
 					.send(
 							HttpRequest.newBuilder()
 									.GET()
-									.uri(getCoreGetDidURI())
+									.uri(getCoreGetDidURI(did))
 									.build(), HttpResponse.BodyHandlers.ofString());
 		} catch (IOException | InterruptedException e) {
 			throw new WaltIdConnectException("Was not able to request did from  walt-id.", e);
@@ -118,8 +118,8 @@ public class WaltIdClient {
 		return URI.create(String.format(WALT_ISSUE_VC_PATH, waltIdAddress, waltIdSignatoryPort));
 	}
 
-	private URI getCoreGetDidURI() {
-		return URI.create(String.format(WALT_GET_DID_PATH, waltIdAddress, waltIdCorePort));
+	private URI getCoreGetDidURI(String did) {
+		return URI.create(String.format(WALT_GET_DID_PATH, waltIdAddress, waltIdCorePort, did));
 	}
 
 	private URI getCoreCreateDidURI() {
