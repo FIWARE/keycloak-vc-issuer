@@ -23,15 +23,20 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 	private static final String ID = "verifiable-credential";
 
 	private String issuerDid;
-	private URI waltidURL;
+	private String waltidURL;
+	private int corePort = 7000;
+	private int signatoryPort = 7001;
+
+	private WaltIdClient waltIdClient;
 
 	@Override
 	public RealmResourceProvider create(KeycloakSession keycloakSession) {
 		LOGGER.debug("Create vc-issuer resource provider");
+
 		return new VCIssuerRealmResourceProvider(
 				keycloakSession,
 				issuerDid,
-				new WaltIdClient(waltidURL, OBJECT_MAPPER),
+				waltIdClient,
 				new AppAuthManager.BearerTokenAuthenticator(
 						keycloakSession));
 	}
@@ -39,15 +44,57 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 	@Override
 	public void init(Config.Scope config) {
 		try {
-			// read the issuer did and the address of walt from the realm resource.
-			issuerDid = System.getenv("VCISSUER_ISSUER_DID");
-			waltidURL = URI.create(System.getenv("VCISSUER_WALTID_ADDRESS"));
+
+			// read the address of walt from the realm resource.
+			waltidURL = System.getenv("VCISSUER_WALTID_ADDRESS");
+			initializeCorePort();
+			initializeSignatoryPort();
 			LOGGER.infof("VCIssuerRealmResourceProviderFactory configured with issuerDID %s and walt-id %s.", issuerDid,
 					waltidURL);
 		} catch (RuntimeException e) {
 			LOGGER.warn("Was not able to initialize the VCIssuerRealmResourceProvider. Issuing VCs is not supported.",
 					e);
 		}
+		waltIdClient = new WaltIdClient(waltidURL, corePort, signatoryPort, OBJECT_MAPPER);
+
+		try {
+			initializeIssuerDid();
+		} catch (WaltIdConnectException waltIdConnectException) {
+			LOGGER.warnf("Was not able to initialize the issuer did. Issuing VCs is not available.",
+					waltIdConnectException);
+		}
+
+	}
+
+	private void initializeCorePort() {
+		try {
+			corePort = Integer.valueOf(System.getenv("VCISSUER_WALTID_CORE_PORT"));
+		} catch (RuntimeException e) {
+			LOGGER.infof("No specific core port configured. Will use the default %s.", corePort);
+		}
+	}
+
+	private void initializeSignatoryPort() {
+		try {
+			signatoryPort = Integer.valueOf(System.getenv("VCISSUER_WALTID_SIGNATORY_PORT"));
+		} catch (RuntimeException e) {
+			LOGGER.infof("No specific signatory port configured. Will use the default %s.", signatoryPort);
+		}
+	}
+
+	private void initializeIssuerDid() {
+		try {
+			issuerDid = System.getenv("VCISSUER_ISSUER_DID");
+			validateDid(issuerDid);
+		} catch (NullPointerException e) {
+			LOGGER.info("No issuer did provided, will create one.");
+			issuerDid = waltIdClient.createDid();
+		}
+	}
+
+	private void validateDid(String issuerDid) {
+		waltIdClient.getDidDocument(issuerDid)
+				.orElseThrow(() -> new VCIssuerException("The configured DID does not exist or is not valid."));
 	}
 
 	@Override
