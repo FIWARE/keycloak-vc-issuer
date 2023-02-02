@@ -86,7 +86,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 					Response.Status.UNAUTHORIZED);
 		}
 		UserModel userModel = authResult.getUser();
-		LOGGER.debugf("User is %s", userModel.getId());
+		LOGGER.debugf("User is {}", userModel.getId());
 
 		return List.copyOf(getClientModelsFromSession().stream()
 				.map(ClientModel::getAttributes)
@@ -112,7 +112,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	@GET
 	@Produces(MediaType.APPLICATION_JSON)
 	public String getVC(@QueryParam("type") String vcType, @QueryParam("token") String token) {
-		LOGGER.debugf("Get a VC of type %s. Token parameter is %s.", vcType, token);
+		LOGGER.debugf("Get a VC of type {}. Token parameter is {}.", vcType, token);
 
 		UserModel userModel = getUserFromSession(Optional.ofNullable(token));
 
@@ -128,7 +128,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.sorted()
 				.findFirst();
 		optionalMinExpiry.ifPresentOrElse(
-				minExpiry -> LOGGER.debugf("The min expiry is %s.", minExpiry),
+				minExpiry -> LOGGER.debugf("The min expiry is {}.", minExpiry),
 				() -> LOGGER.debugf("No min-expiry found. VC will not expire."));
 
 		List<Role> roles = clients.stream().map(this::toRolesClaim).collect(Collectors.toList());
@@ -140,7 +140,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	@NotNull
 	private List<ClientModel> getClientsOfType(String vcType) {
-		LOGGER.debugf("Retrieve all clients of type %s", vcType);
+		LOGGER.debugf("Retrieve all clients of type {}", vcType);
 		Optional.ofNullable(vcType).filter(type -> !type.isEmpty()).orElseThrow(() ->
 				new ErrorResponseException("no_type_provided",
 						"No VerifiableCredential-Type was provided in the request.",
@@ -155,7 +155,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.collect(Collectors.toList());
 
 		if (vcClients.isEmpty()) {
-			LOGGER.debugf("No SIOP-2-Client supporting type %s registered.", vcType);
+			LOGGER.debugf("No SIOP-2-Client supporting type {} registered.", vcType);
 			throw new ErrorResponseException("not_found",
 					String.format("No SIOP-2-Client supporting the requested type %s is registered.", vcType),
 					Response.Status.NOT_FOUND);
@@ -165,7 +165,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	@NotNull
 	private UserModel getUserFromSession(Optional<String> optionalToken) {
-		LOGGER.debugf("Extract user form session. Realm in context is %s", session.getContext().getRealm());
+		LOGGER.debugf("Extract user form session. Realm in context is {}.", session.getContext().getRealm());
 		// set the token in the context if its specifically provide. If empty, the authorization header will
 		// automatically be evaluated
 		optionalToken.ifPresent(bearerTokenAuthenticator::setTokenString);
@@ -176,7 +176,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 					Response.Status.UNAUTHORIZED);
 		}
 		UserModel userModel = authResult.getUser();
-		LOGGER.debugf("Authorized user is %s", userModel.getId());
+		LOGGER.debugf("Authorized user is {}.", userModel.getId());
 		return userModel;
 	}
 
