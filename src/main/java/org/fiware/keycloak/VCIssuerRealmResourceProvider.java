@@ -135,7 +135,9 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		VCRequest vcRequest = getVCRequest(vcType, userModel, clients, roles, optionalMinExpiry);
 
-		return waltIdClient.getVCFromWaltId(vcRequest);
+		String response = waltIdClient.getVCFromWaltId(vcRequest);
+		LOGGER.debugf("Respond with vc: %s", response);
+		return response;
 	}
 
 	@NotNull
