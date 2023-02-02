@@ -49,7 +49,7 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 			waltIdURL = System.getenv("VCISSUER_WALTID_ADDRESS");
 			initializeCorePort();
 			initializeSignatoryPort();
-			LOGGER.infof("VCIssuerRealmResourceProviderFactory configured with issuerDID {} and walt-id {}.", issuerDid,
+			LOGGER.infof("VCIssuerRealmResourceProviderFactory configured with issuerDID %s and walt-id %s.", issuerDid,
 					waltIdURL);
 		} catch (RuntimeException e) {
 			LOGGER.warn("Was not able to initialize the VCIssuerRealmResourceProvider. Issuing VCs is not supported.",
@@ -70,7 +70,7 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 		try {
 			corePort = Integer.parseInt(System.getenv("VCISSUER_WALTID_CORE_PORT"));
 		} catch (RuntimeException e) {
-			LOGGER.infof("No specific core port configured. Will use the default {}.", corePort);
+			LOGGER.infof("No specific core port configured. Will use the default %d.", corePort);
 		}
 	}
 
@@ -78,7 +78,7 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 		try {
 			signatoryPort = Integer.parseInt(System.getenv("VCISSUER_WALTID_SIGNATORY_PORT"));
 		} catch (RuntimeException e) {
-			LOGGER.infof("No specific signatory port configured. Will use the default {}.", signatoryPort);
+			LOGGER.infof("No specific signatory port configured. Will use the default %d.", signatoryPort);
 		}
 	}
 
