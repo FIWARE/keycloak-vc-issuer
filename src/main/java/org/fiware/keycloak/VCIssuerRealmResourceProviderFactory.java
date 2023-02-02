@@ -92,7 +92,8 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 
 	private void validateDid(String issuerDid) {
 		waltIdClient.getDidDocument(issuerDid)
-				.orElseThrow(() -> new VCIssuerException("The configured DID does not exist or is not valid."));
+				.orElseThrow(() -> new VCIssuerException(
+						String.format("The configured DID %s does not exist or is not valid.", issuerDid)));
 	}
 
 	@Override
