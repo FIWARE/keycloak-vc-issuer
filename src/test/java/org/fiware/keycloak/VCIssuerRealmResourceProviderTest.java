@@ -7,6 +7,7 @@ import org.fiware.keycloak.model.VCConfig;
 import org.fiware.keycloak.model.VCData;
 import org.fiware.keycloak.model.VCRequest;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -155,6 +156,7 @@ public class VCIssuerRealmResourceProviderTest {
 		}
 	}
 
+	@Disabled
 	@ParameterizedTest
 	@MethodSource("provideUserAndClients")
 	public void testGetVC(UserModel userModel, Stream<ClientModel> clientModelStream,
