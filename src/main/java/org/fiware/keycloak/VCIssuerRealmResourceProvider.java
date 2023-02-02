@@ -110,8 +110,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	 * @return the vc.
 	 */
 	@GET
-	@Produces(MediaType.TEXT_PLAIN)
-	public String getVC(@QueryParam("type") String vcType, @QueryParam("token") String token) {
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getVC(@QueryParam("type") String vcType, @QueryParam("token") String token) {
 		LOGGER.debugf("Get a VC of type %s. Token parameter is %s.", vcType, token);
 
 		UserModel userModel = getUserFromSession(Optional.ofNullable(token));
@@ -136,8 +136,10 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		VCRequest vcRequest = getVCRequest(vcType, userModel, clients, roles, optionalMinExpiry);
 
 		String response = waltIdClient.getVCFromWaltId(vcRequest);
+
+
 		LOGGER.debugf("Respond with vc: %s", response);
-		return response;
+		return Response.ok().entity(response).header("Access-Control-Allow-Origin", "*").build();
 	}
 
 	@NotNull
