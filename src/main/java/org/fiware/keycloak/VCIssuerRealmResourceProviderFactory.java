@@ -10,6 +10,8 @@ import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.resource.RealmResourceProvider;
 import org.keycloak.services.resource.RealmResourceProviderFactory;
 
+import java.util.Optional;
+
 /**
  * Factory implementation to provide the VCIssuer functionality as a realm resource.
  */
@@ -82,9 +84,12 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 
 	private void initializeIssuerDid() {
 		try {
-			issuerDid = System.getenv("VCISSUER_ISSUER_DID");
+			issuerDid = Optional.ofNullable(System.getenv("VCISSUER_ISSUER_DID"))
+					.orElseThrow(() -> new VCIssuerException("Null is not a valid issuer"));
 			validateDid(issuerDid);
-		} catch (NullPointerException e) {
+		}
+		// catch NPE(in case no such env is set and null in case an null string is set.)
+		catch (NullPointerException | VCIssuerException e) {
 			LOGGER.info("No issuer did provided, will create one.");
 			issuerDid = waltIdClient.createDid();
 		}
