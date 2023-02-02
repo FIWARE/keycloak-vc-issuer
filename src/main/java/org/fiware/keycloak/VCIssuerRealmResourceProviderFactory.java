@@ -68,7 +68,7 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 
 	private void initializeCorePort() {
 		try {
-			corePort = Integer.valueOf(System.getenv("VCISSUER_WALTID_CORE_PORT"));
+			corePort = Integer.parseInt(System.getenv("VCISSUER_WALTID_CORE_PORT"));
 		} catch (RuntimeException e) {
 			LOGGER.infof("No specific core port configured. Will use the default %s.", corePort);
 		}
@@ -76,7 +76,7 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 
 	private void initializeSignatoryPort() {
 		try {
-			signatoryPort = Integer.valueOf(System.getenv("VCISSUER_WALTID_SIGNATORY_PORT"));
+			signatoryPort = Integer.parseInt(System.getenv("VCISSUER_WALTID_SIGNATORY_PORT"));
 		} catch (RuntimeException e) {
 			LOGGER.infof("No specific signatory port configured. Will use the default %s.", signatoryPort);
 		}
