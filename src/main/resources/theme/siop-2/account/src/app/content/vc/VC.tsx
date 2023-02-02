@@ -34,7 +34,7 @@ import { QRCodeSVG, QRCodeCanvas } from './QRCode';
 
  
 import { ContentPage } from "../ContentPage"
-import { ContentAlert } from "../ContentAlter"
+import { ContentAlert } from "../ContentAlert"
 import { AccountServiceContext } from "../../account-service/AccountServiceContext"
 
 interface VCProps {
@@ -115,12 +115,22 @@ export class VC extends React.Component<VCProps, VCState> {
         }
       }
       fetch(vcIssue, options)
-        .then(response => response.text())
-        .then(data => this.setState({ ...{
-            credential: data,
+        .then(response => this.handleResponse(response))
+    }
+
+    private handleResponse(response: Response) {
+      response.text()
+      .then(textData => {
+        if (response.status !== 200) {
+          console.log("Did not receive a vc.");
+          ContentAlert.warning(textData);
+        } else {
+          this.setState({ ...{
+            credential: textData,
             vcQRVisible: true,
-            urlQRVisible: false}})
-        );
+            urlQRVisible: false}});
+        }
+      })      
     }
 
     public render(): React.ReactNode {

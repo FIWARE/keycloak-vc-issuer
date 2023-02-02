@@ -1,6 +1,6 @@
 {
   "themes": [{
     "name" : "siop-2",
-    "types": [ "account", "admin"]
+    "types": [ "account" ]
   }]
 }
