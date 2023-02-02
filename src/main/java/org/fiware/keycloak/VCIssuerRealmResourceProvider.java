@@ -110,7 +110,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	 * @return the vc.
 	 */
 	@GET
-	@Produces(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.TEXT_PLAIN)
 	public String getVC(@QueryParam("type") String vcType, @QueryParam("token") String token) {
 		LOGGER.debugf("Get a VC of type %s. Token parameter is %s.", vcType, token);
 
