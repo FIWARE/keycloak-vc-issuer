@@ -3,13 +3,13 @@ package org.fiware.keycloak.model;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-import java.util.List;
+import java.util.Set;
 
 @AllArgsConstructor
 @Data
 public class Role {
 
-	private List<String> names;
+	private Set<String> names;
 	private String target;
 
 }

@@ -1,5 +1,7 @@
 package org.fiware.keycloak;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import org.fiware.keycloak.model.Role;
 import org.fiware.keycloak.model.VCClaims;
 import org.fiware.keycloak.model.VCConfig;
@@ -131,7 +133,11 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				minExpiry -> LOGGER.debugf("The min expiry is %d.", minExpiry),
 				() -> LOGGER.debugf("No min-expiry found. VC will not expire."));
 
-		List<Role> roles = clients.stream().map(this::toRolesClaim).collect(Collectors.toList());
+		Set<Role> roles = clients.stream()
+				.map(cm -> new ClientRoleModel(cm.getClientId(),
+						userModel.getClientRoleMappingsStream(cm).collect(Collectors.toList())))
+				.map(this::toRolesClaim)
+				.collect(Collectors.toSet());
 
 		VCRequest vcRequest = getVCRequest(vcType, userModel, clients, roles, optionalMinExpiry);
 
@@ -193,15 +199,18 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	@NotNull
-	private Role toRolesClaim(ClientModel cm) {
-		List<String> roleNames = cm.getRolesStream()
+	private Role toRolesClaim(ClientRoleModel crm) {
+		Set<String> roleNames = crm
+				.getRoleModels()
+				.stream()
 				.map(RoleModel::getName)
-				.collect(Collectors.toList());
-		return new Role(roleNames, cm.getClientId());
+				.collect(Collectors.toSet());
+
+		return new Role(roleNames, crm.getClientId());
 	}
 
 	@NotNull
-	private VCRequest getVCRequest(String vcType, UserModel userModel, List<ClientModel> clients, List<Role> roles,
+	private VCRequest getVCRequest(String vcType, UserModel userModel, List<ClientModel> clients, Set<Role> roles,
 			Optional<Long> optionalMinExpiry) {
 		// only include non-null & non-empty claims
 		var claimsBuilder = VCClaims.builder();
@@ -264,5 +273,12 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		} else {
 			return Optional.ofNullable(additionalClaims);
 		}
+	}
+
+	@Getter
+	@RequiredArgsConstructor
+	private class ClientRoleModel {
+		private final String clientId;
+		private final List<RoleModel> roleModels;
 	}
 }
