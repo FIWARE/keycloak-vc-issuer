@@ -265,6 +265,19 @@ public class VCIssuerRealmResourceProviderTest {
 						Map.of(getSiopClient("did:key:1",
 										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
 										List.of("MyRole", "MySecondRole")),
+								List.of(getRoleModel("MyRole"))),
+						new ExpectedResult(
+								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")),
+										null,
+										null,
+										null,
+										null), "Only assigned roles should be included.")
+				),
+				getArguments(
+						getUserModel(null, null, null),
+						Map.of(getSiopClient("did:key:1",
+										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
+										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
 										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
