@@ -59,14 +59,18 @@
         <!-- frontend build -->
         <version.com.github.eirslett.frontend-maven-plugin>1.12.1</version.com.github.eirslett.frontend-maven-plugin>
         <version.frontend.node>v18.9.0</version.frontend.node>
+        <version.org.apache.maven.plugins.maven-clean-plugin>3.2.0</version.org.apache.maven.plugins.maven-clean-plugin>
 
         <!-- lazy dev -->
         <version.org.projectlombok>1.18.24</version.org.projectlombok>
 
         <!-- keycloak -->
         <org.keycloak.version>20.0.3</org.keycloak.version>
+        <keycloak.image>quay.io/keycloak/keycloak:20.0.3</keycloak.image>
+        <version.org.eclipse.jkube.kubernetes-maven-plugin>1.10.1</version.org.eclipse.jkube.kubernetes-maven-plugin>
 
         <!-- test -->
+        <version.io.fabric8.maven-plugin>4.4.2</version.io.fabric8.maven-plugin>
         <version.io.kokuwa.maven.k3s-plugin>0.6.2</version.io.kokuwa.maven.k3s-plugin>
         <version.org.junit.jupiter>5.9.2</version.org.junit.jupiter>
         <version.org.mockito.mockito-all>1.10.19</version.org.mockito.mockito-all>
@@ -180,6 +184,8 @@
         </resources>
         <plugins>
             <!-- copy frontend to the build dir to keep all the npm dependencies cleanable -->
+            <!-- clean plugin is executed in process-resources phase, to remove the theme folder after copying the -->
+            <!-- results to classes/ to improve performance of the following phases -->
             <plugin>
                 <artifactId>maven-resources-plugin</artifactId>
                 <executions>
@@ -233,46 +239,66 @@
                             </resources>
                         </configuration>
                     </execution>
+                    <execution>
+                        <id>copy-dockerfile</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/docker-build</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/deploy</directory>
+                                    <includes>
+                                        <include>**/Dockerfile-init</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>copy-jar</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/docker-build</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.build.directory}</directory>
+                                    <includes>
+                                        <include>vc-issuer-${project.version}.jar</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
-                <groupId>com.github.eirslett</groupId>
-                <artifactId>frontend-maven-plugin</artifactId>
-                <version>${version.com.github.eirslett.frontend-maven-plugin}</version>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-clean-plugin</artifactId>
+                <version>${version.org.apache.maven.plugins.maven-clean-plugin}</version>
                 <executions>
                     <execution>
-                        <phase>generate-sources</phase>
+                        <id>clean-npm</id>
+                        <phase>process-resources</phase>
                         <goals>
-                            <goal>install-node-and-npm</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>npm install</id>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>npm</goal>
+                            <goal>clean</goal>
                         </goals>
                         <configuration>
-                            <arguments>install</arguments>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>npm run build</id>
-                        <phase>generate-resources</phase>
-                        <goals>
-                            <goal>npm</goal>
-                        </goals>
-                        <configuration>
-                            <arguments>run build</arguments>
+                            <filesets>
+                                <fileset>
+                                    <directory>${project.build.directory}/theme</directory>
+                                </fileset>
+                            </filesets>
                         </configuration>
                     </execution>
                 </executions>
-                <configuration>
-                    <nodeVersion>${version.frontend.node}</nodeVersion>
-                    <workingDirectory>${project.build.directory}/theme/siop-2/account/src</workingDirectory>
-                    <installDirectory>${project.build.directory}/theme/siop-2/account/src</installDirectory>
-                </configuration>
             </plugin>
+
             <!-- copy project dependencies -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -378,8 +404,6 @@
                 <artifactId>maven-site-plugin</artifactId>
                 <version>${version.org.apache.maven.plugins.maven-site-plugin}</version>
             </plugin>
-
-
         </plugins>
     </build>
     <profiles>
@@ -409,6 +433,36 @@
                         </executions>
                     </plugin>
                     <plugin>
+                        <groupId>org.eclipse.jkube</groupId>
+                        <artifactId>kubernetes-maven-plugin</artifactId>
+                        <version>${version.org.eclipse.jkube.kubernetes-maven-plugin}</version>
+                        <executions>
+                            <execution>
+                                <id>test-prep</id>
+                                <phase>pre-integration-test</phase>
+                                <goals>
+                                    <goal>build</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+
+                            <images>
+                                <image>
+                                    <name>keycloak-vc-issuer</name>
+                                    <build>
+                                        <dockerFile>${project.build.directory}/docker-build/Dockerfile-init</dockerFile>
+                                        <args>
+                                            <PLUGIN_VERSION>${project.version}</PLUGIN_VERSION>
+                                            <JAR_DIR>maven/</JAR_DIR>
+                                        </args>
+                                    </build>
+                                </image>
+                            </images>
+                        </configuration>
+                    </plugin>
+
+                    <plugin>
                         <groupId>io.kokuwa.maven</groupId>
                         <artifactId>k3s-maven-plugin</artifactId>
                         <version>${version.io.kokuwa.maven.k3s-plugin}</version>
@@ -423,6 +477,10 @@
                                     <goal>rm</goal>
                                 </goals>
                                 <configuration>
+                                    <dockerImages>
+                                        <dockerImage>${keycloak.image}</dockerImage>
+                                        <dockerImage>keycloak-vc-issuer</dockerImage>
+                                    </dockerImages>
                                     <streamLogs>true</streamLogs>
                                     <portBindings>
                                         <portBinding>8080:80</portBinding>
@@ -438,6 +496,36 @@
             <id>dev</id>
             <build>
                 <plugins>
+                    <plugin>
+                        <groupId>org.eclipse.jkube</groupId>
+                        <artifactId>kubernetes-maven-plugin</artifactId>
+                        <version>${version.org.eclipse.jkube.kubernetes-maven-plugin}</version>
+                        <executions>
+                            <execution>
+                                <id>test-prep</id>
+                                <phase>pre-integration-test</phase>
+                                <goals>
+                                    <goal>build</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+
+                            <images>
+                                <image>
+                                    <name>keycloak-vc-issuer</name>
+                                    <build>
+                                        <dockerFile>${project.build.directory}/docker-build/Dockerfile-init</dockerFile>
+                                        <args>
+                                            <PLUGIN_VERSION>${project.version}</PLUGIN_VERSION>
+                                            <JAR_DIR>maven/</JAR_DIR>
+                                        </args>
+                                    </build>
+                                </image>
+                            </images>
+                        </configuration>
+                    </plugin>
+
                     <!-- run tests -->
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
@@ -469,7 +557,7 @@
                                 </goals>
                                 <configuration>
                                     <dockerImages>
-                                        <dockerImage>wistefan/keycloak</dockerImage>
+                                        <dockerImage>${keycloak.image}</dockerImage>
                                     </dockerImages>
                                     <streamLogs>true</streamLogs>
                                     <portBindings>
