@@ -1,2 +1,0 @@
-import{_ as l,r as a,j as p,p as m}from"./index.7cbfb18a.js";import{a as C,s as u}from"./Card.37028a42.js";const x=t=>{var{children:n=null,className:o="",component:c="div"}=t,i=l(t,["children","className","component"]);const{cardId:r,registerTitleId:e}=a.exports.useContext(C),d=c,s=r?`${r}-title`:"";return a.exports.useEffect(()=>(e(s),()=>e("")),[e,s]),p(d,{...Object.assign({className:m(u.cardTitle,o),id:s||void 0},i),children:n})};x.displayName="CardTitle";export{x as C};
-//# sourceMappingURL=CardTitle.d8222cf8.js.map

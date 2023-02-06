@@ -56,6 +56,10 @@
         <project.contact.domain>fiware.org</project.contact.domain>
         <project.contact.email>stefan.wiedemann@fiware.org</project.contact.email>
 
+        <!-- frontend build -->
+        <version.com.github.eirslett.frontend-maven-plugin>1.12.1</version.com.github.eirslett.frontend-maven-plugin>
+        <version.frontend.node>v18.9.0</version.frontend.node>
+
         <!-- lazy dev -->
         <version.org.projectlombok>1.18.24</version.org.projectlombok>
 
@@ -175,6 +179,100 @@
             </resource>
         </resources>
         <plugins>
+            <!-- copy frontend to the build dir to keep all the npm dependencies cleanable -->
+            <plugin>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-resources</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/theme</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/theme</directory>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>copy-theme-source</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/classes/theme</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.build.directory}/theme</directory>
+                                    <filtering>true</filtering>
+                                    <excludes>
+                                        <exclude>**/src/**</exclude>
+                                        <exclude>**/META-INF/**</exclude>
+                                    </excludes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>copy-theme-properties</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/classes/META-INF</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.build.directory}/theme/META-INF</directory>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.github.eirslett</groupId>
+                <artifactId>frontend-maven-plugin</artifactId>
+                <version>${version.com.github.eirslett.frontend-maven-plugin}</version>
+                <executions>
+                    <execution>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>install-node-and-npm</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>npm install</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>install</arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>npm run build</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>run build</arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+                <configuration>
+                    <nodeVersion>${version.frontend.node}</nodeVersion>
+                    <workingDirectory>${project.build.directory}/theme/siop-2/account/src</workingDirectory>
+                    <installDirectory>${project.build.directory}/theme/siop-2/account/src</installDirectory>
+                </configuration>
+            </plugin>
             <!-- copy project dependencies -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -240,16 +338,6 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>${version.org.jacoco.maven-plugin}</version>
-                <configuration>
-                    <!-- exclude empty implementations -->
-                    <excludes>
-                        <exclude>org/fiware/keycloak/SIOP2ClientModel.java</exclude>
-                        <exclude>org/fiware/keycloak/SIOP2ClientRegistrationContext.java</exclude>
-                        <exclude>org/fiware/keycloak/SIOP2ClientRegistrationProviderFactory.java</exclude>
-                        <exclude>org/fiware/keycloak/SIOP2LoginProtocol.java</exclude>
-                        <exclude>org/fiware/keycloak/SIOP2LoginProtocolFactory.java</exclude>
-                    </excludes>
-                </configuration>
                 <executions>
                     <execution>
                         <id>pre-unit-tests</id>
@@ -290,6 +378,8 @@
                 <artifactId>maven-site-plugin</artifactId>
                 <version>${version.org.apache.maven.plugins.maven-site-plugin}</version>
             </plugin>
+
+
         </plugins>
     </build>
     <profiles>
@@ -297,7 +387,6 @@
             <id>test</id>
             <build>
                 <plugins>
-
                     <!-- run tests -->
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
