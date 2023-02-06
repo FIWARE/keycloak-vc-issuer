@@ -46,13 +46,7 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 18
-      
-      - name: compile theme
-        run: |
-          cd src/main/resources/theme/siop-2/account/src
-          npm install
-          npm run build
-      
+
       - uses: actions/setup-java@v1
         with:
           java-version: '11'
