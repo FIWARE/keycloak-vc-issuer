@@ -442,6 +442,9 @@
                         <artifactId>maven-failsafe-plugin</artifactId>
                         <configuration>
                             <failIfNoTests>true</failIfNoTests>
+                            <includes>
+                                <include>**/*IntegrationTest.java</include>
+                            </includes>
                         </configuration>
                         <executions>
                             <execution>
