@@ -57,7 +57,7 @@ jobs:
         run: |
           mvn clean test coveralls:jacoco -Dcoveralls.token=${{ secrets.COVERALLS_TOKEN }}
 
-      - name: Execute tests
+      - name: Execute Integration-Tests
         id: it-test
         run: |
           mvn clean integration-test -Pintegration-test

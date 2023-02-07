@@ -516,7 +516,6 @@
                             </execution>
                         </executions>
                         <configuration>
-
                             <images>
                                 <!-- just to re-tag for the test setup -->
                                 <image>
