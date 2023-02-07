@@ -20,12 +20,10 @@ import {
     Select,
     SelectOption,
     Button,
-    Text,
     PageSectionVariants,
     PageSection,
     ActionList,
     ActionListItem,
-    TextVariants,
     List,
     ListItem,
     SelectOptionObject
@@ -211,19 +209,6 @@ export class VC extends React.Component<VCProps, VCState> {
             }   
               </ActionList>
             </ListItem>
-
-            <ListItem>         
-              { vcQRVisible &&
-              <Text component={TextVariants.h5}>
-              {credential}
-              </Text> 
-              }
-              { urlQRVisible &&
-              <Text component={TextVariants.h5}>
-              {vcUrl}
-              </Text>           
-              }
-            </ListItem>      
           </List>       
         </PageSection>   
       </ContentPage>
