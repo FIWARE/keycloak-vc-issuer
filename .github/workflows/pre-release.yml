@@ -55,6 +55,10 @@ jobs:
           java-version: '11'
           java-package: jdk
 
+      - name: Set the version
+        run: |
+          mvn versions:set -DnewVersion=${{ needs.generate-version.outputs.version }}
+
       - name: Execute tests
         id: test
         run: |
@@ -64,11 +68,6 @@ jobs:
         id: it-test
         run: |
           mvn clean integration-test -Pintegration-test
-
-      - name: Build the jar-file 
-        run: |
-          mvn versions:set -DnewVersion=${{ needs.generate-version.outputs.version }}
-          mvn clean package
 
       - name: Build Image
         id: build-image
