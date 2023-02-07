@@ -14,6 +14,7 @@ import org.fiware.keycloak.it.model.Role;
 import org.fiware.keycloak.it.model.VerifiableCredential;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -104,6 +105,7 @@ public class SIOP2IntegrationTest {
 		deleteTestRealm();
 	}
 
+	@DisplayName("Issue credentials using a bearer token.")
 	@ParameterizedTest
 	@MethodSource("provideUsersAndClients")
 	public void testVCIssuanceWithBearer(List<Client> clients, List<User> users, String userToRequest,
@@ -114,6 +116,7 @@ public class SIOP2IntegrationTest {
 				expectedResult);
 	}
 
+	@DisplayName("Issue credentials using a token-parameter.")
 	@ParameterizedTest
 	@MethodSource("provideUsersAndClients")
 	public void testVCIssuanceWithTokenParam(List<Client> clients, List<User> users, String userToRequest,
