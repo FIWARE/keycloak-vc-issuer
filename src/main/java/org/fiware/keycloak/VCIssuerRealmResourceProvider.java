@@ -137,6 +137,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.map(cm -> new ClientRoleModel(cm.getClientId(),
 						userModel.getClientRoleMappingsStream(cm).collect(Collectors.toList())))
 				.map(this::toRolesClaim)
+				.filter(role -> !role.getNames().isEmpty())
 				.collect(Collectors.toSet());
 
 		VCRequest vcRequest = getVCRequest(vcType, userModel, clients, roles, optionalMinExpiry);
@@ -159,7 +160,6 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		List<ClientModel> vcClients = getClientModelsFromSession().stream()
 				.filter(clientModel -> Optional.ofNullable(clientModel.getAttributes())
 						.map(attributes -> attributes.get(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES))
-						.filter(Objects::nonNull)
 						.map(types -> types.contains(vcType))
 						.orElse(false))
 				.collect(Collectors.toList());

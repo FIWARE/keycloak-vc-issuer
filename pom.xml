@@ -68,6 +68,7 @@
         <org.keycloak.version>20.0.3</org.keycloak.version>
         <keycloak.image>quay.io/keycloak/keycloak:20.0.3</keycloak.image>
         <version.org.eclipse.jkube.kubernetes-maven-plugin>1.10.1</version.org.eclipse.jkube.kubernetes-maven-plugin>
+        <version.org.keycloak.keycloak-admin-client>20.0.3</version.org.keycloak.keycloak-admin-client>
 
         <!-- test -->
         <version.io.fabric8.maven-plugin>4.4.2</version.io.fabric8.maven-plugin>
@@ -75,6 +76,7 @@
         <version.org.junit.jupiter>5.9.2</version.org.junit.jupiter>
         <version.org.mockito.mockito-all>1.10.19</version.org.mockito.mockito-all>
         <version.org.mockito.mockito-junit-jupiter>5.0.0</version.org.mockito.mockito-junit-jupiter>
+        <version.org.awaitility>4.2.0</version.org.awaitility>
         <coveralls.token>myToken</coveralls.token>
         <version.org.eluder.coveralls.maven-plugin>2.2.0</version.org.eluder.coveralls.maven-plugin>
         <version.com.github.spotbugs.maven-plugin>4.5.2.0</version.com.github.spotbugs.maven-plugin>
@@ -167,6 +169,18 @@
             <groupId>org.mockito</groupId>
             <artifactId>mockito-junit-jupiter</artifactId>
             <version>${version.org.mockito.mockito-junit-jupiter}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <version>${version.org.awaitility}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-admin-client</artifactId>
+            <version>${version.org.keycloak.keycloak-admin-client}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -350,6 +364,9 @@
                 <version>3.0.0-M3</version>
                 <configuration>
                     <argLine>@{argLine} --add-opens java.base/java.lang=ALL-UNNAMED</argLine>
+                    <excludes>
+                        <exclude>**/*IntegrationTest.java</exclude>
+                    </excludes>
                 </configuration>
             </plugin>
             <plugin>
@@ -408,13 +425,24 @@
     </build>
     <profiles>
         <profile>
-            <id>test</id>
+            <id>integration-test</id>
             <build>
                 <plugins>
+                    <!-- only run integration tests -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <skip>true</skip>
+                        </configuration>
+                    </plugin>
                     <!-- run tests -->
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-failsafe-plugin</artifactId>
+                        <configuration>
+                            <failIfNoTests>true</failIfNoTests>
+                        </configuration>
                         <executions>
                             <execution>
                                 <id>test</id>
@@ -448,6 +476,13 @@
                         <configuration>
 
                             <images>
+                                <!-- just to re-tag for the test setup -->
+                                <image>
+                                    <name>keycloak</name>
+                                    <build>
+                                        <from>${keycloak.image}</from>
+                                    </build>
+                                </image>
                                 <image>
                                     <name>keycloak-vc-issuer</name>
                                     <build>
@@ -483,7 +518,8 @@
                                     </dockerImages>
                                     <streamLogs>true</streamLogs>
                                     <portBindings>
-                                        <portBinding>8080:80</portBinding>
+                                        <portBinding>8080:8080</portBinding>
+                                        <portBinding>7000:7000</portBinding>
                                     </portBindings>
                                 </configuration>
                             </execution>
@@ -512,6 +548,13 @@
                         <configuration>
 
                             <images>
+                                <!-- just to re-tag for the test setup -->
+                                <image>
+                                    <name>keycloak</name>
+                                    <build>
+                                        <from>${keycloak.image}</from>
+                                    </build>
+                                </image>
                                 <image>
                                     <name>keycloak-vc-issuer</name>
                                     <build>
@@ -557,11 +600,13 @@
                                 </goals>
                                 <configuration>
                                     <dockerImages>
-                                        <dockerImage>${keycloak.image}</dockerImage>
+                                        <dockerImage>keycloak</dockerImage>
+                                        <dockerImage>keycloak-vc-issuer</dockerImage>
                                     </dockerImages>
                                     <streamLogs>true</streamLogs>
                                     <portBindings>
-                                        <portBinding>8080:80</portBinding>
+                                        <portBinding>8080:8080</portBinding>
+                                        <portBinding>7000:7000</portBinding>
                                     </portBindings>
                                 </configuration>
                             </execution>

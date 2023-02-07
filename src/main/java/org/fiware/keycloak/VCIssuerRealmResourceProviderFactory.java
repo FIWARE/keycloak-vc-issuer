@@ -60,7 +60,7 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 		try {
 			initializeIssuerDid();
 		} catch (WaltIdConnectException waltIdConnectException) {
-			LOGGER.warnf("Was not able to initialize the issuer did. Issuing VCs is not available.",
+			LOGGER.error("Was not able to initialize the issuer did. Issuing VCs is not available.",
 					waltIdConnectException);
 		}
 

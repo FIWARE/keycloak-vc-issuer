@@ -6,7 +6,6 @@ metadata:
   namespace: default
 spec:
   type: LoadBalancer
-  clusterIP: None
   ports:
     - name: http
       port: 8080
@@ -41,22 +40,34 @@ spec:
           image: keycloak
           imagePullPolicy: Never
           ports:
-            - containerPort: 80
+            - containerPort: 8080
               name: http
+          command: ["/opt/keycloak/bin/kc.sh"]
+          args: ["start-dev", "--health-enabled=true", "--log-level INFO"]
           env:
             - name: KEYCLOAK_ADMIN
               value: admin
             - name: KEYCLOAK_ADMIN_PASSWORD
               value: admin
             - name: VCISSUER_WALTID_ADDRESS
-              value: http://walitid
+              value: http://waltid
           livenessProbe:
             failureThreshold: 3
             httpGet:
               path: /
               port: http
               scheme: HTTP
-            initialDelaySeconds: 300
+            initialDelaySeconds: 60
+            periodSeconds: 1
+            successThreshold: 1
+            timeoutSeconds: 5
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 60
             periodSeconds: 1
             successThreshold: 1
             timeoutSeconds: 5
