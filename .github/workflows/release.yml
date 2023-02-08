@@ -43,10 +43,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 18
-
       - uses: actions/setup-java@v1
         with:
           java-version: '11'
@@ -87,7 +83,7 @@ jobs:
           registry: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-
+          
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.TOKEN }}"
