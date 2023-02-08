@@ -15,9 +15,9 @@ jobs:
           # we already know that everything above is incompatible
           minMajor: "18"
           repository: keycloak/keycloak
-
-  outputs:
-    keycloak-matrix: ${{ steps.keycloak-version.outputs.releases }}
+  
+    outputs:
+      keycloak-matrix: ${{ steps.keycloak-version.outputs.releases }}
 
   it:
     runs-on: ubuntu-latest
