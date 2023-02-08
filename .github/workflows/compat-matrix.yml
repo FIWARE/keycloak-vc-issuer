@@ -123,4 +123,4 @@ jobs:
         with:
           add: 'doc/compatibility'
           # dont build new releases when just the matrix is updated
-          message: "skip ci"
+          message: "[skip ci]"
