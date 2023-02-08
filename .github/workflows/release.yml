@@ -83,7 +83,7 @@ jobs:
           registry: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-          
+
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.TOKEN }}"
