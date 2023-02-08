@@ -27,12 +27,14 @@ import javax.ws.rs.core.Response;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.fiware.keycloak.VCIssuerRealmResourceProvider.LD_PROOF_TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -104,7 +106,7 @@ public class VCIssuerRealmResourceProviderTest {
 		when(bearerTokenAuthenticator.authenticate()).thenReturn(null);
 
 		try {
-			testProvider.getVC("MyVC", null);
+			testProvider.issueVerifiableCredential("MyVC", null);
 			fail("VCs should only be accessible for authorized users.");
 		} catch (ErrorResponseException e) {
 			assertEquals(Response.Status.UNAUTHORIZED.getStatusCode(), e.getResponse().getStatus(),
@@ -122,7 +124,7 @@ public class VCIssuerRealmResourceProviderTest {
 		when(bearerTokenAuthenticator.authenticate()).thenReturn(null);
 
 		try {
-			testProvider.getVC("MyVC", "myToken");
+			testProvider.issueVerifiableCredential("MyVC", "myToken");
 			fail("VCs should only be accessible for authorized users.");
 		} catch (ErrorResponseException e) {
 			assertEquals(Response.Status.UNAUTHORIZED.getStatusCode(), e.getResponse().getStatus(),
@@ -147,7 +149,7 @@ public class VCIssuerRealmResourceProviderTest {
 		when(clientProvider.getClientsStream(any())).thenReturn(clientModelStream);
 
 		try {
-			testProvider.getVC("MyNonExistentType", null);
+			testProvider.issueVerifiableCredential("MyNonExistentType", null);
 			fail("Not found types should be a 404");
 		} catch (ErrorResponseException e) {
 			assertEquals(Response.Status.NOT_FOUND.getStatusCode(), e.getResponse().getStatus(),
@@ -158,6 +160,7 @@ public class VCIssuerRealmResourceProviderTest {
 	@ParameterizedTest
 	@MethodSource("provideUserAndClients")
 	public void testGetVC(UserModel userModel, Stream<ClientModel> clientModelStream,
+			Map<ClientModel, Stream<RoleModel>> roleModelStreamMap,
 			ExpectedResult<VCRequest> expectedResult) {
 		AuthenticationManager.AuthResult authResult = mock(AuthenticationManager.AuthResult.class);
 		KeycloakContext context = mock(KeycloakContext.class);
@@ -171,147 +174,175 @@ public class VCIssuerRealmResourceProviderTest {
 		when(keycloakSession.clients()).thenReturn(clientProvider);
 		when(clientProvider.getClientsStream(any())).thenReturn(clientModelStream);
 
+		when(userModel.getClientRoleMappingsStream(any())).thenAnswer(i -> roleModelStreamMap.get(i.getArguments()[0]));
+
 		ArgumentCaptor<VCRequest> argument = ArgumentCaptor.forClass(VCRequest.class);
 
 		when(waltIdClient.getVCFromWaltId(argument.capture())).thenReturn("myVC");
-		assertEquals("myVC", testProvider.getVC("MyType", null), "The requested VC should be returned.");
+		assertEquals("myVC", testProvider.issueVerifiableCredential("MyType", null).getEntity(), "The requested VC should be returned.");
 
 		assertEquals(expectedResult.getExpectedResult(), argument.getValue(), expectedResult.getMessage());
 	}
 
+	private static Arguments getArguments(UserModel um, Map<ClientModel, List<RoleModel>> clients,
+			ExpectedResult expectedResult) {
+		return Arguments.of(um,
+				clients.keySet().stream(),
+				clients.entrySet()
+						.stream()
+						.filter(e -> e.getValue() != null)
+						.collect(
+								Collectors.toMap(Map.Entry::getKey, e -> ((List) e.getValue()).stream(),
+										(e1, e2) -> e1)),
+				expectedResult);
+	}
+
 	private static Stream<Arguments> provideUserAndClients() {
 		return Stream.of(
-				Arguments.of(
-						getUserModel("e@mail.org", "Happy", "User"),
-						Stream.of(getSiopClient("did:key:1",
-								Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
-								List.of("MyRole"))),
+				getArguments(getUserModel("e@mail.org", "Happy", "User"),
+						Map.of(getSiopClient("did:key:1",
+										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
+										List.of("MyRole")),
+								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult(
-								getVCRequest(List.of(new Role(List.of("MyRole"), "did:key:1")), "e@mail.org", "Happy",
+								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")), "e@mail.org", "Happy",
 										"User",
 										null), "A valid VCRequest should have been sent to Walt-ID")
 				),
-				Arguments.of(
-						getUserModel("e@mail.org", null, "User"),
-						Stream.of(getSiopClient("did:key:1",
-								Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
-								List.of("MyRole"))),
+				getArguments(getUserModel("e@mail.org", null, "User"),
+						Map.of(getSiopClient("did:key:1",
+										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
+										List.of("MyRole")),
+								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult(
-								getVCRequest(List.of(new Role(List.of("MyRole"), "did:key:1")), "e@mail.org", null,
+								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")), "e@mail.org",
+										null,
 										"User",
 										null), "A valid VCRequest should have been sent to Walt-ID")
 				),
-				Arguments.of(
+				getArguments(
 						getUserModel("e@mail.org", null, null),
-						Stream.of(getSiopClient("did:key:1",
-								Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
-								List.of("MyRole"))),
+						Map.of(getSiopClient("did:key:1",
+										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
+										List.of("MyRole")),
+								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult(
-								getVCRequest(List.of(new Role(List.of("MyRole"), "did:key:1")), "e@mail.org", null,
+								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")), "e@mail.org",
+										null,
 										null,
 										null), "A valid VCRequest should have been sent to Walt-ID")
 				),
-				Arguments.of(
+				getArguments(
 						getUserModel(null, null, null),
-						Stream.of(getSiopClient("did:key:1",
-								Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
-								List.of("MyRole"))),
+						Map.of(getSiopClient("did:key:1",
+										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
+										List.of("MyRole")),
+								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult(
-								getVCRequest(List.of(new Role(List.of("MyRole"), "did:key:1")), null, null,
+								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")), null, null,
 										null,
 										null), "A valid VCRequest should have been sent to Walt-ID")
 				),
-				Arguments.of(
+				getArguments(
 						getUserModel(null, null, null),
-						Stream.of(getSiopClient("did:key:1",
-								Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
-								List.of("MyRole", "MySecondRole"))),
+						Map.of(getSiopClient("did:key:1",
+										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
+										List.of("MyRole", "MySecondRole")),
+								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole"))),
 						new ExpectedResult(
-								getVCRequest(List.of(new Role(List.of("MyRole", "MySecondRole"), "did:key:1")), null,
+								getVCRequest(Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1")),
+										null,
 										null,
 										null,
 										null), "Multiple roles should be included")
 				),
-				Arguments.of(
+				getArguments(
 						getUserModel(null, null, null),
-						Stream.of(getSiopClient("did:key:1",
+						Map.of(getSiopClient("did:key:1",
 										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
 										List.of("MyRole", "MySecondRole")),
+								List.of(getRoleModel("MyRole"))),
+						new ExpectedResult(
+								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")),
+										null,
+										null,
+										null,
+										null), "Only assigned roles should be included.")
+				),
+				getArguments(
+						getUserModel(null, null, null),
+						Map.of(getSiopClient("did:key:1",
+										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
+										List.of("MyRole", "MySecondRole")),
+								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
 										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
-										List.of("AnotherRole"))),
+										List.of("AnotherRole")),
+								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult(
-								getVCRequest(List.of(new Role(List.of("MyRole", "MySecondRole"), "did:key:1"),
-												new Role(List.of("AnotherRole"), "did:key:2")), null,
+								getVCRequest(Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"),
+												new Role(Set.of("AnotherRole"), "did:key:2")), null,
 										null,
 										null,
 										null), "The request should contain roles from both clients")
 				),
-				Arguments.of(
+				getArguments(
 						getUserModel(null, null, null),
-						Stream.of(getSiopClient("did:key:1",
+						Map.of(getSiopClient("did:key:1",
 										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
 										List.of("MyRole", "MySecondRole")),
+								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "AnotherType"),
-										List.of("AnotherRole"))),
+										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES,
+												"AnotherType"),
+										List.of("AnotherRole")),
+								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult(
-								getVCRequest(List.of(new Role(List.of("MyRole", "MySecondRole"), "did:key:1")), null,
+								getVCRequest(Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1")),
+										null,
 										null,
 										null,
 										null), "Only roles for supported clients should be included.")
 				),
-				Arguments.of(
+				getArguments(
 						getUserModel(null, null, null),
-						Stream.of(getSiopClient("did:key:1",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType", "vc_additional",
+						Map.of(getSiopClient("did:key:1",
+										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType",
+												"vc_additional",
 												"claim"),
 										List.of("MyRole", "MySecondRole")),
+								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType", "vc_more",
+										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType",
+												"vc_more",
 												"claims"),
-										List.of("AnotherRole"))),
+										List.of("AnotherRole")),
+								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult(
-								getVCRequest(List.of(new Role(List.of("MyRole", "MySecondRole"), "did:key:1"),
-												new Role(List.of("AnotherRole"), "did:key:2")), null,
+								getVCRequest(Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"),
+												new Role(Set.of("AnotherRole"), "did:key:2")), null,
 										null,
 										null,
 										Map.of("additional", "claim", "more", "claims")),
 								"Additional claims should be included.")
 				),
-				Arguments.of(
+				getArguments(
 						getUserModel(null, null, null),
-						Stream.of(getSiopClient("did:key:1",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType", "vc_additional",
-												"one"),
-										List.of("MyRole", "MySecondRole")),
-								getSiopClient("did:key:2",
+						Map.of(getSiopClient("did:key:1",
 										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType",
 												"vc_additional",
-												"two"),
-										List.of("AnotherRole"))),
-						new ExpectedResult(
-								getVCRequest(List.of(new Role(List.of("MyRole", "MySecondRole"), "did:key:1"),
-												new Role(List.of("AnotherRole"), "did:key:2")), null,
-										null,
-										null,
-										Map.of("additional", "one,two")),
-								"Additional claims should be included.")
-				),
-				Arguments.of(
-						getUserModel(null, null, null),
-						Stream.of(getSiopClient("did:key:1",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType", "vc_additional",
 												"claim"),
 										List.of("MyRole", "MySecondRole")),
+								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
 										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType",
 												"vc_additional",
 												"claim"),
-										List.of("AnotherRole"))),
+										List.of("AnotherRole")),
+								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult(
-								getVCRequest(List.of(new Role(List.of("MyRole", "MySecondRole"), "did:key:1"),
-												new Role(List.of("AnotherRole"), "did:key:2")), null,
+								getVCRequest(Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"),
+												new Role(Set.of("AnotherRole"), "did:key:2")), null,
 										null,
 										null,
 										Map.of("additional", "claim")),
@@ -320,7 +351,7 @@ public class VCIssuerRealmResourceProviderTest {
 		);
 	}
 
-	private static VCRequest getVCRequest(List<Role> roles, String email, String firstName, String lastName,
+	private static VCRequest getVCRequest(Set<Role> roles, String email, String firstName, String lastName,
 			Map<String, String> additionalClaims) {
 		return VCRequest.builder()
 				.templateId("MyType")
@@ -394,6 +425,12 @@ public class VCIssuerRealmResourceProviderTest {
 		return userModel;
 	}
 
+	private static RoleModel getRoleModel(String name) {
+		RoleModel roleModel = mock(RoleModel.class);
+		when(roleModel.getName()).thenReturn(name);
+		return roleModel;
+	}
+
 	private static ClientModel getOidcClient() {
 		ClientModel clientA = mock(ClientModel.class);
 		when(clientA.getProtocol()).thenReturn("OIDC");
@@ -423,5 +460,4 @@ public class VCIssuerRealmResourceProviderTest {
 	private static ClientModel getSiopClient(Map<String, String> attributes) {
 		return getSiopClient(null, attributes, List.of());
 	}
-
 }

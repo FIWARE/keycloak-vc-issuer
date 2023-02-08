@@ -1,0 +1,40 @@
+name: Integration-Test
+
+on:
+  push
+
+jobs:
+  create-version-matrix:
+    runs-on: ubuntu-latest
+
+    steps:
+      - id: keycloak-version
+        uses: wistefan/get-releases-by-semver@master
+        with:
+          include: "MINOR"
+          # we already know that everything above is incompatible
+          minMajor: "18"
+          repository: keycloak/keycloak
+
+    outputs:
+      keycloak-matrix: ${{ steps.keycloak-version.outputs.releases }}
+
+  it:
+    needs: [ "create-version-matrix" ]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        keycloak-version: ${{fromJson(needs.create-version-matrix.outputs.keycloak-matrix)}}
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-java@v1
+        with:
+          java-version: '17'
+          java-package: jdk
+
+      - name: Execute tests
+        id: it-test
+        run: |
+          mvn clean integration-test -Pintegration-test -Dkeycloak.version=${{ matrix.keycloak-version }}

@@ -121,7 +121,7 @@ public class SIOP2ClientRegistrationProvider extends AbstractClientRegistrationP
 			clientRepresentation.setAttributes(clientAttributes);
 		}
 
-		LOGGER.debugf("Generated client representation %s.", clientRepresentation);
+		LOGGER.debugf("Generated client representation {}.", clientRepresentation);
 		return clientRepresentation;
 	}
 
