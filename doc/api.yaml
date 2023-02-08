@@ -1,0 +1,142 @@
+openapi: 3.0.3
+info:
+  title: keycloak-vc-issuer
+  description: Keycloak plugin to issue verifiable credentials
+  version: 0.0.1
+paths:
+  /realms/{realm}/types:
+    get:
+      parameters:
+        - $ref: '#/components/parameters/Realm'
+      operationId: getTypes
+      summary: Returns the list of available templates for requesting credentials.
+      responses:
+        '200':
+          description: The list of credential-types.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialsType'
+        '401':
+          description: No valid token provided.
+
+  /realms/{realm}/verifiable-credential:
+    get:
+      parameters:
+        - $ref: '#/components/parameters/Realm'
+        - $ref: '#/components/parameters/Type'
+        - $ref: '#/components/parameters/Token'
+      operationId: issueVerifiableCredential
+      summary: Returns the requested credential for the authenticated user.
+      responses:
+        '200':
+          description: The credential.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifiableCredential'
+        '401':
+          description: No valid token provided.
+        '404':
+          description: No client supporting the requested credential found.
+
+components:
+  parameters:
+    Realm:
+      name: realm
+      in: path
+      required: true
+      schema:
+        type: string
+        example: test-realm
+    Type:
+      name: type
+      in: query
+      required: true
+      schema:
+        type: string
+        example: BatteryPassAuthCredential
+    Token:
+      name: token
+      in: query
+      required: false
+      schema:
+        type: string
+  schemas:
+    CredentialsType:
+      type: array
+      items:
+        type: string
+      example:
+        - PacketDeliveryService
+        - VerifiableCredential
+    Did:
+      type: object
+      properties:
+        id:
+          type: string
+          format: did
+          example: did:key:z6Mks9m9ifLwy3JWqH4c57EbBQVS2SpRCjfa79wHb5vWM6vh
+    Date:
+      type: string
+      format: date-time
+      example: 2023-01-06T07:51:36Z
+    CredentialSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          example: https://raw.githubusercontent.com/hesusruiz/dsbamvf/main/schemas/PacketDeliveryService/2022-10/schema.json
+        type:
+          type: string
+          example: FullJsonSchemaValidator2021
+    Proof:
+      type: object
+      properties:
+        type:
+          type: string
+          example: JsonWebSignature2020
+        creator:
+          type: string
+          format: did
+          example: did:key:z6Mks9m9ifLwy3JWqH4c57EbBQVS2SpRCjfa79wHb5vWM6vh
+        created:
+          $ref: '#/components/schemas/Date'
+        verificationMethod:
+          type: string
+          example: did:key:z6Mks9m9ifLwy3JWqH4c57EbBQVS2SpRCjfa79wHb5vWM6vh#z6Mks9m9ifLwy3JWqH4c57EbBQVS2SpRCjfa79wHb5vWM6vh
+        jws:
+          type: string
+          example: eyJiNjQiOmZhbHNlLCJjcml0IjpbImI2NCJdLCJhbGciOiJFZERTQSJ9..6xSqoZja0NwjF0af9Zknqx3Cbh9GENunBf9C8uL2ulGfwus3UFM_ZnhPjWtHPl-72E9p3BT5f2ptZoYktMKpDA
+    Subject:
+      type: object
+    VerifiableCredential:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/CredentialsType'
+        '@context':
+          type: array
+          items:
+            type: string
+            format: uri
+          example:
+            - https://www.w3.org/2018/credentials/v1
+            - https://w3id.org/security/suites/jws-2020/v1
+        id:
+          type: string
+          example: urn:uuid:274e7465-cc9d-4cad-b75f-190db927e56a
+        issuer:
+          $ref: '#/components/schemas/Did'
+        issuanceDate:
+          $ref: '#/components/schemas/Date'
+        issued:
+          $ref: '#/components/schemas/Date'
+        validFrom:
+          $ref: '#/components/schemas/Date'
+        credentialSchema:
+          $ref: '#/components/schemas/CredentialSchema'
+        credentialsSubject:
+          $ref: '#/components/schemas/Subject'
+        proof:
+          $ref: '#/components/schemas/Proof'

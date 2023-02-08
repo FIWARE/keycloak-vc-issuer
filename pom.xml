@@ -65,10 +65,12 @@
         <version.org.projectlombok>1.18.24</version.org.projectlombok>
 
         <!-- keycloak -->
-        <org.keycloak.version>20.0.3</org.keycloak.version>
-        <keycloak.image>quay.io/keycloak/keycloak:20.0.3</keycloak.image>
+        <version.org.keycloak.libs>20.0.3</version.org.keycloak.libs>
+        <!-- version to be used for tests - can be different from the libs -->
+        <keycloak.version>20.0.3</keycloak.version>
+        <keycloak.image>quay.io/keycloak/keycloak:${keycloak.version}</keycloak.image>
         <version.org.eclipse.jkube.kubernetes-maven-plugin>1.10.1</version.org.eclipse.jkube.kubernetes-maven-plugin>
-        <version.org.keycloak.keycloak-admin-client>20.0.3</version.org.keycloak.keycloak-admin-client>
+        <version.org.keycloak.keycloak-admin-client>${keycloak.version}</version.org.keycloak.keycloak-admin-client>
 
         <!-- test -->
         <version.io.fabric8.maven-plugin>4.4.2</version.io.fabric8.maven-plugin>
@@ -105,54 +107,47 @@
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-server-spi</artifactId>
-            <version>${org.keycloak.version}</version>
+            <version>${version.org.keycloak.libs}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-common</artifactId>
-            <version>${org.keycloak.version}</version>
+            <version>${version.org.keycloak.libs}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-core</artifactId>
-            <version>${org.keycloak.version}</version>
+            <version>${version.org.keycloak.libs}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-server-spi-private</artifactId>
-            <version>${org.keycloak.version}</version>
+            <version>${version.org.keycloak.libs}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-model-map</artifactId>
-            <version>${org.keycloak.version}</version>
+            <version>${version.org.keycloak.libs}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-model-jpa</artifactId>
-            <version>${org.keycloak.version}</version>
+            <version>${version.org.keycloak.libs}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-services</artifactId>
-            <version>${org.keycloak.version}</version>
+            <version>${version.org.keycloak.libs}</version>
             <scope>provided</scope>
         </dependency>
 
         <!-- Testing -->
-        <!-- https://mvnrepository.com/artifact/org.keycloak/keycloak-test-helper -->
-        <dependency>
-            <groupId>org.keycloak</groupId>
-            <artifactId>keycloak-test-helper</artifactId>
-            <version>${org.keycloak.version}</version>
-            <scope>test</scope>
-        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>

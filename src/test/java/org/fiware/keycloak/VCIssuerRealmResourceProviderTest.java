@@ -1,7 +1,5 @@
 package org.fiware.keycloak;
 
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.fiware.keycloak.model.Role;
 import org.fiware.keycloak.model.VCClaims;
@@ -9,7 +7,6 @@ import org.fiware.keycloak.model.VCConfig;
 import org.fiware.keycloak.model.VCData;
 import org.fiware.keycloak.model.VCRequest;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -38,7 +35,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -110,7 +106,7 @@ public class VCIssuerRealmResourceProviderTest {
 		when(bearerTokenAuthenticator.authenticate()).thenReturn(null);
 
 		try {
-			testProvider.getVC("MyVC", null);
+			testProvider.issueVerifiableCredential("MyVC", null);
 			fail("VCs should only be accessible for authorized users.");
 		} catch (ErrorResponseException e) {
 			assertEquals(Response.Status.UNAUTHORIZED.getStatusCode(), e.getResponse().getStatus(),
@@ -128,7 +124,7 @@ public class VCIssuerRealmResourceProviderTest {
 		when(bearerTokenAuthenticator.authenticate()).thenReturn(null);
 
 		try {
-			testProvider.getVC("MyVC", "myToken");
+			testProvider.issueVerifiableCredential("MyVC", "myToken");
 			fail("VCs should only be accessible for authorized users.");
 		} catch (ErrorResponseException e) {
 			assertEquals(Response.Status.UNAUTHORIZED.getStatusCode(), e.getResponse().getStatus(),
@@ -153,7 +149,7 @@ public class VCIssuerRealmResourceProviderTest {
 		when(clientProvider.getClientsStream(any())).thenReturn(clientModelStream);
 
 		try {
-			testProvider.getVC("MyNonExistentType", null);
+			testProvider.issueVerifiableCredential("MyNonExistentType", null);
 			fail("Not found types should be a 404");
 		} catch (ErrorResponseException e) {
 			assertEquals(Response.Status.NOT_FOUND.getStatusCode(), e.getResponse().getStatus(),
@@ -183,7 +179,7 @@ public class VCIssuerRealmResourceProviderTest {
 		ArgumentCaptor<VCRequest> argument = ArgumentCaptor.forClass(VCRequest.class);
 
 		when(waltIdClient.getVCFromWaltId(argument.capture())).thenReturn("myVC");
-		assertEquals("myVC", testProvider.getVC("MyType", null).getEntity(), "The requested VC should be returned.");
+		assertEquals("myVC", testProvider.issueVerifiableCredential("MyType", null).getEntity(), "The requested VC should be returned.");
 
 		assertEquals(expectedResult.getExpectedResult(), argument.getValue(), expectedResult.getMessage());
 	}

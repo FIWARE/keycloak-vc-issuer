@@ -113,7 +113,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	 */
 	@GET
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getVC(@QueryParam("type") String vcType, @QueryParam("token") String token) {
+	public Response issueVerifiableCredential(@QueryParam("type") String vcType, @QueryParam("token") String token) {
 		LOGGER.debugf("Get a VC of type %s. Token parameter is %s.", vcType, token);
 
 		UserModel userModel = getUserFromSession(Optional.ofNullable(token));
