@@ -62,7 +62,7 @@ jobs:
           mvn clean integration-test -Pintegration-test -Dkeycloak.version=${{ matrix.keycloak-version }}
 
       - name: Publish success
-        if: steps.runTest.outcome == 'success'
+        if: steps.it-test.outcome == 'success'
         uses: wistefan/check-compatibility@master
         with:
           operation: "PERSIST_INFO"
@@ -74,7 +74,7 @@ jobs:
           compatible: "True"
 
       - name: Publish failure
-        if: steps.runTest.outcome == 'failure'
+        if: steps.it-test.outcome == 'failure'
         uses: wistefan/check-compatibility@master
         with:
           operation: "PERSIST_INFO"
