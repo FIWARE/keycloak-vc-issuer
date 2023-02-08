@@ -1,6 +1,10 @@
 # Keycloak VC-Issuer
 
 [![FIWARE Security](https://nexus.lab.fiware.org/repository/raw/public/badges/chapters/security.svg)](https://www.fiware.org/developers/catalogue/)
+[![License badge](https://img.shields.io/github/license/FIWARE/context.Orion-LD.svg)](https://opensource.org/licenses/AGPL-3.0)
+[![Container Repository on Quay](https://img.shields.io/badge/quay.io-VCIssuer-green "Container Repository on Quay")](https://quay.io/repository/fiware/keycloak-vc-issuer)
+[![Integration-Test](https://github.com/FIWARE/keycloak-vc-issuer/actions/workflows/integration-test.yaml/badge.svg)](https://github.com/FIWARE/keycloak-vc-issuer/actions/workflows/integration-test.yaml)
+[![Unit-Test](https://github.com/FIWARE/keycloak-vc-issuer/actions/workflows/test.yaml/badge.svg)](https://github.com/FIWARE/keycloak-vc-issuer/actions/workflows/test.yaml)
 
 A plugin for [Keycloak](https://www.keycloak.org/) to issue [VerifiableCredentials](https://www.w3.org/TR/vc-data-model/).
 
