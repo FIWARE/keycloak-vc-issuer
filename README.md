@@ -2,7 +2,12 @@
 
 [![FIWARE Security](https://nexus.lab.fiware.org/repository/raw/public/badges/chapters/security.svg)](https://www.fiware.org/developers/catalogue/)
 
-A plugin for Keycloak >=20.0.3 issuing Verifiable Credentials to registered users.
+A plugin for [Keycloak](https://www.keycloak.org/) to issue [VerifiableCredentials](https://www.w3.org/TR/vc-data-model/).
+
+## Compatibility
+
+The plugin is developed with the [20.0.3 libraries](https://github.com/keycloak/keycloak/tree/20.0.3) and tested against
+all current [Quarkus-Versions of Keycloak](https://www.keycloak.org/migration/migrating-to-quarkus).
 
 ## Functionality
 
