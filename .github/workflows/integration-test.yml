@@ -20,6 +20,7 @@ jobs:
       keycloak-matrix: ${{ steps.keycloak-version.outputs.releases }}
 
   it:
+    needs: [ "create-version-matrix" ]
     runs-on: ubuntu-latest
     strategy:
       matrix:
