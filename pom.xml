@@ -56,17 +56,29 @@
         <project.contact.domain>fiware.org</project.contact.domain>
         <project.contact.email>stefan.wiedemann@fiware.org</project.contact.email>
 
+        <!-- frontend build -->
+        <version.com.github.eirslett.frontend-maven-plugin>1.12.1</version.com.github.eirslett.frontend-maven-plugin>
+        <version.frontend.node>v18.9.0</version.frontend.node>
+        <version.org.apache.maven.plugins.maven-clean-plugin>3.2.0</version.org.apache.maven.plugins.maven-clean-plugin>
+
         <!-- lazy dev -->
         <version.org.projectlombok>1.18.24</version.org.projectlombok>
 
         <!-- keycloak -->
-        <org.keycloak.version>20.0.3</org.keycloak.version>
+        <version.org.keycloak.libs>20.0.3</version.org.keycloak.libs>
+        <!-- version to be used for tests - can be different from the libs -->
+        <keycloak.version>20.0.3</keycloak.version>
+        <keycloak.image>quay.io/keycloak/keycloak:${keycloak.version}</keycloak.image>
+        <version.org.eclipse.jkube.kubernetes-maven-plugin>1.10.1</version.org.eclipse.jkube.kubernetes-maven-plugin>
+        <version.org.keycloak.keycloak-admin-client>${keycloak.version}</version.org.keycloak.keycloak-admin-client>
 
         <!-- test -->
+        <version.io.fabric8.maven-plugin>4.4.2</version.io.fabric8.maven-plugin>
         <version.io.kokuwa.maven.k3s-plugin>0.6.2</version.io.kokuwa.maven.k3s-plugin>
         <version.org.junit.jupiter>5.9.2</version.org.junit.jupiter>
         <version.org.mockito.mockito-all>1.10.19</version.org.mockito.mockito-all>
         <version.org.mockito.mockito-junit-jupiter>5.0.0</version.org.mockito.mockito-junit-jupiter>
+        <version.org.awaitility>4.2.0</version.org.awaitility>
         <coveralls.token>myToken</coveralls.token>
         <version.org.eluder.coveralls.maven-plugin>2.2.0</version.org.eluder.coveralls.maven-plugin>
         <version.com.github.spotbugs.maven-plugin>4.5.2.0</version.com.github.spotbugs.maven-plugin>
@@ -95,54 +107,47 @@
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-server-spi</artifactId>
-            <version>${org.keycloak.version}</version>
+            <version>${version.org.keycloak.libs}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-common</artifactId>
-            <version>${org.keycloak.version}</version>
+            <version>${version.org.keycloak.libs}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-core</artifactId>
-            <version>${org.keycloak.version}</version>
+            <version>${version.org.keycloak.libs}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-server-spi-private</artifactId>
-            <version>${org.keycloak.version}</version>
+            <version>${version.org.keycloak.libs}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-model-map</artifactId>
-            <version>${org.keycloak.version}</version>
+            <version>${version.org.keycloak.libs}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-model-jpa</artifactId>
-            <version>${org.keycloak.version}</version>
+            <version>${version.org.keycloak.libs}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.keycloak</groupId>
             <artifactId>keycloak-services</artifactId>
-            <version>${org.keycloak.version}</version>
+            <version>${version.org.keycloak.libs}</version>
             <scope>provided</scope>
         </dependency>
 
         <!-- Testing -->
-        <!-- https://mvnrepository.com/artifact/org.keycloak/keycloak-test-helper -->
-        <dependency>
-            <groupId>org.keycloak</groupId>
-            <artifactId>keycloak-test-helper</artifactId>
-            <version>${org.keycloak.version}</version>
-            <scope>test</scope>
-        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -161,6 +166,18 @@
             <version>${version.org.mockito.mockito-junit-jupiter}</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <version>${version.org.awaitility}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-admin-client</artifactId>
+            <version>${version.org.keycloak.keycloak-admin-client}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -175,6 +192,161 @@
             </resource>
         </resources>
         <plugins>
+            <!-- copy frontend to the build dir to keep all the npm dependencies cleanable -->
+            <!-- clean plugin is executed in process-resources phase, to remove the theme folder after copying the -->
+            <!-- results to classes/ to improve performance of the following phases -->
+            <plugin>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-resources</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/theme</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/theme</directory>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>copy-theme-source</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/classes/theme</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.build.directory}/theme</directory>
+                                    <filtering>true</filtering>
+                                    <excludes>
+                                        <exclude>**/src/**</exclude>
+                                        <exclude>**/META-INF/**</exclude>
+                                    </excludes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>copy-theme-properties</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/classes/META-INF</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.build.directory}/theme/META-INF</directory>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>copy-dockerfile</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/docker-build</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/deploy</directory>
+                                    <includes>
+                                        <include>**/Dockerfile-init</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>copy-jar</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/docker-build</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.build.directory}</directory>
+                                    <includes>
+                                        <include>vc-issuer-${project.version}.jar</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.github.eirslett</groupId>
+                <artifactId>frontend-maven-plugin</artifactId>
+                <version>${version.com.github.eirslett.frontend-maven-plugin}</version>
+                <executions>
+                    <execution>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>install-node-and-npm</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>npm install</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>install</arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>npm run build</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>run build</arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+                <configuration>
+                    <nodeVersion>${version.frontend.node}</nodeVersion>
+                    <workingDirectory>${project.build.directory}/theme/siop-2/account/src</workingDirectory>
+                    <installDirectory>${project.build.directory}/theme/siop-2/account/src</installDirectory>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-clean-plugin</artifactId>
+                <version>${version.org.apache.maven.plugins.maven-clean-plugin}</version>
+                <executions>
+                    <execution>
+                        <id>clean-npm</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                        <configuration>
+                            <excludeDefaultDirectories>true</excludeDefaultDirectories>
+                            <filesets>
+                                <fileset>
+                                    <directory>${project.build.directory}/theme</directory>
+                                </fileset>
+                            </filesets>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <!-- copy project dependencies -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -226,6 +398,9 @@
                 <version>3.0.0-M3</version>
                 <configuration>
                     <argLine>@{argLine} --add-opens java.base/java.lang=ALL-UNNAMED</argLine>
+                    <excludes>
+                        <exclude>**/*IntegrationTest.java</exclude>
+                    </excludes>
                 </configuration>
             </plugin>
             <plugin>
@@ -240,16 +415,6 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>${version.org.jacoco.maven-plugin}</version>
-                <configuration>
-                    <!-- exclude empty implementations -->
-                    <excludes>
-                        <exclude>org/fiware/keycloak/SIOP2ClientModel.java</exclude>
-                        <exclude>org/fiware/keycloak/SIOP2ClientRegistrationContext.java</exclude>
-                        <exclude>org/fiware/keycloak/SIOP2ClientRegistrationProviderFactory.java</exclude>
-                        <exclude>org/fiware/keycloak/SIOP2LoginProtocol.java</exclude>
-                        <exclude>org/fiware/keycloak/SIOP2LoginProtocolFactory.java</exclude>
-                    </excludes>
-                </configuration>
                 <executions>
                     <execution>
                         <id>pre-unit-tests</id>
@@ -294,14 +459,27 @@
     </build>
     <profiles>
         <profile>
-            <id>test</id>
+            <id>integration-test</id>
             <build>
                 <plugins>
-
+                    <!-- only run integration tests -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <skip>true</skip>
+                        </configuration>
+                    </plugin>
                     <!-- run tests -->
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-failsafe-plugin</artifactId>
+                        <configuration>
+                            <failIfNoTests>true</failIfNoTests>
+                            <includes>
+                                <include>**/*IntegrationTest.java</include>
+                            </includes>
+                        </configuration>
                         <executions>
                             <execution>
                                 <id>test</id>
@@ -320,6 +498,42 @@
                         </executions>
                     </plugin>
                     <plugin>
+                        <groupId>org.eclipse.jkube</groupId>
+                        <artifactId>kubernetes-maven-plugin</artifactId>
+                        <version>${version.org.eclipse.jkube.kubernetes-maven-plugin}</version>
+                        <executions>
+                            <execution>
+                                <id>test-prep</id>
+                                <phase>pre-integration-test</phase>
+                                <goals>
+                                    <goal>build</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <images>
+                                <!-- just to re-tag for the test setup -->
+                                <image>
+                                    <name>keycloak</name>
+                                    <build>
+                                        <from>${keycloak.image}</from>
+                                    </build>
+                                </image>
+                                <image>
+                                    <name>keycloak-vc-issuer</name>
+                                    <build>
+                                        <dockerFile>${project.build.directory}/docker-build/Dockerfile-init</dockerFile>
+                                        <args>
+                                            <PLUGIN_VERSION>${project.version}</PLUGIN_VERSION>
+                                            <JAR_DIR>maven/</JAR_DIR>
+                                        </args>
+                                    </build>
+                                </image>
+                            </images>
+                        </configuration>
+                    </plugin>
+
+                    <plugin>
                         <groupId>io.kokuwa.maven</groupId>
                         <artifactId>k3s-maven-plugin</artifactId>
                         <version>${version.io.kokuwa.maven.k3s-plugin}</version>
@@ -334,9 +548,14 @@
                                     <goal>rm</goal>
                                 </goals>
                                 <configuration>
+                                    <dockerImages>
+                                        <dockerImage>keycloak</dockerImage>
+                                        <dockerImage>keycloak-vc-issuer</dockerImage>
+                                    </dockerImages>
                                     <streamLogs>true</streamLogs>
                                     <portBindings>
-                                        <portBinding>8080:80</portBinding>
+                                        <portBinding>8080:8080</portBinding>
+                                        <portBinding>7000:7000</portBinding>
                                     </portBindings>
                                 </configuration>
                             </execution>
@@ -349,6 +568,43 @@
             <id>dev</id>
             <build>
                 <plugins>
+                    <plugin>
+                        <groupId>org.eclipse.jkube</groupId>
+                        <artifactId>kubernetes-maven-plugin</artifactId>
+                        <version>${version.org.eclipse.jkube.kubernetes-maven-plugin}</version>
+                        <executions>
+                            <execution>
+                                <id>test-prep</id>
+                                <phase>pre-integration-test</phase>
+                                <goals>
+                                    <goal>build</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+
+                            <images>
+                                <!-- just to re-tag for the test setup -->
+                                <image>
+                                    <name>keycloak</name>
+                                    <build>
+                                        <from>${keycloak.image}</from>
+                                    </build>
+                                </image>
+                                <image>
+                                    <name>keycloak-vc-issuer</name>
+                                    <build>
+                                        <dockerFile>${project.build.directory}/docker-build/Dockerfile-init</dockerFile>
+                                        <args>
+                                            <PLUGIN_VERSION>${project.version}</PLUGIN_VERSION>
+                                            <JAR_DIR>maven/</JAR_DIR>
+                                        </args>
+                                    </build>
+                                </image>
+                            </images>
+                        </configuration>
+                    </plugin>
+
                     <!-- run tests -->
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
@@ -380,11 +636,13 @@
                                 </goals>
                                 <configuration>
                                     <dockerImages>
-                                        <dockerImage>wistefan/keycloak</dockerImage>
+                                        <dockerImage>keycloak</dockerImage>
+                                        <dockerImage>keycloak-vc-issuer</dockerImage>
                                     </dockerImages>
                                     <streamLogs>true</streamLogs>
                                     <portBindings>
-                                        <portBinding>8080:80</portBinding>
+                                        <portBinding>8080:8080</portBinding>
+                                        <portBinding>7000:7000</portBinding>
                                     </portBindings>
                                 </configuration>
                             </execution>

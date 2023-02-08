@@ -2,14 +2,12 @@ package org.fiware.keycloak.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
-
-import java.util.Set;
+import lombok.NoArgsConstructor;
 
 @AllArgsConstructor
+@NoArgsConstructor
 @Data
-public class Role {
+public class DIDCreate {
 
-	private Set<String> names;
-	private String target;
-
+	private String method = "key";
 }

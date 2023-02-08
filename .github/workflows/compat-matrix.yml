@@ -1,0 +1,126 @@
+name: Matrix compat
+
+on:
+  schedule:
+    # every night at one
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+
+jobs:
+  create-version-matrix:
+    runs-on: ubuntu-latest
+
+    steps:
+      - id: keycloak-version
+        uses: wistefan/get-releases-by-semver@master
+        with:
+          include: "MINOR"
+          # we already know that everything above is incompatible
+          minMajor: "18"
+          repository: keycloak/keycloak
+
+      - id: plugin-version
+        uses: pozetroninc/github-action-get-latest-release@mv0.5.0
+        with:
+          owner: wistefan
+          repo: keycloak-vc-issuer
+          excludes: prerelease, draft
+
+    outputs:
+      keycloak-matrix: ${{ steps.keycloak-version.outputs.releases }}
+      plugin-version: ${{ steps.plugin-version.outputs.release }}
+
+    test-compatibility:
+      needs: [ "create-version-matrix" ]
+      runs-on: ubuntu-latest
+      strategy:
+        matrix:
+          keycloak-version: ${{fromJson(needs.create-version-matrix.outputs.keycloak-matrix)}}
+
+      steps:
+        - uses: actions/checkout@v2
+
+        - uses: wistefan/check-compatibility@master
+          id: check-compatibility
+          continue-on-error: true
+          with:
+            componentOne: "Keycloak"
+            componentTwo: "FIWARE/Keycloak-VC-Issuer"
+            versionOne: ${{ matrix.keycloak-version }}
+            versionTwo: ${{ needs.create-version-matrix.outputs.plugin-version }}
+            compatibilityFile: doc/compatibility/compatibility.json
+
+        - uses: actions/setup-java@v1
+          with:
+            java-version: '17'
+            java-package: jdk
+
+        - name: Execute tests
+          id: it-test
+          run: |
+            mvn clean integration-test -Pintegration-test -Dkeycloak.version=${{ matrix.keycloak-version }}
+
+        - name: Publish success
+          if: steps.runTest.outcome == 'success'
+          uses: wistefan/check-compatibility@master
+          with:
+            operation: "PERSIST_INFO"
+            componentOne: "Keycloak"
+            componentTwo: "FIWARE/Keycloak-VC-Issuer"
+            versionOne: ${{ matrix.keycloak-version }}
+            versionTwo: ${{ needs.create-version-matrix.outputs.plugin-version }}
+            compatibilityFile: compatibility.json
+            compatible: "True"
+
+        - name: Publish failure
+          if: steps.runTest.outcome == 'failure'
+          uses: wistefan/check-compatibility@master
+          with:
+            operation: "PERSIST_INFO"
+            componentOne: "Keycloak"
+            componentTwo: "FIWARE/Keycloak-VC-Issuer"
+            versionOne: ${{ matrix.keycloak-version }}
+            versionTwo: ${{ needs.create-version-matrix.outputs.plugin-version }}
+            compatibilityFile: compatibility.json
+            compatible: "False"
+
+        - name: Upload report
+          uses: actions/upload-artifact@v2
+          with:
+            name: ${{ matrix.orion }}-${{ matrix.mintaka }}
+            path: compatibility.json
+
+    result-step:
+      needs: ["test-compatibility"]
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v2
+        - uses: actions/download-artifact@v2
+          with:
+            path: results
+            token: ${{ secrets.TOKEN }}
+
+        - id: prepare-results
+          run: |
+            jq -s '[.[][0]]' ./results/**/compatibility.json > temp-compat.json
+
+        - id: merge
+          run: |
+            jq -s '[.[][]]|unique' temp-compat.json doc/compatibility/compatibility.json > merged-compat.json
+            cp merged-compat.json doc/compatibility/compatibility.json
+
+        - uses: wistefan/check-compatibility@master
+          id: create-markdown
+          with:
+            operation: "MARKDOWN"
+            componentOne: "Keycloak"
+            componentTwo: "FIWARE/Keycloak-VC-Issuer"
+            compatibilityFile: doc/compatibility/compatibility.json
+            markdownOutput: doc/compatibility/compatibility.md
+
+        - uses: EndBug/add-and-commit@v7
+          with:
+            add: 'doc/compatibility'
+            # dont build new releases when just the matrix is updated
+            message: "skip ci"

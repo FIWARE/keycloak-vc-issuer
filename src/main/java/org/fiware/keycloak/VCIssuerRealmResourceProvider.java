@@ -1,5 +1,7 @@
 package org.fiware.keycloak;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import org.fiware.keycloak.model.Role;
 import org.fiware.keycloak.model.VCClaims;
 import org.fiware.keycloak.model.VCConfig;
@@ -86,7 +88,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 					Response.Status.UNAUTHORIZED);
 		}
 		UserModel userModel = authResult.getUser();
-		LOGGER.debugf("User is %s", userModel.getId());
+		LOGGER.debugf("User is {}", userModel.getId());
 
 		return List.copyOf(getClientModelsFromSession().stream()
 				.map(ClientModel::getAttributes)
@@ -111,7 +113,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	 */
 	@GET
 	@Produces(MediaType.APPLICATION_JSON)
-	public String getVC(@QueryParam("type") String vcType, @QueryParam("token") String token) {
+	public Response issueVerifiableCredential(@QueryParam("type") String vcType, @QueryParam("token") String token) {
 		LOGGER.debugf("Get a VC of type %s. Token parameter is %s.", vcType, token);
 
 		UserModel userModel = getUserFromSession(Optional.ofNullable(token));
@@ -128,14 +130,23 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.sorted()
 				.findFirst();
 		optionalMinExpiry.ifPresentOrElse(
-				minExpiry -> LOGGER.debugf("The min expiry is %s.", minExpiry),
+				minExpiry -> LOGGER.debugf("The min expiry is %d.", minExpiry),
 				() -> LOGGER.debugf("No min-expiry found. VC will not expire."));
 
-		List<Role> roles = clients.stream().map(this::toRolesClaim).collect(Collectors.toList());
+		Set<Role> roles = clients.stream()
+				.map(cm -> new ClientRoleModel(cm.getClientId(),
+						userModel.getClientRoleMappingsStream(cm).collect(Collectors.toList())))
+				.map(this::toRolesClaim)
+				.filter(role -> !role.getNames().isEmpty())
+				.collect(Collectors.toSet());
 
 		VCRequest vcRequest = getVCRequest(vcType, userModel, clients, roles, optionalMinExpiry);
 
-		return waltIdClient.getVCFromWaltId(vcRequest);
+		String response = waltIdClient.getVCFromWaltId(vcRequest);
+
+		LOGGER.debugf("Respond with vc: %s", response);
+		// the typical wallet will request with a CORS header and not accept responses without.
+		return Response.ok().entity(response).header("Access-Control-Allow-Origin", "*").build();
 	}
 
 	@NotNull
@@ -149,7 +160,6 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		List<ClientModel> vcClients = getClientModelsFromSession().stream()
 				.filter(clientModel -> Optional.ofNullable(clientModel.getAttributes())
 						.map(attributes -> attributes.get(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES))
-						.filter(Objects::nonNull)
 						.map(types -> types.contains(vcType))
 						.orElse(false))
 				.collect(Collectors.toList());
@@ -165,7 +175,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	@NotNull
 	private UserModel getUserFromSession(Optional<String> optionalToken) {
-		LOGGER.debugf("Extract user form session. Realm in context is %s", session.getContext().getRealm());
+		LOGGER.debugf("Extract user form session. Realm in context is %s.", session.getContext().getRealm());
 		// set the token in the context if its specifically provide. If empty, the authorization header will
 		// automatically be evaluated
 		optionalToken.ifPresent(bearerTokenAuthenticator::setTokenString);
@@ -176,7 +186,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 					Response.Status.UNAUTHORIZED);
 		}
 		UserModel userModel = authResult.getUser();
-		LOGGER.debugf("Authorized user is %s", userModel.getId());
+		LOGGER.debugf("Authorized user is %s.", userModel.getId());
 		return userModel;
 	}
 
@@ -189,15 +199,18 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	@NotNull
-	private Role toRolesClaim(ClientModel cm) {
-		List<String> roleNames = cm.getRolesStream()
+	private Role toRolesClaim(ClientRoleModel crm) {
+		Set<String> roleNames = crm
+				.getRoleModels()
+				.stream()
 				.map(RoleModel::getName)
-				.collect(Collectors.toList());
-		return new Role(roleNames, cm.getClientId());
+				.collect(Collectors.toSet());
+
+		return new Role(roleNames, crm.getClientId());
 	}
 
 	@NotNull
-	private VCRequest getVCRequest(String vcType, UserModel userModel, List<ClientModel> clients, List<Role> roles,
+	private VCRequest getVCRequest(String vcType, UserModel userModel, List<ClientModel> clients, Set<Role> roles,
 			Optional<Long> optionalMinExpiry) {
 		// only include non-null & non-empty claims
 		var claimsBuilder = VCClaims.builder();
@@ -260,5 +273,12 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		} else {
 			return Optional.ofNullable(additionalClaims);
 		}
+	}
+
+	@Getter
+	@RequiredArgsConstructor
+	private class ClientRoleModel {
+		private final String clientId;
+		private final List<RoleModel> roleModels;
 	}
 }

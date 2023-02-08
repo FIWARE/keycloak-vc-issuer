@@ -1,0 +1,12 @@
+FROM busybox:1.36.0
+
+ARG PLUGIN_VERSION=0.0.1
+ARG JAR_DIR=target/
+
+
+# typical context is the build-dir
+ADD ${JAR_DIR}vc-issuer-${PLUGIN_VERSION}.jar /provider/vc-issuer.jar
+RUN mkdir /target
+
+
+CMD ["cp", "/provider/vc-issuer.jar", "/target/vc-issuer.jar"]

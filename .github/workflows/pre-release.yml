@@ -9,6 +9,10 @@ on:
       - labeled
       - unlabeled
 
+env:
+  REGISTRY: quay.io
+  REPOSITORY: fiware
+
 jobs:
 
   generate-version:
@@ -46,25 +50,46 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 18
-      
-      - name: compile theme
-        run: |
-          cd src/main/resources/theme/siop-2/account/src
-          npm install
-          npm run build
-      
       - uses: actions/setup-java@v1
         with:
           java-version: '11'
           java-package: jdk
 
-      - name: build jar 
+      - name: Set the version
         run: |
           mvn versions:set -DnewVersion=${{ needs.generate-version.outputs.version }}
-          mvn clean package
+
+      - name: Execute tests
+        id: test
+        run: |
+          mvn clean test coveralls:jacoco -Dcoveralls.token=${{ secrets.COVERALLS_TOKEN }}
+
+      - name: Execute Integration-Tests
+        id: it-test
+        run: |
+          mvn clean integration-test -Pintegration-test
+
+      - name: Build Image
+        id: build-image
+        uses: redhat-actions/buildah-build@v2
+        with:
+          image: keycloak-vc-issuer
+          tags: ${{ github.sha }} ${{ needs.generate-version.outputs.version }}
+          build-args: |
+            PLUGIN_VERSION=${{ needs.generate-version.outputs.version }}
+          dockerfiles: |
+            ./deploy/Dockerfile-init
+          context: ./
+
+      - name: Push To quay.io
+        id: push-to-quay
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build-image.outputs.image }}
+          tags: ${{ steps.build-image.outputs.tags }}
+          registry: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:

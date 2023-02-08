@@ -43,9 +43,9 @@ public class SIOP2LoginProtocolFactory implements LoginProtocolFactory {
 
 	@Override public void setupClientDefaults(ClientRepresentation rep, ClientModel newClient) {
 
-		LOGGER.debug("No default, but we use the hook to validate the representation.");
 		// validate before setting the defaults
 		SIOP2ClientRegistrationProvider.validate(rep);
+		rep.setBearerOnly(true);
 	}
 
 	@Override public LoginProtocol create(KeycloakSession session) {
