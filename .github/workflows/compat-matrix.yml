@@ -73,23 +73,23 @@ jobs:
             compatibilityFile: compatibility.json
             compatible: "True"
 
-            - name: Publish failure
-              if: steps.runTest.outcome == 'failure'
-              uses: wistefan/check-compatibility@master
-              with:
-                operation: "PERSIST_INFO"
-                componentOne: "Keycloak"
-                componentTwo: "FIWARE/Keycloak-VC-Issuer"
-                versionOne: ${{ matrix.keycloak-version }}
-                versionTwo: ${{ needs.create-version-matrix.outputs.plugin-version }}
-                compatibilityFile: compatibility.json
-                compatible: "False"
+        - name: Publish failure
+          if: steps.runTest.outcome == 'failure'
+          uses: wistefan/check-compatibility@master
+          with:
+            operation: "PERSIST_INFO"
+            componentOne: "Keycloak"
+            componentTwo: "FIWARE/Keycloak-VC-Issuer"
+            versionOne: ${{ matrix.keycloak-version }}
+            versionTwo: ${{ needs.create-version-matrix.outputs.plugin-version }}
+            compatibilityFile: compatibility.json
+            compatible: "False"
 
-            - name: Upload report
-              uses: actions/upload-artifact@v2
-              with:
-                name: ${{ matrix.orion }}-${{ matrix.mintaka }}
-                path: compatibility.json
+        - name: Upload report
+          uses: actions/upload-artifact@v2
+          with:
+            name: ${{ matrix.orion }}-${{ matrix.mintaka }}
+            path: compatibility.json
 
     result-step:
       needs: ["test-compatibility"]
