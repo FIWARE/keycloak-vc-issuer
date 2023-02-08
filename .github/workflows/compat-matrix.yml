@@ -21,7 +21,7 @@ jobs:
           repository: keycloak/keycloak
 
       - id: plugin-version
-        uses: pozetroninc/github-action-get-latest-release@mv0.5.0
+        uses: pozetroninc/github-action-get-latest-release@v0.5.0
         with:
           owner: wistefan
           repo: keycloak-vc-issuer
