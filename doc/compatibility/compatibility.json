@@ -1,1 +1,17 @@
-[]
+[
+  {
+    "Keycloak": "18.0.2",
+    "FIWARE/Keycloak-VC-Issuer": "0.0.1",
+    "compatible": true
+  },
+  {
+    "Keycloak": "19.0.3",
+    "FIWARE/Keycloak-VC-Issuer": "0.0.1",
+    "compatible": true
+  },
+  {
+    "Keycloak": "20.0.3",
+    "FIWARE/Keycloak-VC-Issuer": "0.0.1",
+    "compatible": true
+  }
+]
