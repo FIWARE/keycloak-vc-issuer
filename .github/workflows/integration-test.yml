@@ -4,11 +4,26 @@ on:
   push
 
 jobs:
+  create-version-matrix:
+    runs-on: ubuntu-latest
+
+    steps:
+      - id: keycloak-version
+        uses: wistefan/get-releases-by-semver@master
+        with:
+          include: "MINOR"
+          # we already know that everything above is incompatible
+          minMajor: "18"
+          repository: keycloak/keycloak
+
+  outputs:
+    keycloak-matrix: ${{ steps.keycloak-version.outputs.releases }}
+
   it:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        keycloak-version: ["20.0.3", "19.0.3", "18.0.2", "17.0.1"]
+        keycloak-version: ${{fromJson(needs.create-version-matrix.outputs.keycloak-matrix)}}
 
     steps:
       - uses: actions/checkout@v2
