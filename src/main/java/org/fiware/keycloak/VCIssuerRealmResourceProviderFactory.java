@@ -2,6 +2,7 @@ package org.fiware.keycloak;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.auto.service.AutoService;
+import org.fiware.keycloak.model.DIDKey;
 import org.jboss.logging.Logger;
 import org.keycloak.Config;
 import org.keycloak.models.KeycloakSession;
@@ -10,6 +11,8 @@ import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.resource.RealmResourceProvider;
 import org.keycloak.services.resource.RealmResourceProviderFactory;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.Optional;
 
 /**
@@ -21,6 +24,12 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 	private static final Logger LOGGER = Logger.getLogger(VCIssuerRealmResourceProviderFactory.class);
 	private static final String ID = "verifiable-credential";
+
+	private static final String WALTID_ADDRESS_ENV_VAR = "VCISSUER_WALTID_ADDRESS";
+	private static final String WALTID_CORE_PORT_ENV_VAR = "VCISSUER_WALTID_CORE_PORT";
+	private static final String WALTID_SIGNATORY_PORT_ENV_VAR = "VCISSUER_WALTID_SIGNATORY_PORT";
+	private static final String ISSUER_DID_ENV_VAR = "VCISSUER_ISSUER_DID";
+	private static final String ISSUER_DID_KEY_FILE_ENV_VAR = "VCISSUER_ISSUER_KEY_FILE";
 
 	private String issuerDid;
 	private String waltIdURL;
@@ -46,11 +55,10 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 		try {
 
 			// read the address of walt from the realm resource.
-			waltIdURL = System.getenv("VCISSUER_WALTID_ADDRESS");
+			waltIdURL = System.getenv(WALTID_ADDRESS_ENV_VAR);
 			initializeCorePort();
 			initializeSignatoryPort();
-			LOGGER.infof("VCIssuerRealmResourceProviderFactory configured with issuerDID %s and walt-id %s.", issuerDid,
-					waltIdURL);
+
 		} catch (RuntimeException e) {
 			LOGGER.warn("Was not able to initialize the VCIssuerRealmResourceProvider. Issuing VCs is not supported.",
 					e);
@@ -58,7 +66,14 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 		waltIdClient = new WaltIdClient(waltIdURL, corePort, signatoryPort, OBJECT_MAPPER);
 
 		try {
-			initializeIssuerDid();
+			LOGGER.info("Starting to initialization of issuer and key.");
+			// import the issuer key, if present.
+			Optional<String> keyId = importIssuerKey();
+			keyId.ifPresentOrElse(k -> LOGGER.infof("Imported key %s.", keyId),
+					() -> LOGGER.warnf("No key was imported."));
+			initializeIssuerDid(keyId);
+			LOGGER.infof("VCIssuerRealmResourceProviderFactory configured with issuerDID %s and walt-id %s.", issuerDid,
+					waltIdURL);
 		} catch (WaltIdConnectException waltIdConnectException) {
 			LOGGER.error("Was not able to initialize the issuer did. Issuing VCs is not available.",
 					waltIdConnectException);
@@ -68,7 +83,7 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 
 	private void initializeCorePort() {
 		try {
-			corePort = Integer.parseInt(System.getenv("VCISSUER_WALTID_CORE_PORT"));
+			corePort = Integer.parseInt(System.getenv(WALTID_CORE_PORT_ENV_VAR));
 		} catch (RuntimeException e) {
 			LOGGER.infof("No specific core port configured. Will use the default %d.", corePort);
 		}
@@ -76,29 +91,61 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 
 	private void initializeSignatoryPort() {
 		try {
-			signatoryPort = Integer.parseInt(System.getenv("VCISSUER_WALTID_SIGNATORY_PORT"));
+			signatoryPort = Integer.parseInt(System.getenv(WALTID_SIGNATORY_PORT_ENV_VAR));
 		} catch (RuntimeException e) {
 			LOGGER.infof("No specific signatory port configured. Will use the default %d.", signatoryPort);
 		}
 	}
 
-	private void initializeIssuerDid() {
+	private void initializeIssuerDid(Optional<String> keyId) {
 		try {
-			issuerDid = Optional.ofNullable(System.getenv("VCISSUER_ISSUER_DID"))
-					.orElseThrow(() -> new VCIssuerException("Null is not a valid issuer"));
-			validateDid(issuerDid);
+			issuerDid = Optional.ofNullable(System.getenv(ISSUER_DID_ENV_VAR))
+					.orElseGet(() -> waltIdClient.createDid());
+			if (!existsDid(issuerDid)) {
+
+				LOGGER.infof("The configured did does not yet exist, we try to import %s with the key %s.", issuerDid,
+						keyId.orElse(""));
+				// issuer does not exist, try to import
+				keyId.ifPresent(key -> waltIdClient.importDid(issuerDid, key));
+			} else {
+				LOGGER.infof("Did %s already exists. Nothing else to import.", issuerDid);
+			}
 		}
 		// catch NPE(in case no such env is set and null in case an null string is set.)
-		catch (NullPointerException | VCIssuerException e) {
+		catch (NullPointerException npe) {
 			LOGGER.info("No issuer did provided, will create one.");
 			issuerDid = waltIdClient.createDid();
 		}
 	}
 
-	private void validateDid(String issuerDid) {
-		waltIdClient.getDidDocument(issuerDid)
-				.orElseThrow(() -> new VCIssuerException(
-						String.format("The configured DID %s does not exist or is not valid.", issuerDid)));
+	private Optional<String> importIssuerKey() {
+
+		Optional<String> keyFileEnv = Optional.ofNullable(System.getenv(ISSUER_DID_KEY_FILE_ENV_VAR));
+		if (keyFileEnv.isEmpty()) {
+			LOGGER.info("No keyfile is provided, skip key import.");
+			return Optional.empty();
+		}
+
+		File keyFile = new File(keyFileEnv.get());
+		if (!keyFile.exists()) {
+			LOGGER.warnf("Despite being configured, no keyfile exists at %s. Skip import.", keyFileEnv.get());
+			return Optional.empty();
+		}
+
+		try {
+			DIDKey keyToImport = OBJECT_MAPPER.readValue(keyFile, DIDKey.class);
+			return Optional.ofNullable(waltIdClient.importDIDKey(keyToImport));
+		} catch (IOException e) {
+			LOGGER.warnf("The keyfile %s is not a valid key. Skip import.", keyFileEnv.get(), e);
+			return Optional.empty();
+		} catch (WaltIdConnectException e) {
+			LOGGER.warnf("Was not able to import the key. Skip import.", e);
+			return Optional.empty();
+		}
+	}
+
+	private boolean existsDid(String issuerDid) {
+		return waltIdClient.getDids().contains(issuerDid);
 	}
 
 	@Override
