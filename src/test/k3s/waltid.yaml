@@ -29,7 +29,6 @@ data:
   signatory.conf: |
     proofConfig {
       issuerDid="To-be-decided"
-      issuerVerificationMethod="todo"
       proofType="LD_PROOF"
       domain="TEST"
       nonce="todo"
@@ -83,7 +82,7 @@ spec:
     spec:
       containers:
         - name: waltid
-          image: quay.io/fiware/waltid:1.13.0-SNAPSHOT
+          image: quay.io/fiware/waltid:1.14.0-SNAPSHOT
           imagePullPolicy: IfNotPresent
           args:
             - serve

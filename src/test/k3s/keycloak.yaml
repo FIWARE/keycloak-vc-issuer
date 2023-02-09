@@ -51,6 +51,10 @@ spec:
               value: admin
             - name: VCISSUER_WALTID_ADDRESS
               value: http://waltid
+            - name: VCISSUER_ISSUER_DID
+              value: did:key:z6MkqmaCT2JqdUtLeKah7tEVfNXtDXtQyj4yxEgV11Y5CqUa
+            - name: VCISSUER_ISSUER_KEY_FILE
+              value: /opt/keys/keyfile.json
           livenessProbe:
             failureThreshold: 3
             httpGet:
@@ -74,6 +78,27 @@ spec:
           volumeMounts:
             - mountPath: /opt/keycloak/providers/
               name: providers
+            - mountPath: /opt/keys
+              name: keyfile
       volumes:
-        - emptyDir: {}
-          name: providers
+        - name: providers
+          emptyDir: {}
+        - name: keyfile
+          configMap:
+            name: keycloak-issuer-key
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-issuer-key
+data:
+  keyfile.json: |
+    {
+      "kty": "OKP",
+      "d": "fcMKCbtj4f14DdZtiBCzPqRkGQPNmsl0nt3IwU1HtLg",
+      "use": "sig",
+      "crv": "Ed25519",
+      "kid": "z6MkqmaCT2JqdUtLeKah7tEVfNXtDXtQyj4yxEgV11Y5CqUa",
+      "x": "lqXp4SMT6En9uF130rLeNsan8-790AJ10RqeC7oQHe4",
+      "alg": "EdDSA"
+    }

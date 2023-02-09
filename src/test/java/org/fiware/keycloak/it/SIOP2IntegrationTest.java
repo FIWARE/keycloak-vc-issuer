@@ -1,14 +1,12 @@
 package org.fiware.keycloak.it;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import liquibase.pro.packaged.O;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.awaitility.Awaitility;
 import org.fiware.keycloak.ExpectedResult;
 import org.fiware.keycloak.SIOP2LoginProtocolFactory;
-import org.fiware.keycloak.it.model.CredentialSchema;
 import org.fiware.keycloak.it.model.CredentialSubject;
 import org.fiware.keycloak.it.model.Role;
 import org.fiware.keycloak.it.model.VerifiableCredential;
@@ -30,7 +28,6 @@ import org.keycloak.representations.idm.UserRepresentation;
 
 import javax.ws.rs.ClientErrorException;
 import javax.ws.rs.core.Response;
-import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -48,7 +45,6 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -62,7 +58,8 @@ public class SIOP2IntegrationTest {
 
 	private static final String TEST_CLIENT_ID_ONE = "did:key:z6Mkv4Lh9zBTPLoFhLHHMFJA7YAeVw5HFYZV8rkdfY9fNtm3";
 	private static final String TEST_CLIENT_ID_TWO = "did:key:z6Mkp7DVYuruxmKxsy2Rb3kMnfHgZZpbWYnY9rodvVfky7uj";
-	private static final String TEST_ID_TWO = "two";
+
+	private static final String KEYCLOAK_ISSUER_DID ="did:key:z6MkqmaCT2JqdUtLeKah7tEVfNXtDXtQyj4yxEgV11Y5CqUa";
 
 	private static final String MASTER_REALM = "master";
 	private static final String TEST_REALM = "test";
@@ -105,6 +102,12 @@ public class SIOP2IntegrationTest {
 		deleteTestRealm();
 	}
 
+	@DisplayName("The provided key and did should have been successfully imported")
+	@Test
+	public void testImportSuccess() {
+		assertEquals(KEYCLOAK_ISSUER_DID, issuerDid, "The preconfigured did should have been imported.");
+	}
+
 	@DisplayName("Issue credentials using a bearer token.")
 	@ParameterizedTest
 	@MethodSource("provideUsersAndClients")
@@ -142,7 +145,7 @@ public class SIOP2IntegrationTest {
 
 	@ParameterizedTest
 	@MethodSource("provideUsersAndClients")
-	public void testVCIssuanceWithnvalidToken(List<Client> clients, List<User> users, String userToRequest,
+	public void testVCIssuanceWithInvalidToken(List<Client> clients, List<User> users, String userToRequest,
 			String credentialToRequest) throws Exception {
 
 		ExpectedResult expectedResult = new ExpectedResult(null,
