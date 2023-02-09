@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+env:
+  REGISTRY: quay.io
+  REPOSITORY: fiware
+
 jobs:
 
   generate-version:
