@@ -19,6 +19,7 @@ jobs:
           # we already know that everything above is incompatible
           minMajor: "18"
           repository: keycloak/keycloak
+          token: ${{ secrets.TOKEN }}
 
       - id: plugin-version
         uses: pozetroninc/github-action-get-latest-release@v0.5.0
