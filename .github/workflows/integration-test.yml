@@ -9,7 +9,7 @@ jobs:
 
     steps:
       - id: keycloak-version
-        uses: wistefan/get-releases-by-semver@0.1.0
+        uses: wistefan/get-releases-by-semver@0.1.1
         with:
           include: "MINOR"
           # we already know that everything below is incompatible
