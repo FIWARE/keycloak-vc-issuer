@@ -12,7 +12,7 @@ jobs:
         uses: wistefan/get-releases-by-semver@0.1.0
         with:
           include: "MINOR"
-          # we already know that everything above is incompatible
+          # we already know that everything below is incompatible
           minMajor: "18"
           repository: keycloak/keycloak
           token: ${{ secrets.TOKEN }}
