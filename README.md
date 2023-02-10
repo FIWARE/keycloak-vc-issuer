@@ -29,12 +29,13 @@ on [Walt-ID](https://github.com/walt-id/waltid-ssikit)
 as a downstream component. The [integration-test setup](src/test/k3s) provides an example on how to run and integrate
 it. The configuration is provided via environment variables:
 
-|Name| Description                                                                 | Default    |
-|----|-----------------------------------------------------------------------------|------------|
-|VCISSUER_WALTID_ADDRESS| Base address of walt-id. Has to include the protocol.                       ||
-|VCISSUER_WALTID_CORE_PORT| Port to be used for connecting the walt-id's core-api.                      | ```7000``` |
-|VCISSUER_WALTID_SIGNATORY_PORT| Port to be used for connecting the walt-id's signatory-api.                 | ```7001``` |
+|Name| Description                                                                          | Default    |
+|----|--------------------------------------------------------------------------------------|------------|
+|VCISSUER_WALTID_ADDRESS| Base address of walt-id. Has to include the protocol.                                ||
+|VCISSUER_WALTID_CORE_PORT| Port to be used for connecting the walt-id's core-api.                               | ```7000``` |
+|VCISSUER_WALTID_SIGNATORY_PORT| Port to be used for connecting the walt-id's signatory-api.                          | ```7001``` |
 |VCISSUER_ISSUER_DID| DID to be used for issuing credentials. If none is provided, Keycloak will create one. | |
+|VCISSUER_ISSUER_KEY_FILE| Path to the file containing the issuer key.                                          | |
 
 ## Usage
 

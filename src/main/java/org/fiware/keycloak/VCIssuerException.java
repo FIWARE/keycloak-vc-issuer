@@ -1,6 +1,7 @@
 package org.fiware.keycloak;
 
 public class VCIssuerException extends RuntimeException {
+
 	public VCIssuerException(String message) {
 		super(message);
 	}
