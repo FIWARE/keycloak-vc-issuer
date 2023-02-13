@@ -1,5 +1,6 @@
 package org.fiware.keycloak;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.fiware.keycloak.model.Role;
@@ -7,6 +8,7 @@ import org.fiware.keycloak.model.VCClaims;
 import org.fiware.keycloak.model.VCConfig;
 import org.fiware.keycloak.model.VCData;
 import org.fiware.keycloak.model.VCRequest;
+import org.fiware.keycloak.model.VerifiableCredential;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -43,6 +45,9 @@ import static org.mockito.Mockito.when;
 public class VCIssuerRealmResourceProviderTest {
 
 	private static final String ISSUER_DID = "did:key:test";
+
+	private final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+	private VerifiableCredential TEST_VC = VerifiableCredential.builder().build();
 
 	private KeycloakSession keycloakSession;
 	private AppAuthManager.BearerTokenAuthenticator bearerTokenAuthenticator;
@@ -162,7 +167,7 @@ public class VCIssuerRealmResourceProviderTest {
 	@MethodSource("provideUserAndClients")
 	public void testGetVC(UserModel userModel, Stream<ClientModel> clientModelStream,
 			Map<ClientModel, Stream<RoleModel>> roleModelStreamMap,
-			ExpectedResult<VCRequest> expectedResult) {
+			ExpectedResult<VCRequest> expectedResult) throws JsonProcessingException {
 		AuthenticationManager.AuthResult authResult = mock(AuthenticationManager.AuthResult.class);
 		KeycloakContext context = mock(KeycloakContext.class);
 		RealmModel realmModel = mock(RealmModel.class);
@@ -179,8 +184,8 @@ public class VCIssuerRealmResourceProviderTest {
 
 		ArgumentCaptor<VCRequest> argument = ArgumentCaptor.forClass(VCRequest.class);
 
-		when(waltIdClient.getVCFromWaltId(argument.capture())).thenReturn("myVC");
-		assertEquals("myVC", testProvider.issueVerifiableCredential("MyType", null).getEntity(), "The requested VC should be returned.");
+		when(waltIdClient.getVCFromWaltId(argument.capture())).thenReturn(OBJECT_MAPPER.writeValueAsString(TEST_VC));
+		assertEquals(TEST_VC, testProvider.issueVerifiableCredential("MyType", null).getEntity(), "The requested VC should be returned.");
 
 		assertEquals(expectedResult.getExpectedResult(), argument.getValue(), expectedResult.getMessage());
 	}
