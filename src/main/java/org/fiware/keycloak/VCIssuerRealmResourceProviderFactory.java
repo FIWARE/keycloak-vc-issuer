@@ -47,7 +47,7 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 				issuerDid,
 				waltIdClient,
 				new AppAuthManager.BearerTokenAuthenticator(
-						keycloakSession));
+						keycloakSession), OBJECT_MAPPER);
 	}
 
 	@Override

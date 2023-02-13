@@ -1,5 +1,6 @@
 package org.fiware.keycloak;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.fiware.keycloak.model.Role;
 import org.fiware.keycloak.model.VCClaims;
@@ -55,7 +56,7 @@ public class VCIssuerRealmResourceProviderTest {
 		this.bearerTokenAuthenticator = mock(AppAuthManager.BearerTokenAuthenticator.class);
 		this.waltIdClient = mock(WaltIdClient.class);
 		this.testProvider = new VCIssuerRealmResourceProvider(keycloakSession, ISSUER_DID, waltIdClient,
-				bearerTokenAuthenticator);
+				bearerTokenAuthenticator, new ObjectMapper());
 	}
 
 	@Test

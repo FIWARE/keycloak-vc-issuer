@@ -1,4 +1,4 @@
-package org.fiware.keycloak.it.model;
+package org.fiware.keycloak.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
@@ -16,6 +16,8 @@ import java.util.Set;
 @Getter
 @EqualsAndHashCode
 public class VerifiableCredential {
+
+	public String format = "jwt_vc_json";
 	public Set<String> type;
 	@JsonProperty("@context")
 	public List<String> context;

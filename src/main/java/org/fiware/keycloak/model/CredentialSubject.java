@@ -1,4 +1,4 @@
-package org.fiware.keycloak.it.model;
+package org.fiware.keycloak.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

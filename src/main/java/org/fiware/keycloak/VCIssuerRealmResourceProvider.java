@@ -1,5 +1,7 @@
 package org.fiware.keycloak;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.fiware.keycloak.model.Role;
@@ -7,6 +9,7 @@ import org.fiware.keycloak.model.VCClaims;
 import org.fiware.keycloak.model.VCConfig;
 import org.fiware.keycloak.model.VCData;
 import org.fiware.keycloak.model.VCRequest;
+import org.fiware.keycloak.model.VerifiableCredential;
 import org.jboss.logging.Logger;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
@@ -53,13 +56,16 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	private final String issuerDid;
 	private final AppAuthManager.BearerTokenAuthenticator bearerTokenAuthenticator;
 	private final WaltIdClient waltIdClient;
+	private final ObjectMapper objectMapper;
 
 	public VCIssuerRealmResourceProvider(KeycloakSession session, String issuerDid, WaltIdClient waltIdClient,
-			AppAuthManager.BearerTokenAuthenticator authenticator) {
+			AppAuthManager.BearerTokenAuthenticator authenticator,
+			ObjectMapper objectMapper) {
 		this.session = session;
 		this.issuerDid = issuerDid;
 		this.waltIdClient = waltIdClient;
 		this.bearerTokenAuthenticator = authenticator;
+		this.objectMapper = objectMapper;
 	}
 
 	@Override
@@ -144,9 +150,18 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		String response = waltIdClient.getVCFromWaltId(vcRequest);
 
-		LOGGER.debugf("Respond with vc: %s", response);
-		// the typical wallet will request with a CORS header and not accept responses without.
-		return Response.ok().entity(response).header("Access-Control-Allow-Origin", "*").build();
+		try {
+			VerifiableCredential vc = objectMapper.readValue(response, VerifiableCredential.class);
+			LOGGER.debugf("Respond with vc: %s", response);
+			// the typical wallet will request with a CORS header and not accept responses without.
+			return Response.ok().entity(vc).header("Access-Control-Allow-Origin", "*").build();
+		} catch (JsonProcessingException e) {
+			LOGGER.warn("Did not receive a valid credential.", e);
+			throw new ErrorResponseException("bad_gatway",
+					"Did not get a valid response from walt-id.",
+					Response.Status.BAD_GATEWAY);
+		}
+
 	}
 
 	@NotNull
