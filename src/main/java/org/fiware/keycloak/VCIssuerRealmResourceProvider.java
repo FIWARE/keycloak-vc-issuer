@@ -4,6 +4,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.fiware.keycloak.model.CredentialFormat;
+import org.fiware.keycloak.model.CredentialRequest;
+import org.fiware.keycloak.model.CredentialResponseJson;
+import org.fiware.keycloak.model.CredentialResponseLdpVC;
+import org.fiware.keycloak.model.CredentialToken;
+import org.fiware.keycloak.model.ErrorResponse;
+import org.fiware.keycloak.model.ErrorType;
 import org.fiware.keycloak.model.Role;
 import org.fiware.keycloak.model.VCClaims;
 import org.fiware.keycloak.model.VCConfig;
@@ -21,7 +28,9 @@ import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.resource.RealmResourceProvider;
 
 import javax.validation.constraints.NotNull;
+import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
+import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
@@ -39,6 +48,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -57,15 +67,17 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	private final AppAuthManager.BearerTokenAuthenticator bearerTokenAuthenticator;
 	private final WaltIdClient waltIdClient;
 	private final ObjectMapper objectMapper;
+	private final Clock clock;
 
 	public VCIssuerRealmResourceProvider(KeycloakSession session, String issuerDid, WaltIdClient waltIdClient,
 			AppAuthManager.BearerTokenAuthenticator authenticator,
-			ObjectMapper objectMapper) {
+			ObjectMapper objectMapper, Clock clock) {
 		this.session = session;
 		this.issuerDid = issuerDid;
 		this.waltIdClient = waltIdClient;
 		this.bearerTokenAuthenticator = authenticator;
 		this.objectMapper = objectMapper;
+		this.clock = clock;
 	}
 
 	@Override
@@ -107,6 +119,48 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	}
 
+	@POST
+	@Consumes({ MediaType.APPLICATION_JSON })
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response requestCredential(CredentialRequest request) {
+		if (request.getTypes().size() != 1) {
+			LOGGER.infof("Credential request contained mulitple types. Req: %s", request);
+			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_REQUEST));
+		}
+		if (request.getProof() != null) {
+			LOGGER.infof("Including requested proofs into the credential is currently unsupported.");
+			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
+		}
+		CredentialFormat requestedFormat = request.getFormat();
+
+		String vcType = request.getTypes().get(0);
+
+		switch (requestedFormat) {
+			case LDP_VC: {
+				return Response.ok().entity(new CredentialResponseLdpVC(getCredential(vcType, null)))
+						.header("Access-Control-Allow-Origin", "*").build();
+			}
+			case JWT_VC_JSON: {
+				VerifiableCredential verifiableCredential = getCredential(vcType, null);
+				CredentialToken ct = new CredentialToken(verifiableCredential,
+						issuerDid,
+						clock.instant().getEpochSecond(),
+						UUID.randomUUID().toString(),
+						verifiableCredential.getId());
+				return Response.ok().entity(new CredentialResponseJson(session.tokens().encodeAndEncrypt(ct))).build();
+			}
+			default: {
+				LOGGER.infof("Credential with unsupported format %s was requested.", requestedFormat.getValue());
+				throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
+			}
+
+		}
+	}
+
+	private Response getErrorResponse(ErrorType errorType) {
+		return Response.status(Response.Status.BAD_REQUEST).entity(new ErrorResponse(errorType.getValue())).build();
+	}
+
 	/**
 	 * Returns a verifiable credential of the given type, containing the information and roles assigned to the
 	 * authenticated user.
@@ -121,7 +175,10 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response issueVerifiableCredential(@QueryParam("type") String vcType, @QueryParam("token") String token) {
 		LOGGER.debugf("Get a VC of type %s. Token parameter is %s.", vcType, token);
+		return Response.ok().entity(getCredential(vcType, token)).header("Access-Control-Allow-Origin", "*").build();
+	}
 
+	private VerifiableCredential getCredential(String vcType, String token) {
 		UserModel userModel = getUserFromSession(Optional.ofNullable(token));
 
 		List<ClientModel> clients = getClientsOfType(vcType);
@@ -154,14 +211,13 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 			VerifiableCredential vc = objectMapper.readValue(response, VerifiableCredential.class);
 			LOGGER.debugf("Respond with vc: %s", response);
 			// the typical wallet will request with a CORS header and not accept responses without.
-			return Response.ok().entity(vc).header("Access-Control-Allow-Origin", "*").build();
+			return vc;
 		} catch (JsonProcessingException e) {
 			LOGGER.warn("Did not receive a valid credential.", e);
 			throw new ErrorResponseException("bad_gatway",
 					"Did not get a valid response from walt-id.",
 					Response.Status.BAD_GATEWAY);
 		}
-
 	}
 
 	@NotNull
@@ -181,9 +237,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		if (vcClients.isEmpty()) {
 			LOGGER.debugf("No SIOP-2-Client supporting type %s registered.", vcType);
-			throw new ErrorResponseException("not_found",
-					String.format("No SIOP-2-Client supporting the requested type %s is registered.", vcType),
-					Response.Status.NOT_FOUND);
+			throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_FORMAT));
 		}
 		return vcClients;
 	}
@@ -197,8 +251,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		AuthenticationManager.AuthResult authResult = bearerTokenAuthenticator.authenticate();
 		if (authResult == null) {
-			throw new ErrorResponseException("unauthorized", "No user found in the session.",
-					Response.Status.UNAUTHORIZED);
+			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_TOKEN));
 		}
 		UserModel userModel = authResult.getUser();
 		LOGGER.debugf("Authorized user is %s.", userModel.getId());
@@ -286,13 +339,13 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		if (additionalClaims.isEmpty()) {
 			return Optional.empty();
 		} else {
-			return Optional.ofNullable(additionalClaims);
+			return Optional.of(additionalClaims);
 		}
 	}
 
 	@Getter
 	@RequiredArgsConstructor
-	private class ClientRoleModel {
+	private static class ClientRoleModel {
 		private final String clientId;
 		private final List<RoleModel> roleModels;
 	}

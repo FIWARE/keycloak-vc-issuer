@@ -10,6 +10,9 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Data object to represent a verifiable credential
+ */
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
@@ -17,7 +20,6 @@ import java.util.Set;
 @EqualsAndHashCode
 public class VerifiableCredential {
 
-	public String format = "jwt_vc_json";
 	public Set<String> type;
 	@JsonProperty("@context")
 	public List<String> context;

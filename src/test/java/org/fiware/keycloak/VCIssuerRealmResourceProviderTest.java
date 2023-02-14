@@ -27,6 +27,7 @@ import org.keycloak.services.managers.AuthenticationManager;
 import org.mockito.ArgumentCaptor;
 
 import javax.ws.rs.core.Response;
+import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -61,7 +62,7 @@ public class VCIssuerRealmResourceProviderTest {
 		this.bearerTokenAuthenticator = mock(AppAuthManager.BearerTokenAuthenticator.class);
 		this.waltIdClient = mock(WaltIdClient.class);
 		this.testProvider = new VCIssuerRealmResourceProvider(keycloakSession, ISSUER_DID, waltIdClient,
-				bearerTokenAuthenticator, new ObjectMapper());
+				bearerTokenAuthenticator, new ObjectMapper(), Clock.systemUTC());
 	}
 
 	@Test

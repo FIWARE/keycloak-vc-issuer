@@ -1,0 +1,193 @@
+openapi: 3.0.3
+info:
+  title: openid-4-verifiable-credential-issuance-1_0
+  description: OpenAPI spec for the openid-4-verifiable-credential-issuance-1_0 definition mandatory Credential Endpoint - Section 7
+  version: 0.0.1
+externalDocs:
+  description: API Documentation
+  url: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0
+
+paths:
+  /credential:
+    post:
+      operationId: PostCredential
+      summary: Request a credential from the issuer
+      description: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialRequest'
+      responses:
+        '200':
+          description: Credential Response can be Synchronous or Deferred. The Credential Issuer MAY be able to immediately issue a requested Credential and send it to the Client. In other cases, the Credential Issuer MAY NOT be able to immediately issue a requested Credential and would want to send an acceptance_token parameter to the Client to be used later to receive a Credential when it is ready.
+          content:
+            application/json::
+            schema:
+              $ref: '#/components/schemas/CredentialResponse'
+        '400':
+          description: When the Credential Request is invalid or unauthorized, the Credential Issuer responds the error response
+          content:
+            application/json::
+            schema:
+              $ref: '#/components/schemas/ErrorResponse'
+components:
+  #parameters:
+
+  schemas:
+    Format:
+      type: string
+      enum:
+        - "jwt_vc_json"
+        - "jwt_vc_json-ld"
+        - "ldp_vc"
+      example: "jwt_vc_json-ld"
+    CredentialRequest:
+      type: object
+      properties:
+        format:
+          $ref: '#/components/schemas/Format'
+        types:
+          type: array
+          items:
+            type: string
+          example:
+            - UniversityDegreeCredential
+        proof:
+          $ref: '#/components/schemas/Proof'
+      required:
+        - format
+    Proof:
+      type: object
+      properties:
+        proof_type:
+          type: string
+          enum: ["jwt"]
+          example: "jwt"
+        jwt:
+          type: string
+          example: "eyJraWQiOiJkaWQ6ZXhhbXBsZTplYmZlYjFmNzEyZWJjNmYxYzI3NmUxMmVjMjEva2V5cy8
+            xIiwiYWxnIjoiRVMyNTYiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR
+            0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbm
+            NlIjoidFppZ25zbkZicCJ9.ewdkIkPV50iOeBUqMXCC_aZKPxgihac0aW9EkL1nOzM"
+      required:
+        - proof_type
+        - jwt
+    CredentialResponse:
+      type: object
+      properties:
+        format:
+          $ref: '#/components/schemas/Format'
+        credential:
+          oneOf:
+            - $ref: '#/components/schemas/JwtCredential'
+            - $ref: '#/components/schemas/Credential'
+        acceptance_token:
+          description: A JSON string containing a security token subsequently used to obtain a Credential. MUST be present when credential is not returned.
+          type: string
+        c_nonce:
+          description: JSON string containing a nonce to be used to create a proof of possession of key material when requesting a Credential. When received, the Wallet MUST use this nonce value for its subsequent credential requests until the Credential Issuer provides a fresh nonce.
+          type: string
+        c_nonce_expires_in:
+          description: JSON integer denoting the lifetime in seconds of the c_nonce.
+          type: number
+      required:
+        - format
+        - credential
+    CredentialsType:
+      type: array
+      items:
+        type: string
+      example:
+        - "UniversityDegreeCredential"
+        - "VerifiableCredential"
+    JwtCredential:
+      type: string
+      description: "JWT encoded $ref: /components/schemas/Credential. For jwt_vc_json, the ld-context needs to be removed"
+      example: eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJ2YyI6eyJAY29udGV4dCI
+        6WyJodHRwczovL3d3dy53My5vcmcvMjAxOC9jcmVkZW50aWFscy92MSIsImh0dHBzOi8vd3d3Ln
+        czLm9yZy8yMDE4L2NyZWRlbnRpYWxzL2V4YW1wbGVzL3YxIl0sImlkIjoiaHR0cDovL2V4YW1wb
+        GUuZWR1L2NyZWRlbnRpYWxzLzM3MzIiLCJ0eXBlIjpbIlZlcmlmaWFibGVDcmVkZW50aWFsIiwi
+        VW5pdmVyc2l0eURlZ3JlZUNyZWRlbnRpYWwiXSwiaXNzdWVyIjoiaHR0cHM6Ly9leGFtcGxlLmV
+        kdS9pc3N1ZXJzLzU2NTA0OSIsImlzc3VhbmNlRGF0ZSI6IjIwMTAtMDEtMDFUMDA6MDA6MDBaIi
+        wiY3JlZGVudGlhbFN1YmplY3QiOnsiaWQiOiJkaWQ6ZXhhbXBsZTplYmZlYjFmNzEyZWJjNmYxY
+        zI3NmUxMmVjMjEiLCJkZWdyZWUiOnsidHlwZSI6IkJhY2hlbG9yRGVncmVlIiwibmFtZSI6IkJh
+        Y2hlbG9yIG9mIFNjaWVuY2UgYW5kIEFydHMifX19LCJpc3MiOiJodHRwczovL2V4YW1wbGUuZWR
+        1L2lzc3VlcnMvNTY1MDQ5IiwibmJmIjoxMjYyMzA0MDAwLCJqdGkiOiJodHRwOi8vZXhhbXBsZS
+        5lZHUvY3JlZGVudGlhbHMvMzczMiIsInN1YiI6ImRpZDpleGFtcGxlOmViZmViMWY3MTJlYmM2Z
+        jFjMjc2ZTEyZWMyMSJ9.z5vgMTK1nfizNCg5N-niCOL3WUIAL7nXy-nGhDZYO_-PNGeE-0djCpW
+        AMH8fD8eWSID5PfkPBYkx_dfLJnQ7NA
+
+    Credential:
+      description: Credential in the format ldp_vc
+      type: object
+      properties:
+        types:
+          $ref: '#/components/schemas/CredentialsType'
+        '@context':
+          type: array
+          items:
+            type: string
+            format: uri
+          example:
+            - https://www.w3.org/2018/credentials/v1
+            - https://w3id.org/security/suites/jws-2020/v1
+        credentialsSubject:
+          description: A JSON object containing a list of key value pairs, where the key identifies the claim offered in the Credential. The value MAY be a dictionary, which allows to represent the full (potentially deeply nested) structure of the verifiable credential to be issued.
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/SubjectEntry'
+      required:
+        - '@context'
+        - types
+        - format
+
+    SubjectEntry:
+      type: object
+      properties:
+        mandatory:
+          type: boolean
+          description: When set to true indicates the claim MUST be present in the issued Credential.
+          default: false
+          example: false
+        value_type:
+          type: string
+          description: Value determining type of value of the claim. A non-exhaustive list of valid values defined by this specification are string, number, and image media types such as image/jpeg as defined in IANA media type registry for images
+          example: "string"
+        display:
+          type: array
+          items:
+            $ref: '#/components/schemas/DisplayObject'
+        order:
+          type: array
+          description: An array of claims.display.name values that lists them in the order they should be displayed by the Wallet.
+          items:
+            type: string
+          example:
+            - "University Credential"
+            - "School Credential"
+    DisplayObject:
+      type: object
+      properties:
+        name:
+          type: string
+          description: String value of a display name for the claim
+          example: "University Credential"
+        locale:
+          type: string
+          description: String value that identifies language of this object represented as language tag values defined in BCP47 [RFC5646]. There MUST be only one object with the same language.
+          example: "en-US"
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          enum:
+            - invalid_request
+            - invalid_token
+            - unsupported_credential_type
+            - unsupported_credential_format
+            - invalid_or_missing_proof
+          example: "invalid_request"
+

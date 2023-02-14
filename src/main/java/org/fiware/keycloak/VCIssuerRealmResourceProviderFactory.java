@@ -13,6 +13,7 @@ import org.keycloak.services.resource.RealmResourceProviderFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Optional;
 
 /**
@@ -23,6 +24,7 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 	private static final Logger LOGGER = Logger.getLogger(VCIssuerRealmResourceProviderFactory.class);
+	private static final Clock CLOCK = Clock.systemUTC();
 	private static final String ID = "verifiable-credential";
 
 	private static final String WALTID_ADDRESS_ENV_VAR = "VCISSUER_WALTID_ADDRESS";
@@ -47,7 +49,9 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 				issuerDid,
 				waltIdClient,
 				new AppAuthManager.BearerTokenAuthenticator(
-						keycloakSession), OBJECT_MAPPER);
+						keycloakSession),
+				OBJECT_MAPPER,
+				CLOCK);
 	}
 
 	@Override
