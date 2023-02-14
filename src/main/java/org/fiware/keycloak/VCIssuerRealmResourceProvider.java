@@ -120,6 +120,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	@POST
+	@Path("credential")
 	@Consumes({ MediaType.APPLICATION_JSON })
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response requestCredential(CredentialRequest request) {
@@ -237,7 +238,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		if (vcClients.isEmpty()) {
 			LOGGER.debugf("No SIOP-2-Client supporting type %s registered.", vcType);
-			throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_FORMAT));
+			throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
 		}
 		return vcClients;
 	}

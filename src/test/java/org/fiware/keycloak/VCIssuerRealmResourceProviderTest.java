@@ -3,6 +3,8 @@ package org.fiware.keycloak;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.fiware.keycloak.model.ErrorResponse;
+import org.fiware.keycloak.model.ErrorType;
 import org.fiware.keycloak.model.Role;
 import org.fiware.keycloak.model.VCClaims;
 import org.fiware.keycloak.model.VCConfig;
@@ -116,8 +118,11 @@ public class VCIssuerRealmResourceProviderTest {
 			testProvider.issueVerifiableCredential("MyVC", null);
 			fail("VCs should only be accessible for authorized users.");
 		} catch (ErrorResponseException e) {
-			assertEquals(Response.Status.UNAUTHORIZED.getStatusCode(), e.getResponse().getStatus(),
-					"The response should be a 403.");
+			assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), e.getResponse().getStatus(),
+					"The response should be a 400.");
+			ErrorResponse er = OBJECT_MAPPER.convertValue(e.getResponse().getEntity(), ErrorResponse.class);
+			assertEquals(ErrorType.INVALID_TOKEN.getValue(), er.getError(),
+					"The response should have been denied because of the invalid token.");
 		}
 	}
 
@@ -134,8 +139,11 @@ public class VCIssuerRealmResourceProviderTest {
 			testProvider.issueVerifiableCredential("MyVC", "myToken");
 			fail("VCs should only be accessible for authorized users.");
 		} catch (ErrorResponseException e) {
-			assertEquals(Response.Status.UNAUTHORIZED.getStatusCode(), e.getResponse().getStatus(),
-					"The response should be a 403.");
+			assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), e.getResponse().getStatus(),
+					"The response should be a 400.");
+			ErrorResponse er = OBJECT_MAPPER.convertValue(e.getResponse().getEntity(), ErrorResponse.class);
+			assertEquals(ErrorType.INVALID_TOKEN.getValue(), er.getError(),
+					"The response should have been denied because of the missing token.");
 		}
 	}
 
@@ -157,10 +165,13 @@ public class VCIssuerRealmResourceProviderTest {
 
 		try {
 			testProvider.issueVerifiableCredential("MyNonExistentType", null);
-			fail("Not found types should be a 404");
+			fail("Not found types should be a 400");
 		} catch (ErrorResponseException e) {
-			assertEquals(Response.Status.NOT_FOUND.getStatusCode(), e.getResponse().getStatus(),
-					"Not found types should be a 404");
+			assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), e.getResponse().getStatus(),
+					"Not found types should be a 400");
+			ErrorResponse er = OBJECT_MAPPER.convertValue(e.getResponse().getEntity(), ErrorResponse.class);
+			assertEquals(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE.getValue(), er.getError(),
+					"The response should have been denied because of the unsupported type.");
 		}
 	}
 
@@ -186,7 +197,8 @@ public class VCIssuerRealmResourceProviderTest {
 		ArgumentCaptor<VCRequest> argument = ArgumentCaptor.forClass(VCRequest.class);
 
 		when(waltIdClient.getVCFromWaltId(argument.capture())).thenReturn(OBJECT_MAPPER.writeValueAsString(TEST_VC));
-		assertEquals(TEST_VC, testProvider.issueVerifiableCredential("MyType", null).getEntity(), "The requested VC should be returned.");
+		assertEquals(TEST_VC, testProvider.issueVerifiableCredential("MyType", null).getEntity(),
+				"The requested VC should be returned.");
 
 		assertEquals(expectedResult.getExpectedResult(), argument.getValue(), expectedResult.getMessage());
 	}
