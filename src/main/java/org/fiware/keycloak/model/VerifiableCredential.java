@@ -30,6 +30,6 @@ public class VerifiableCredential {
 	public String validFrom;
 	public String expirationDate;
 	public CredentialSchema credentialSchema;
-	public CredentialSubject credentialSubject;
+	public Object credentialSubject;
 	public JWSProof proof;
 }

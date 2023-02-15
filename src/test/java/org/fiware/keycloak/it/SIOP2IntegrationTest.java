@@ -7,7 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.awaitility.Awaitility;
 import org.fiware.keycloak.ExpectedResult;
 import org.fiware.keycloak.SIOP2LoginProtocolFactory;
-import org.fiware.keycloak.model.CredentialSubject;
+import org.fiware.keycloak.it.model.CredentialSubject;
 import org.fiware.keycloak.it.model.Role;
 import org.fiware.keycloak.model.VerifiableCredential;
 import org.junit.jupiter.api.AfterEach;
@@ -195,7 +195,7 @@ public class SIOP2IntegrationTest {
 				expectedResult.getMessage());
 		if (expectedResult.getResponse().isSuccess()) {
 			VerifiableCredential receivedVC = OBJECT_MAPPER.readValue(response.body(), VerifiableCredential.class);
-			CredentialSubject credentialSubject = receivedVC.getCredentialSubject();
+			CredentialSubject credentialSubject = OBJECT_MAPPER.convertValue(receivedVC.getCredentialSubject(), CredentialSubject.class);
 			assertEquals(expectedResult.getExpectedResult(), credentialSubject.getRoles(),
 					expectedResult.getMessage());
 
