@@ -9,7 +9,8 @@ import org.fiware.keycloak.ExpectedResult;
 import org.fiware.keycloak.SIOP2LoginProtocolFactory;
 import org.fiware.keycloak.it.model.CredentialSubject;
 import org.fiware.keycloak.it.model.Role;
-import org.fiware.keycloak.model.VerifiableCredential;
+import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
+import org.fiware.keycloak.oidcvc.model.CredentialVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -194,8 +195,9 @@ public class SIOP2IntegrationTest {
 				response.statusCode(),
 				expectedResult.getMessage());
 		if (expectedResult.getResponse().isSuccess()) {
-			VerifiableCredential receivedVC = OBJECT_MAPPER.readValue(response.body(), VerifiableCredential.class);
-			CredentialSubject credentialSubject = OBJECT_MAPPER.convertValue(receivedVC.getCredentialSubject(), CredentialSubject.class);
+			CredentialResponseVO receivedVC = OBJECT_MAPPER.readValue(response.body(), CredentialResponseVO.class);
+			CredentialVO credentialVO = OBJECT_MAPPER.convertValue(receivedVC.getCredential(), CredentialVO.class);
+			CredentialSubject credentialSubject = OBJECT_MAPPER.convertValue(credentialVO.getCredentialsSubject(), CredentialSubject.class);
 			assertEquals(expectedResult.getExpectedResult(), credentialSubject.getRoles(),
 					expectedResult.getMessage());
 
@@ -213,11 +215,11 @@ public class SIOP2IntegrationTest {
 			requestedUser.getEmail().ifPresentOrElse(
 					email -> assertEquals(email, credentialSubject.getEmail(), expectedResult.getMessage()),
 					() -> assertNull(credentialSubject.getEmail(), expectedResult.getMessage()));
-			assertEquals(issuerDid, receivedVC.getIssuer(), expectedResult.getMessage());
-			assertTrue(receivedVC.getType().contains(credentialToRequest), expectedResult.getMessage());
+			assertEquals(issuerDid, credentialVO.get("issuer"), expectedResult.getMessage());
+			assertTrue(credentialVO.getTypes().contains(credentialToRequest), expectedResult.getMessage());
 		} else {
 			try {
-				OBJECT_MAPPER.readValue(response.body(), VerifiableCredential.class);
+				OBJECT_MAPPER.readValue(response.body(), CredentialResponseVO.class);
 				fail(expectedResult.getMessage());
 			} catch (Exception e) {
 				// we want this to fail.

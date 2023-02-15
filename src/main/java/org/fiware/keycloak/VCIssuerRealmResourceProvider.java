@@ -4,11 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import org.fiware.keycloak.model.CredentialFormat;
-import org.fiware.keycloak.model.CredentialRequest;
-import org.fiware.keycloak.model.CredentialResponseJson;
-import org.fiware.keycloak.model.CredentialResponseLdpVC;
-import org.fiware.keycloak.model.CredentialToken;
 import org.fiware.keycloak.model.ErrorResponse;
 import org.fiware.keycloak.model.ErrorType;
 import org.fiware.keycloak.model.Role;
@@ -16,21 +11,26 @@ import org.fiware.keycloak.model.VCClaims;
 import org.fiware.keycloak.model.VCConfig;
 import org.fiware.keycloak.model.VCData;
 import org.fiware.keycloak.model.VCRequest;
-import org.fiware.keycloak.model.VerifiableCredential;
+import org.fiware.keycloak.oidcvc.api.CredentialApi;
+import org.fiware.keycloak.oidcvc.api.WellKnownApi;
+import org.fiware.keycloak.oidcvc.model.CredentialIssuerVO;
+import org.fiware.keycloak.oidcvc.model.CredentialRequestVO;
+import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
+import org.fiware.keycloak.oidcvc.model.CredentialVO;
+import org.fiware.keycloak.oidcvc.model.FormatVO;
 import org.jboss.logging.Logger;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.representations.JsonWebToken;
 import org.keycloak.services.ErrorResponseException;
 import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.resource.RealmResourceProvider;
 
 import javax.validation.constraints.NotNull;
-import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
-import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
  * Real-Resource to provide functionality for issuing VerfiableCredentials to users, depending on there roles in
  * registered SIOP-2 clients
  */
-public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
+public class VCIssuerRealmResourceProvider implements RealmResourceProvider, CredentialApi, WellKnownApi {
 
 	private static final Logger LOGGER = Logger.getLogger(VCIssuerRealmResourceProvider.class);
 	private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_DATE_TIME
@@ -119,45 +119,6 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	}
 
-	@POST
-	@Path("credential")
-	@Consumes({ MediaType.APPLICATION_JSON })
-	@Produces(MediaType.APPLICATION_JSON)
-	public Response requestCredential(CredentialRequest request) {
-		if (request.getTypes().size() != 1) {
-			LOGGER.infof("Credential request contained mulitple types. Req: %s", request);
-			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_REQUEST));
-		}
-		if (request.getProof() != null) {
-			LOGGER.infof("Including requested proofs into the credential is currently unsupported.");
-			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
-		}
-		CredentialFormat requestedFormat = request.getFormat();
-
-		String vcType = request.getTypes().get(0);
-
-		switch (requestedFormat) {
-			case LDP_VC: {
-				return Response.ok().entity(new CredentialResponseLdpVC(getCredential(vcType, null)))
-						.header("Access-Control-Allow-Origin", "*").build();
-			}
-			case JWT_VC_JSON: {
-				VerifiableCredential verifiableCredential = getCredential(vcType, null);
-				CredentialToken ct = new CredentialToken(verifiableCredential,
-						issuerDid,
-						clock.instant().getEpochSecond(),
-						UUID.randomUUID().toString(),
-						verifiableCredential.getId());
-				return Response.ok().entity(new CredentialResponseJson(session.tokens().encodeAndEncrypt(ct))).build();
-			}
-			default: {
-				LOGGER.infof("Credential with unsupported format %s was requested.", requestedFormat.getValue());
-				throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
-			}
-
-		}
-	}
-
 	private Response getErrorResponse(ErrorType errorType) {
 		return Response.status(Response.Status.BAD_REQUEST).entity(new ErrorResponse(errorType.getValue())).build();
 	}
@@ -179,7 +140,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		return Response.ok().entity(getCredential(vcType, token)).header("Access-Control-Allow-Origin", "*").build();
 	}
 
-	private VerifiableCredential getCredential(String vcType, String token) {
+	private CredentialVO getCredential(String vcType, String token) {
 		UserModel userModel = getUserFromSession(Optional.ofNullable(token));
 
 		List<ClientModel> clients = getClientsOfType(vcType);
@@ -209,7 +170,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		String response = waltIdClient.getVCFromWaltId(vcRequest);
 
 		try {
-			VerifiableCredential vc = objectMapper.readValue(response, VerifiableCredential.class);
+			CredentialVO vc = objectMapper.readValue(response, CredentialVO.class);
 			LOGGER.debugf("Respond with vc: %s", response);
 			// the typical wallet will request with a CORS header and not accept responses without.
 			return vc;
@@ -342,6 +303,54 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		} else {
 			return Optional.of(additionalClaims);
 		}
+	}
+
+	@Override
+	public Response requestCredential(CredentialRequestVO credentialRequestVO) {
+
+		if (credentialRequestVO.getTypes().size() != 1) {
+			LOGGER.infof("Credential request contained mulitple types. Req: %s", credentialRequestVO);
+			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_REQUEST));
+		}
+		if (credentialRequestVO.getProof() != null) {
+			LOGGER.infof("Including requested proofs into the credential is currently unsupported.");
+			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
+		}
+		FormatVO requestedFormat = credentialRequestVO.getFormat();
+
+		String vcType = credentialRequestVO.getTypes().get(0);
+
+		CredentialResponseVO responseVO = new CredentialResponseVO();
+		responseVO.format(requestedFormat);
+
+		CredentialVO credentialVO = getCredential(vcType, null);
+		switch (requestedFormat) {
+			case LDP_VC: {
+				responseVO.setCredential(credentialVO);
+				break;
+			}
+			case JWT_VC_JSON: {
+				JsonWebToken jwt = new JsonWebToken()
+						.id(UUID.randomUUID().toString())
+						.issuer(issuerDid)
+						.nbf(clock.instant().getEpochSecond());
+				jwt.setOtherClaims("credential", credentialVO);
+				responseVO.setCredential(session.tokens().encodeAndEncrypt(jwt));
+				break;
+			}
+			default: {
+				LOGGER.infof("Credential with unsupported format %s was requested.", requestedFormat.toString());
+				throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
+			}
+
+		}
+
+		return Response.ok().entity(responseVO)
+				.header("Access-Control-Allow-Origin", "*").build();
+	}
+
+	@Override public Response getIssuerMetadata() {
+		return null;
 	}
 
 	@Getter

@@ -1,18 +1,30 @@
 openapi: 3.0.3
 info:
   title: openid-4-verifiable-credential-issuance-1_0
-  description: OpenAPI spec for the openid-4-verifiable-credential-issuance-1_0 definition mandatory Credential Endpoint - Section 7
+  description: Readable spec
   version: 0.0.1
 externalDocs:
   description: API Documentation
-  url: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0
+  url: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html
 
 paths:
+  /.well-known/openid-credential-issuer:
+    get:
+      operationId: getIssuerMetadata
+      description: "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-issuer-metadata-"
+      summary: Return the issuer metadata
+      responses:
+        '200':
+          description: The credentials issuer metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialIssuer'
   /credential:
     post:
-      operationId: PostCredential
+      operationId: requestCredential
       summary: Request a credential from the issuer
-      description: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-request
+      description: "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-request"
       requestBody:
         required: true
         content:
@@ -23,18 +35,17 @@ paths:
         '200':
           description: Credential Response can be Synchronous or Deferred. The Credential Issuer MAY be able to immediately issue a requested Credential and send it to the Client. In other cases, the Credential Issuer MAY NOT be able to immediately issue a requested Credential and would want to send an acceptance_token parameter to the Client to be used later to receive a Credential when it is ready.
           content:
-            application/json::
-            schema:
-              $ref: '#/components/schemas/CredentialResponse'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialResponse'
         '400':
           description: When the Credential Request is invalid or unauthorized, the Credential Issuer responds the error response
           content:
-            application/json::
-            schema:
-              $ref: '#/components/schemas/ErrorResponse'
-components:
-  #parameters:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
+components:
   schemas:
     Format:
       type: string
@@ -80,9 +91,8 @@ components:
         format:
           $ref: '#/components/schemas/Format'
         credential:
-          oneOf:
-            - $ref: '#/components/schemas/JwtCredential'
-            - $ref: '#/components/schemas/Credential'
+          type: object
+          description: The object is oneOf '#/components/schemas/JwtCredential' '#/components/schemas/Credential' but oneOf is currently not supported by the code-gen
         acceptance_token:
           description: A JSON string containing a security token subsequently used to obtain a Credential. MUST be present when credential is not returned.
           type: string
@@ -136,37 +146,12 @@ components:
         credentialsSubject:
           description: A JSON object containing a list of key value pairs, where the key identifies the claim offered in the Credential. The value MAY be a dictionary, which allows to represent the full (potentially deeply nested) structure of the verifiable credential to be issued.
           type: object
-          additionalProperties:
-            $ref: '#/components/schemas/SubjectEntry'
+      additionalProperties: true
       required:
         - '@context'
         - types
         - format
 
-    SubjectEntry:
-      type: object
-      properties:
-        mandatory:
-          type: boolean
-          description: When set to true indicates the claim MUST be present in the issued Credential.
-          default: false
-          example: false
-        value_type:
-          type: string
-          description: Value determining type of value of the claim. A non-exhaustive list of valid values defined by this specification are string, number, and image media types such as image/jpeg as defined in IANA media type registry for images
-          example: "string"
-        display:
-          type: array
-          items:
-            $ref: '#/components/schemas/DisplayObject'
-        order:
-          type: array
-          description: An array of claims.display.name values that lists them in the order they should be displayed by the Wallet.
-          items:
-            type: string
-          example:
-            - "University Credential"
-            - "School Credential"
     DisplayObject:
       type: object
       properties:
@@ -190,4 +175,119 @@ components:
             - unsupported_credential_format
             - invalid_or_missing_proof
           example: "invalid_request"
-
+    CredentialObject:
+      type: object
+      properties:
+        format:
+          type: string
+          description: Determines the format of the credential to be requested
+      additionalProperties: true
+      required:
+        - format
+    CredentialOffer:
+      type: object
+      properties:
+        credential_issuer:
+          type: string
+          format: URL
+          description:  The URL of the Credential Issuer, the Wallet is requested to obtain one or more Credentials from.
+        credentials:
+          description: A JSON array, where every entry is a JSON object or a JSON string. If the entry is an object, the object contains the data related to a certain credential type the Wallet MAY request. If the entry is a string, the string value MUST be one of the id values in one of the objects in the credentials_supported Credential Issuer metadata parameter.
+          type: array
+          items:
+            oneOf:
+              - type: string
+              - $ref: '#/components/schemas/CredentialObject'
+        grants:
+          $ref: '#/components/schemas/Grants'
+      required:
+        - credential_issuer
+        - credentials
+    Grants:
+      type: object
+      description: A JSON object indicating to the Wallet the Grant Types the Credential Issuer's AS is prepared to process for this credential offer. Every grant is represented by a key and an object. The key value is the Grant Type identifier, the object MAY contain parameters either determining the way the Wallet MUST use the particular grant and/or parameters the Wallet MUST send with the respective request(s). If grants is not present or empty, the Wallet MUST determine the Grant Types the Credential Issuer's AS supports using the respective metadata. When multiple grants are present, it's at the Wallet's discretion which one to use.
+      properties:
+        authorization_code:
+          type: object
+          properties:
+            issuer_state:
+              description: String value created by the Credential Issuer and opaque to the Wallet that is used to bind the subsequent Authorization Request with the Credential Issuer to a context set up during previous steps. If the Wallet decides to use the Authorization Code Flow and received a value for this parameter, it MUST include it in the subsequent Authorization Request to the Credential Issuer as the issuer_state parameter value.
+              type: string
+        "urn:ietf:params:oauth:grant-type:pre-authorized_code":
+          type: object
+          properties:
+            pre-authorized_code:
+              type: string
+              description: The code representing the Credential Issuer's authorization for the Wallet to obtain Credentials of a certain type. This code MUST be short lived and single-use. If the Wallet decides to use the Pre-Authorized Code Flow, this parameter value MUST be include in the subsequent Token Request with the Pre-Authorized Code Flow.
+            user_pin_required:
+              type: boolean
+              description: Boolean value specifying whether the Credential Issuer expects presentation of a user PIN along with the Token Request in a Pre-Authorized Code Flow. Default is false. This PIN is intended to bind the Pre-Authorized Code to a certain transaction in order to prevent replay of this code by an attacker that, for example, scanned the QR code while standing behind the legit user. It is RECOMMENDED to send a PIN via a separate channel. If the Wallet decides to use the Pre-Authorized Code Flow, a PIN value MUST be sent in the user_pin parameter with the respective Token Request
+          required:
+            - pre-authorized_code
+    CredentialOfferContainer:
+      type: object
+      properties:
+        credential_offer:
+          $ref: '#/components/schemas/CredentialOffer'
+        credential_offer_uri:
+          type: string
+          format: URI
+          description: A URL using the https scheme referencing a resource containing a JSON object with the Credential Offer parameters. MUST NOT be present when credential_offer parameter is present.
+    SupportedCredential:
+      type: object
+      properties:
+        format:
+          oneOf:
+            - $ref: '#/components/schemas/Format'
+            - $ref: '#/components/schemas/CredentialObject'
+        id:
+          type: string
+          example: "UniversityDegree_JWT"
+        cryptographic_binding_methods_supported:
+          description: Identifies how the Credential is bound to the identifier of the End-User who possesses the Credential. Support for keys in JWK format [RFC7517] is indicated by the value jwk. Support for keys expressed as a COSE Key object [RFC8152] (for example, used in [ISO.18013-5]) is indicated by the value cose_key. When Cryptographic Binding Method is a DID, valid values MUST be a 'did:' prefix but without a :and method-specific-id. For example, support for the DID method with a method-name 'example' would be represented by did:example.
+          type: array
+          items:
+            type: string
+            example:
+              - did
+        cryptographic_suites_supported:
+          type: array
+          items:
+            type: string
+            example:
+              - ES256K
+          description: Case sensitive strings that identify the cryptographic suites that are supported for the cryptographic_binding_methods_supported. Cryptosuites for Credentials in jwt_vc format should use algorithm names defined in IANA JOSE Algorithms Registry. Cryptosuites for Credentials in ldp_vc format should use signature suites names defined in Linked Data Cryptographic Suite Registry.
+        display:
+          $ref: '#/components/schemas/DisplayObject'
+      required:
+        - format
+    CredentialIssuer:
+      type: object
+      properties:
+        credential_issuer:
+          type: string
+          format: url
+          description: The Credential Issuer's identifier
+          example: https://kc-one.batterypass.fiware.dev/realms/fiware-server/verifiable-credential
+        authorization_server:
+          type: string
+          description: Identifier of the OAuth 2.0 Authorization Server (as defined in [RFC8414]) the Credential Issuer relies on for authorization. If this element is omitted, the entity providing the Credential Issuer is also acting as the AS, i.e. the Credential Issuer's identifier is used as the OAuth 2.0 Issuer value to obtain the Authorization Server metadata as per [RFC8414].
+        credential_endpoint:
+          type: string
+          format: url
+          description: URL of the Credential Issuer's Credential Endpoint. This URL MUST use the https scheme and MAY contain port, path and query parameter components.
+          example: https://kc-one.batterypass.fiware.dev/realms/fiware-server/verifiable-credential/credential
+        batch_credential_endpoint:
+          type: string
+          format: url
+          description: URL of the Credential Issuer's Batch Credential Endpoint. This URL MUST use the https scheme and MAY contain port, path and query parameter components. If omitted, the Credential Issuer does not support the Batch Credential Endpoint.
+        credentials_supported:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportedCredential'
+        display:
+          $ref: '#/components/schemas/DisplayObject'
+      required:
+        - credential_issuer
+        - credential_endpoint
+        - credentials_supported

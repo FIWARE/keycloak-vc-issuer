@@ -10,7 +10,7 @@ import org.fiware.keycloak.model.VCClaims;
 import org.fiware.keycloak.model.VCConfig;
 import org.fiware.keycloak.model.VCData;
 import org.fiware.keycloak.model.VCRequest;
-import org.fiware.keycloak.model.VerifiableCredential;
+import org.fiware.keycloak.oidcvc.model.CredentialVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -40,7 +40,6 @@ import static org.fiware.keycloak.VCIssuerRealmResourceProvider.LD_PROOF_TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -50,7 +49,7 @@ public class VCIssuerRealmResourceProviderTest {
 	private static final String ISSUER_DID = "did:key:test";
 
 	private final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-	private VerifiableCredential TEST_VC = VerifiableCredential.builder().build();
+	private CredentialVO TEST_VC = new CredentialVO();
 
 	private KeycloakSession keycloakSession;
 	private AppAuthManager.BearerTokenAuthenticator bearerTokenAuthenticator;

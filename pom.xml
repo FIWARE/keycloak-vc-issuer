@@ -63,6 +63,8 @@
 
         <!-- lazy dev -->
         <version.org.projectlombok>1.18.24</version.org.projectlombok>
+        <version.org.openapitools.generator-maven-plugin>6.3.0</version.org.openapitools.generator-maven-plugin>
+        <version.io.swagger.swagger-annotations>1.6.9</version.io.swagger.swagger-annotations>
 
         <!-- keycloak -->
         <version.org.keycloak.libs>20.0.3</version.org.keycloak.libs>
@@ -146,7 +148,11 @@
             <version>${version.org.keycloak.libs}</version>
             <scope>provided</scope>
         </dependency>
-
+        <dependency>
+            <groupId>io.swagger</groupId>
+            <artifactId>swagger-annotations</artifactId>
+            <version>${version.io.swagger.swagger-annotations}</version>
+        </dependency>
         <!-- Testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -192,6 +198,66 @@
             </resource>
         </resources>
         <plugins>
+            <!-- generate sources from openapi spec -->
+            <plugin>
+                <groupId>org.openapitools</groupId>
+                <artifactId>openapi-generator-maven-plugin</artifactId>
+                <version>${version.org.openapitools.generator-maven-plugin}</version>
+                <executions>
+                    <execution>
+                        <id>openapi</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <inputSpec>${project.basedir}/api/oidc4VCissuance.yaml</inputSpec>
+                            <apiPackage>org.fiware.keycloak.oidcvc.api</apiPackage>
+                            <strictSpec>true</strictSpec>
+                            <modelPackage>org.fiware.keycloak.oidcvc.model</modelPackage>
+                            <generateAliasAsModel>true</generateAliasAsModel>
+                            <generatorName>jaxrs-spec</generatorName>
+                            <modelNameSuffix>VO</modelNameSuffix>
+                            <configOptions>
+                                <interfaceOnly>true</interfaceOnly>
+                                <containerDefaultToNull>true</containerDefaultToNull>
+                                <returnResponse>true</returnResponse>
+                            </configOptions>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- add generated sources -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>openapi-sources</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${project.build.directory}/generated-sources/openapi</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>openapi-test-sources</id>
+                        <phase>generate-test-sources</phase>
+                        <goals>
+                            <goal>add-test-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${project.build.directory}/generated-test-sources/openapi</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <!-- copy frontend to the build dir to keep all the npm dependencies cleanable -->
             <!-- clean plugin is executed in process-resources phase, to remove the theme folder after copying the -->
             <!-- results to classes/ to improve performance of the following phases -->
@@ -346,6 +412,7 @@
                     </execution>
                 </executions>
             </plugin>
+
 
             <!-- copy project dependencies -->
             <plugin>
@@ -556,6 +623,8 @@
                                     <portBindings>
                                         <portBinding>8080:8080</portBinding>
                                         <portBinding>7000:7000</portBinding>
+                                        <portBinding>7001:7001</portBinding>
+                                        <portBinding>7003:7003</portBinding>
                                     </portBindings>
                                 </configuration>
                             </execution>
@@ -643,6 +712,8 @@
                                     <portBindings>
                                         <portBinding>8080:8080</portBinding>
                                         <portBinding>7000:7000</portBinding>
+                                        <portBinding>7001:7001</portBinding>
+                                        <portBinding>7003:7003</portBinding>
                                     </portBindings>
                                 </configuration>
                             </execution>
