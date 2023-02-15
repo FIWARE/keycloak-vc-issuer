@@ -482,6 +482,10 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>${version.org.jacoco.maven-plugin}</version>
+                <!-- exclude generated code -->
+                <excludes>
+                    <exclude>org/fiware/keycloak/oidcvc/**/*</exclude>
+                </excludes>
                 <executions>
                     <execution>
                         <id>pre-unit-tests</id>
