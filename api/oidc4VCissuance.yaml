@@ -237,12 +237,18 @@ components:
       type: object
       properties:
         format:
-          oneOf:
-            - $ref: '#/components/schemas/Format'
-            - $ref: '#/components/schemas/CredentialObject'
+          type: object
+          description: "oneOf: $ref: '#/components/schemas/Format', '#/components/schemas/CredentialObject'"
         id:
           type: string
           example: "UniversityDegree_JWT"
+        types:
+          type: array
+          items:
+            type: string
+          example:
+            - "UniversityDegreeCredential"
+            - "VerifiableCredential"
         cryptographic_binding_methods_supported:
           description: Identifies how the Credential is bound to the identifier of the End-User who possesses the Credential. Support for keys in JWK format [RFC7517] is indicated by the value jwk. Support for keys expressed as a COSE Key object [RFC8152] (for example, used in [ISO.18013-5]) is indicated by the value cose_key. When Cryptographic Binding Method is a DID, valid values MUST be a 'did:' prefix but without a :and method-specific-id. For example, support for the DID method with a method-name 'example' would be represented by did:example.
           type: array

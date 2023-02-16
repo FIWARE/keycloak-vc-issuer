@@ -20,8 +20,10 @@ import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
 import org.fiware.keycloak.oidcvc.model.CredentialVO;
 import org.fiware.keycloak.oidcvc.model.ErrorResponseVO;
 import org.fiware.keycloak.oidcvc.model.FormatVO;
+import org.fiware.keycloak.oidcvc.model.SupportedCredentialVO;
 import org.jboss.logging.Logger;
 import org.keycloak.models.ClientModel;
+import org.keycloak.models.KeycloakContext;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserModel;
@@ -30,6 +32,7 @@ import org.keycloak.services.ErrorResponseException;
 import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.resource.RealmResourceProvider;
+import org.keycloak.urls.UrlType;
 
 import javax.validation.constraints.NotNull;
 import javax.ws.rs.Consumes;
@@ -46,6 +49,9 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -67,6 +73,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 			.withZone(ZoneId.of(ZoneOffset.UTC.getId()));
 
 	public static final String LD_PROOF_TYPE = "LD_PROOF";
+	public static final String CREDENTIAL_PATH = "credential";
 
 	private final KeycloakSession session;
 	private final String issuerDid;
@@ -317,7 +324,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	@POST
-	@Path("/credential")
+	@Path(CREDENTIAL_PATH)
 	@Consumes({ "application/json" })
 	@Produces({ "application/json" })
 	@ApiOperation(value = "Request a credential from the issuer", notes = "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-request", tags = {})
@@ -367,13 +374,64 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.header("Access-Control-Allow-Origin", "*").build();
 	}
 
-	@Path("/.well-known/openid-credential-issuer")
+	private List<SupportedCredentialVO> getSupportedCredentials(KeycloakContext context) {
+
+		Map<FormatVO, Set<String>> formatsWithTypes = new HashMap<>();
+
+		context.getRealm().getClientsStream()
+				.flatMap(cm -> cm.getAttributes().entrySet().stream())
+				.filter(entry -> entry.getKey().startsWith(VC_TYPES_PREFIX))
+				.forEach(entry -> {
+					String type = entry.getKey().replaceFirst(VC_TYPES_PREFIX, "");
+					Set<FormatVO> supportedFormats = getFormatsFromString(entry.getValue());
+					supportedFormats.forEach(format -> {
+						if (formatsWithTypes.containsKey(format)) {
+							formatsWithTypes.get(format).add(type);
+						} else {
+							formatsWithTypes.put(format, new HashSet<>(Set.of(type)));
+						}
+					});
+				});
+		return formatsWithTypes.entrySet().stream()
+				.map(entry ->
+						new SupportedCredentialVO()
+								.id(buildIdFromType(entry.getKey(), entry.getValue()))
+								.types(List.copyOf(entry.getValue()))
+								.format(entry.getKey().toString())
+				).collect(Collectors.toList());
+
+	}
+
 	@GET
+	@Path(".well-known/openid-credential-issuer")
 	@Produces({ "application/json" })
 	@ApiOperation(value = "Return the issuer metadata", notes = "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-issuer-metadata-", tags = {})
 	@ApiResponses(value = {
-			@ApiResponse(code = 200, message = "The credentials issuer metadata", response = CredentialIssuerVO.class) }) public Response getIssuerMetadata() {
-		return null;
+			@ApiResponse(code = 200, message = "The credentials issuer metadata", response = CredentialIssuerVO.class) })
+	public Response getIssuerMetadata() {
+		KeycloakContext currentContext = session.getContext();
+		String realm = currentContext.getRealm().getId();
+		String backendUrl = currentContext.getUri(UrlType.BACKEND).getBaseUri().toString();
+		String issuer = String.format("%srealms/%s", backendUrl, realm);
+		String issuerResourcePathPattern = "%srealms/%s/%s";
+		String authorizationEndpointPattern = "%srealms/%s/.well-known/openid-configuration";
+		String providerEndpoint = String.format(issuerResourcePathPattern, backendUrl, realm,
+				VCIssuerRealmResourceProviderFactory.ID);
+		return Response.ok().entity(new CredentialIssuerVO()
+						.credentialIssuer(issuer)
+						.authorizationServer(String.format(authorizationEndpointPattern, backendUrl, realm))
+						.credentialEndpoint(providerEndpoint + "/" + CREDENTIAL_PATH)
+						.credentialsSupported(getSupportedCredentials(currentContext)))
+				.header("Access-Control-Allow-Origin", "*").build();
+	}
+
+	private String buildIdFromType(FormatVO formatVO, Set<String> types) {
+		String typesString = types.stream().sorted().collect(Collectors.joining("_"));
+		return String.format("%s_%s", formatVO.toString(), typesString);
+	}
+
+	private Set<FormatVO> getFormatsFromString(String formatString) {
+		return Arrays.stream(formatString.split(",")).map(FormatVO::fromString).collect(Collectors.toSet());
 	}
 
 	@Getter

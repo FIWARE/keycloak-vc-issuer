@@ -121,7 +121,6 @@ public class SIOP2ClientRegistrationProvider extends AbstractClientRegistrationP
 			siop2Client.getSupportedVCTypes()
 					.forEach(supportedCredential -> {
 						String typeKey = String.format("%s%s", VC_TYPES_PREFIX, supportedCredential.getType());
-
 						if (clientAttributes.containsKey(typeKey)) {
 							clientAttributes.put(typeKey, String.format("%s,%s",
 									clientAttributes.get(typeKey),

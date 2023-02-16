@@ -25,7 +25,7 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 	private static final Logger LOGGER = Logger.getLogger(VCIssuerRealmResourceProviderFactory.class);
-	private static final String ID = "verifiable-credential";
+	public static final String ID = "verifiable-credential";
 
 	private static final String WALTID_ADDRESS_ENV_VAR = "VCISSUER_WALTID_ADDRESS";
 	private static final String WALTID_CORE_PORT_ENV_VAR = "VCISSUER_WALTID_CORE_PORT";

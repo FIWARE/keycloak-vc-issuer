@@ -3,6 +3,9 @@ package org.fiware.keycloak;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.http.HttpStatus;
+import org.fiware.keycloak.it.SIOP2IntegrationTest;
+import org.fiware.keycloak.it.model.IssuerMetaData;
 import org.fiware.keycloak.model.ErrorResponse;
 import org.fiware.keycloak.model.ErrorType;
 import org.fiware.keycloak.model.Role;
@@ -21,6 +24,7 @@ import org.keycloak.models.ClientModel;
 import org.keycloak.models.ClientProvider;
 import org.keycloak.models.KeycloakContext;
 import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.KeycloakUriInfo;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserModel;
@@ -30,6 +34,9 @@ import org.keycloak.services.managers.AuthenticationManager;
 import org.mockito.ArgumentCaptor;
 
 import javax.ws.rs.core.Response;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
@@ -176,6 +183,77 @@ public class VCIssuerRealmResourceProviderTest {
 	}
 
 	@ParameterizedTest
+	@MethodSource("provideClients")
+	public void testGetIssuerData(Stream<ClientModel> clientModelStream, ExpectedResult<IssuerMetaData> expectedResult)
+			throws URISyntaxException {
+		KeycloakContext context = mock(KeycloakContext.class);
+		RealmModel realmModel = mock(RealmModel.class);
+		when(realmModel.getId()).thenReturn("test");
+		when(realmModel.getClientsStream()).thenReturn(clientModelStream);
+		KeycloakUriInfo keycloakUriInfo = mock(KeycloakUriInfo.class);
+		when(keycloakUriInfo.getBaseUri()).thenReturn(new URI("http://localhost:8080/"));
+		when(context.getUri(any())).thenReturn(keycloakUriInfo);
+		when(keycloakSession.getContext()).thenReturn(context);
+		when(context.getRealm()).thenReturn(realmModel);
+
+		Response metaDataResponse = testProvider.getIssuerMetadata();
+		assertEquals(HttpStatus.SC_OK, metaDataResponse.getStatus(), expectedResult.getMessage());
+		assertEquals(expectedResult.getExpectedResult(),
+				OBJECT_MAPPER.convertValue(metaDataResponse.getEntity(), IssuerMetaData.class),
+				expectedResult.getMessage());
+	}
+
+	public static Stream<Arguments> provideClients() throws MalformedURLException {
+		return Stream.of(
+				Arguments.of(
+						Stream.of(
+								getSiopClient("did:key:1", Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
+										List.of())),
+						new ExpectedResult<>(
+								SIOP2IntegrationTest.getMetaData(Map.of(FormatVO.JWT_VC_JSON_LD, List.of("MyType"))),
+								"Issuer data wioth the clients types should be returend.")
+				),
+				Arguments.of(
+						Stream.of(
+								getSiopClient("did:key:1", Map.of("vctypes_MyType",
+												FormatVO.JWT_VC_JSON_LD.toString() + "," + FormatVO.LDP_VC),
+										List.of())),
+						new ExpectedResult<>(
+								SIOP2IntegrationTest.getMetaData(Map.of(FormatVO.JWT_VC_JSON_LD, List.of("MyType"), FormatVO.LDP_VC, List.of("MyType"))),
+								"Issuer data with the clients types and multiple formats should be returned.")
+				),
+				Arguments.of(
+						Stream.of(
+								getSiopClient("did:key:1", Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
+										List.of()),
+								getSiopClient("did:key:2", Map.of("vctypes_MyOtherType", FormatVO.JWT_VC_JSON_LD.toString()),
+										List.of())),
+						new ExpectedResult<>(
+								SIOP2IntegrationTest.getMetaData(Map.of(FormatVO.JWT_VC_JSON_LD, List.of("MyType", "MyOtherType"))),
+								"Issuer data with multiple clients types should be returned.")
+				),
+				Arguments.of(
+						Stream.of(
+								getSiopClient("did:key:1", Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
+										List.of()),
+								getSiopClient("did:key:2", Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
+										List.of())),
+						new ExpectedResult<>(
+								SIOP2IntegrationTest.getMetaData(Map.of(FormatVO.JWT_VC_JSON_LD, List.of("MyType"), FormatVO.LDP_VC, List.of("MyType"))),
+								"Issuer data with multiple clients formats should be returned.")
+				),
+				Arguments.of(
+						Stream.of(
+								getSiopClient("did:key:1", Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString(), "vctypes_MyOtherType", FormatVO.JWT_VC_JSON_LD.toString()),
+										List.of())),
+						new ExpectedResult<>(
+								SIOP2IntegrationTest.getMetaData(Map.of(FormatVO.JWT_VC_JSON_LD, List.of("MyType", "MyOtherType"))),
+								"Issuer data with multiple typses should be returned.")
+				)
+		);
+	}
+
+	@ParameterizedTest
 	@MethodSource("provideUserAndClients")
 	public void testGetVC(UserModel userModel, Stream<ClientModel> clientModelStream,
 			Map<ClientModel, Stream<RoleModel>> roleModelStreamMap,
@@ -223,7 +301,7 @@ public class VCIssuerRealmResourceProviderTest {
 										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
-						new ExpectedResult(
+						new ExpectedResult<>(
 								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")), "e@mail.org", "Happy",
 										"User",
 										null), "A valid VCRequest should have been sent to Walt-ID")
@@ -233,7 +311,7 @@ public class VCIssuerRealmResourceProviderTest {
 										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
-						new ExpectedResult(
+						new ExpectedResult<>(
 								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")), "e@mail.org",
 										null,
 										"User",
@@ -245,7 +323,7 @@ public class VCIssuerRealmResourceProviderTest {
 										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
-						new ExpectedResult(
+						new ExpectedResult<>(
 								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")), "e@mail.org",
 										null,
 										null,
@@ -257,7 +335,7 @@ public class VCIssuerRealmResourceProviderTest {
 										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
-						new ExpectedResult(
+						new ExpectedResult<>(
 								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")), null, null,
 										null,
 										null), "A valid VCRequest should have been sent to Walt-ID")
@@ -268,7 +346,7 @@ public class VCIssuerRealmResourceProviderTest {
 										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole"))),
-						new ExpectedResult(
+						new ExpectedResult<>(
 								getVCRequest(Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1")),
 										null,
 										null,
@@ -281,7 +359,7 @@ public class VCIssuerRealmResourceProviderTest {
 										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"))),
-						new ExpectedResult(
+						new ExpectedResult<>(
 								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")),
 										null,
 										null,
@@ -298,7 +376,7 @@ public class VCIssuerRealmResourceProviderTest {
 										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
-						new ExpectedResult(
+						new ExpectedResult<>(
 								getVCRequest(Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"),
 												new Role(Set.of("AnotherRole"), "did:key:2")),
 										null,
@@ -316,7 +394,7 @@ public class VCIssuerRealmResourceProviderTest {
 										Map.of("vctypes_AnotherType", FormatVO.LDP_VC.toString()),
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
-						new ExpectedResult(
+						new ExpectedResult<>(
 								getVCRequest(Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1")),
 										null,
 										null,
@@ -337,7 +415,7 @@ public class VCIssuerRealmResourceProviderTest {
 												"claims"),
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
-						new ExpectedResult(
+						new ExpectedResult<>(
 								getVCRequest(Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"),
 												new Role(Set.of("AnotherRole"), "did:key:2")), null,
 										null,
@@ -359,7 +437,7 @@ public class VCIssuerRealmResourceProviderTest {
 												"claim"),
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
-						new ExpectedResult(
+						new ExpectedResult<>(
 								getVCRequest(Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"),
 												new Role(Set.of("AnotherRole"), "did:key:2")), null,
 										null,
@@ -395,43 +473,49 @@ public class VCIssuerRealmResourceProviderTest {
 		return Stream.of(
 				Arguments.of(Stream.of(getOidcClient(), getNullClient(), getSiopClient(
 								Map.of("vctypes_TestType", FormatVO.LDP_VC.toString()))),
-						new ExpectedResult(List.of("TestType"), "The list of configured types should be returned.")),
+						new ExpectedResult<>(List.of("TestType"), "The list of configured types should be returned.")),
 				Arguments.of(Stream.of(getOidcClient(), getNullClient()),
-						new ExpectedResult(List.of(), "An empty list should be returned if nothing is configured.")),
+						new ExpectedResult<>(List.of(), "An empty list should be returned if nothing is configured.")),
 				Arguments.of(Stream.of(),
-						new ExpectedResult(List.of(), "An empty list should be returned if nothing is configured.")),
+						new ExpectedResult<>(List.of(), "An empty list should be returned if nothing is configured.")),
 				Arguments.of(
 						Stream.of(getSiopClient(Map.of("vctypes_TestType", FormatVO.LDP_VC.toString(),
 								"another", "attribute"))),
-						new ExpectedResult(List.of("TestType"), "The list of configured types should be returned.")),
+						new ExpectedResult<>(List.of("TestType"), "The list of configured types should be returned.")),
 				Arguments.of(Stream.of(getSiopClient(
-								Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB", FormatVO.LDP_VC.toString()))),
-						new ExpectedResult(List.of("TestTypeA", "TestTypeB"),
+								Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB",
+										FormatVO.LDP_VC.toString()))),
+						new ExpectedResult<>(List.of("TestTypeA", "TestTypeB"),
 								"The list of configured types should be returned.")),
 				Arguments.of(Stream.of(
 								getSiopClient(Map.of()),
 								getSiopClient(
-										Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB", FormatVO.LDP_VC.toString()))),
-						new ExpectedResult(List.of("TestTypeA", "TestTypeB"),
+										Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB",
+												FormatVO.LDP_VC.toString()))),
+						new ExpectedResult<>(List.of("TestTypeA", "TestTypeB"),
 								"The list of configured types should be returned.")),
 				Arguments.of(Stream.of(
 								getSiopClient(null),
 								getSiopClient(
-										Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB", FormatVO.LDP_VC.toString()))),
-						new ExpectedResult(List.of("TestTypeA", "TestTypeB"),
+										Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB",
+												FormatVO.LDP_VC.toString()))),
+						new ExpectedResult<>(List.of("TestTypeA", "TestTypeB"),
 								"The list of configured types should be returned.")),
 				Arguments.of(Stream.of(
 								getSiopClient(Map.of("vctypes_AnotherType", FormatVO.LDP_VC.toString())),
 								getSiopClient(
-										Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB", FormatVO.LDP_VC.toString()))),
-						new ExpectedResult(List.of("TestTypeA", "TestTypeB", "AnotherType"),
+										Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB",
+												FormatVO.LDP_VC.toString()))),
+						new ExpectedResult<>(List.of("TestTypeA", "TestTypeB", "AnotherType"),
 								"The list of configured types should be returned.")),
 				Arguments.of(Stream.of(
 								getSiopClient(
-										Map.of("vctypes_AnotherType", FormatVO.LDP_VC.toString(), "vctypes_AndAnother", FormatVO.LDP_VC.toString())),
+										Map.of("vctypes_AnotherType", FormatVO.LDP_VC.toString(), "vctypes_AndAnother",
+												FormatVO.LDP_VC.toString())),
 								getSiopClient(
-										Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB", FormatVO.LDP_VC.toString()))),
-						new ExpectedResult(List.of("TestTypeA", "TestTypeB", "AnotherType", "AndAnother"),
+										Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB",
+												FormatVO.LDP_VC.toString()))),
+						new ExpectedResult<>(List.of("TestTypeA", "TestTypeB", "AnotherType", "AndAnother"),
 								"The list of configured types should be returned."))
 		);
 	}

@@ -1,19 +1,19 @@
 package org.fiware.keycloak.it;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.http.HttpStatus;
 import org.awaitility.Awaitility;
 import org.fiware.keycloak.ExpectedResult;
 import org.fiware.keycloak.SIOP2LoginProtocolFactory;
 import org.fiware.keycloak.SupportedCredential;
 import org.fiware.keycloak.it.model.CredentialSubject;
+import org.fiware.keycloak.it.model.IssuerMetaData;
 import org.fiware.keycloak.it.model.Role;
+import org.fiware.keycloak.it.model.SupportedCredentialMetadata;
 import org.fiware.keycloak.it.model.VerifiableCredential;
-import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
-import org.fiware.keycloak.oidcvc.model.CredentialVO;
 import org.fiware.keycloak.oidcvc.model.FormatVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,7 +33,10 @@ import org.keycloak.representations.idm.UserRepresentation;
 
 import javax.ws.rs.ClientErrorException;
 import javax.ws.rs.core.Response;
+import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -111,6 +114,83 @@ public class SIOP2IntegrationTest {
 	@Test
 	public void testImportSuccess() {
 		assertEquals(KEYCLOAK_ISSUER_DID, issuerDid, "The preconfigured did should have been imported.");
+	}
+
+	@DisplayName("Retrieve issuer metadata.")
+	@ParameterizedTest
+	@MethodSource("provideClients")
+	public void testMetadataRetrieval(List<Client> clients, ExpectedResult<IssuerMetaData> expectedResult)
+			throws IOException, InterruptedException {
+		clients.forEach(c -> assertClientCreation(c.getId(), c.getSupportedTypes()));
+
+		HttpRequest.Builder requestBuilder = HttpRequest.newBuilder().GET();
+		requestBuilder.uri(URI.create(
+				String.format("%s/realms/%s/verifiable-credential/.well-known/openid-credential-issuer",
+						KEYCLOAK_ADDRESS,
+						TEST_REALM)));
+		HttpResponse<String> response = HttpClient.newHttpClient()
+				.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
+
+		assertEquals(HttpStatus.SC_OK, response.statusCode(),
+				expectedResult.getMessage());
+		assertEquals(expectedResult.getExpectedResult(),
+				OBJECT_MAPPER.readValue(response.body(), IssuerMetaData.class), expectedResult.getMessage());
+
+	}
+
+	public static Stream<Arguments> provideClients() throws MalformedURLException {
+		return Stream.of(
+				Arguments.of(List.of(getClient(TEST_CLIENT_ID_ONE,
+								List.of(new SupportedCredential("TypeA", FormatVO.LDP_VC)))),
+						new ExpectedResult<>(getMetaData(Map.of(FormatVO.LDP_VC, List.of("TypeA"))),
+								"Proper issuer metadata should have been returned.")),
+				Arguments.of(List.of(getClient(TEST_CLIENT_ID_ONE,
+								List.of(new SupportedCredential("TypeA", FormatVO.LDP_VC),
+										new SupportedCredential("TypeA", FormatVO.JWT_VC_JSON_LD)))),
+						new ExpectedResult<>(getMetaData(
+								Map.of(FormatVO.LDP_VC, List.of("TypeA"), FormatVO.JWT_VC_JSON_LD, List.of("TypeA"))),
+								"Proper issuer metadata with 2 credentials_supported should have been returned.")
+				),
+				Arguments.of(List.of(getClient(TEST_CLIENT_ID_ONE,
+								List.of(new SupportedCredential("TypeA", FormatVO.LDP_VC),
+										new SupportedCredential("TypeB", FormatVO.LDP_VC)))),
+						new ExpectedResult<>(getMetaData(
+								Map.of(FormatVO.LDP_VC, List.of("TypeA", "TypeB"))),
+								"Proper issuer metadata with a combined credentials_supported should have been returned.")
+				),
+				Arguments.of(List.of(getClient(TEST_CLIENT_ID_ONE,
+								List.of(new SupportedCredential("TypeA", FormatVO.LDP_VC),
+										new SupportedCredential("TypeA", FormatVO.JWT_VC_JSON_LD),
+										new SupportedCredential("TypeB", FormatVO.LDP_VC)))),
+						new ExpectedResult<>(getMetaData(
+								Map.of(FormatVO.LDP_VC, List.of("TypeA", "TypeB"), FormatVO.JWT_VC_JSON_LD,
+										List.of("TypeA"))),
+								"Proper issuer metadata with a combined credentials_supported should have been returned.")
+				)
+		);
+	}
+
+	public static IssuerMetaData getMetaData(Map<FormatVO, List<String>> supportedTypes) throws MalformedURLException {
+		return IssuerMetaData.builder()
+				.authorizationServer(new URL("http://localhost:8080/realms/test/.well-known/openid-configuration"))
+				.credentialEndpoint(new URL("http://localhost:8080/realms/test/verifiable-credential/credential"))
+				.credentialIssuer(new URL("http://localhost:8080/realms/test"))
+				.credentialsSupported(supportedTypes.entrySet().stream()
+						.map(st -> {
+							String joinedString = String.format("%s_%s", st.getKey().toString(),
+									st.getValue().stream().sorted().collect(Collectors.joining("_")));
+							return new SupportedCredentialMetadata(st.getKey().toString(), joinedString,
+									Set.copyOf(st.getValue()));
+						})
+						.collect(Collectors.toSet()))
+				.build();
+
+	}
+
+	private static Client getClient(String id, List<SupportedCredential> supportedTypes) {
+
+		return Client.builder().id(id)
+				.supportedTypes(supportedTypes).build();
 	}
 
 	@DisplayName("Issue credentials using a bearer token.")
@@ -229,7 +309,6 @@ public class SIOP2IntegrationTest {
 			}
 		}
 	}
-
 
 	public static Stream<Arguments> provideUsersAndClients() {
 		return Stream.of(
@@ -367,7 +446,8 @@ public class SIOP2IntegrationTest {
 								Client.builder()
 										.id(TEST_CLIENT_ID_TWO)
 										.roles(List.of(TEST_CREATOR_ROLE))
-										.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
+										.supportedTypes(
+												List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 										.build()),
 						List.of(User.builder().username("test-user")
 								.firstName(Optional.of("Test"))
@@ -574,7 +654,12 @@ public class SIOP2IntegrationTest {
 		Map<String, String> attributes = new HashMap<>();
 
 		supportedTypes.forEach(st -> {
-			attributes.put(String.format("vctypes_%s", st.getType()), st.getFormat().toString());
+			String typeKey = String.format("vctypes_%s", st.getType());
+			if (attributes.containsKey(typeKey)) {
+				attributes.put(typeKey, String.format("%s,%s", attributes.get(typeKey), st.getFormat().toString()));
+			} else {
+				attributes.put(typeKey, st.getFormat().toString());
+			}
 		});
 
 		clientRepresentation.setAttributes(attributes);
