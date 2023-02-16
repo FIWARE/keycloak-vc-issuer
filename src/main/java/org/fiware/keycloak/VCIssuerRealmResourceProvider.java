@@ -50,8 +50,6 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -74,6 +72,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	public static final String LD_PROOF_TYPE = "LD_PROOF";
 	public static final String CREDENTIAL_PATH = "credential";
+	public static final String TYPE_VERIFIABLE_CREDENTIAL = "VerifiableCredential";
 
 	private final KeycloakSession session;
 	private final String issuerDid;
@@ -152,14 +151,71 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response issueVerifiableCredential(@QueryParam("type") String vcType, @QueryParam("token") String token) {
 		LOGGER.debugf("Get a VC of type %s. Token parameter is %s.", vcType, token);
-		return Response.ok().entity(getCredential(vcType, token)).header("Access-Control-Allow-Origin", "*").build();
+		return Response.ok().entity(getCredential(vcType, FormatVO.LDP_VC, token))
+				.header("Access-Control-Allow-Origin", "*").build();
 	}
 
-	private CredentialVO getCredential(String vcType, String token) {
+	@POST
+	@Path(CREDENTIAL_PATH)
+	@Consumes({ "application/json" })
+	@Produces({ "application/json" })
+	@ApiOperation(value = "Request a credential from the issuer", notes = "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-request", tags = {})
+	@ApiResponses(value = {
+			@ApiResponse(code = 200, message = "Credential Response can be Synchronous or Deferred. The Credential Issuer MAY be able to immediately issue a requested Credential and send it to the Client. In other cases, the Credential Issuer MAY NOT be able to immediately issue a requested Credential and would want to send an acceptance_token parameter to the Client to be used later to receive a Credential when it is ready.", response = CredentialResponseVO.class),
+			@ApiResponse(code = 400, message = "When the Credential Request is invalid or unauthorized, the Credential Issuer responds the error response", response = ErrorResponseVO.class) })
+	public Response requestCredential(CredentialRequestVO credentialRequestVO) {
+		List<String> types = credentialRequestVO.getTypes();
+		// remove the static type
+		types.remove(TYPE_VERIFIABLE_CREDENTIAL);
+
+		if (types.size() != 1) {
+			LOGGER.infof("Credential request contained multiple types. Req: %s", credentialRequestVO);
+			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_REQUEST));
+		}
+		if (credentialRequestVO.getProof() != null) {
+			LOGGER.infof("Including requested proofs into the credential is currently unsupported.");
+			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
+		}
+		FormatVO requestedFormat = credentialRequestVO.getFormat();
+
+		String vcType = types.get(0);
+
+		CredentialResponseVO responseVO = new CredentialResponseVO();
+		responseVO.format(requestedFormat);
+
+		CredentialVO credentialVO = getCredential(vcType, credentialRequestVO.getFormat(), null);
+		switch (requestedFormat) {
+			case LDP_VC: {
+				responseVO.setCredential(credentialVO);
+				break;
+			}
+			case JWT_VC_JSON: {
+				JsonWebToken jwt = new JsonWebToken()
+						.id(UUID.randomUUID().toString())
+						.issuer(issuerDid)
+						.nbf(clock.instant().getEpochSecond());
+				jwt.setOtherClaims("credential", credentialVO);
+				responseVO.setCredential(session.tokens().encodeAndEncrypt(jwt));
+				break;
+			}
+			default: {
+				LOGGER.infof("Credential with unsupported format %s was requested.", requestedFormat.toString());
+				throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
+			}
+
+		}
+		return Response.ok().entity(responseVO)
+				.header("Access-Control-Allow-Origin", "*").build();
+	}
+
+	private CredentialVO getCredential(String vcType, FormatVO format, String token) {
 		UserModel userModel = getUserFromSession(Optional.ofNullable(token));
 
-		List<ClientModel> clients = getClientsOfType(vcType);
-
+		List<ClientModel> clients = getClientsOfType(vcType, format);
+		if (clients.isEmpty()) {
+			LOGGER.infof("No client for type %s, supporting format %s found.", vcType, format.toString());
+			throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
+		}
 		// get the smallest expiry, to not generate VCs with to long lifetimes.
 		Optional<Long> optionalMinExpiry = clients.stream()
 				.map(ClientModel::getAttributes)
@@ -198,8 +254,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	@NotNull
-	private List<ClientModel> getClientsOfType(String vcType) {
-		LOGGER.debugf("Retrieve all clients of type %s", vcType);
+	private List<ClientModel> getClientsOfType(String vcType, FormatVO format) {
+		LOGGER.debugf("Retrieve all clients of type %s, supporting format %s", vcType, format.toString());
 		Optional.ofNullable(vcType).filter(type -> !type.isEmpty()).orElseThrow(() -> {
 			LOGGER.info("No VC type was provided.");
 			return new ErrorResponseException("no_type_provided",
@@ -212,6 +268,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		List<ClientModel> vcClients = getClientModelsFromSession().stream()
 				.filter(clientModel -> Optional.ofNullable(clientModel.getAttributes())
 						.filter(attributes -> attributes.containsKey(prefixedType))
+						.filter(attributes -> Arrays.asList(attributes.get(prefixedType).split(","))
+								.contains(format.toString()))
 						.isPresent())
 				.collect(Collectors.toList());
 
@@ -321,57 +379,6 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		} else {
 			return Optional.of(additionalClaims);
 		}
-	}
-
-	@POST
-	@Path(CREDENTIAL_PATH)
-	@Consumes({ "application/json" })
-	@Produces({ "application/json" })
-	@ApiOperation(value = "Request a credential from the issuer", notes = "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-request", tags = {})
-	@ApiResponses(value = {
-			@ApiResponse(code = 200, message = "Credential Response can be Synchronous or Deferred. The Credential Issuer MAY be able to immediately issue a requested Credential and send it to the Client. In other cases, the Credential Issuer MAY NOT be able to immediately issue a requested Credential and would want to send an acceptance_token parameter to the Client to be used later to receive a Credential when it is ready.", response = CredentialResponseVO.class),
-			@ApiResponse(code = 400, message = "When the Credential Request is invalid or unauthorized, the Credential Issuer responds the error response", response = ErrorResponseVO.class) })
-	public Response requestCredential(CredentialRequestVO credentialRequestVO) {
-
-		if (credentialRequestVO.getTypes().size() != 1) {
-			LOGGER.infof("Credential request contained mulitple types. Req: %s", credentialRequestVO);
-			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_REQUEST));
-		}
-		if (credentialRequestVO.getProof() != null) {
-			LOGGER.infof("Including requested proofs into the credential is currently unsupported.");
-			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
-		}
-		FormatVO requestedFormat = credentialRequestVO.getFormat();
-
-		String vcType = credentialRequestVO.getTypes().get(0);
-
-		CredentialResponseVO responseVO = new CredentialResponseVO();
-		responseVO.format(requestedFormat);
-
-		CredentialVO credentialVO = getCredential(vcType, null);
-		switch (requestedFormat) {
-			case LDP_VC: {
-				responseVO.setCredential(credentialVO);
-				break;
-			}
-			case JWT_VC_JSON: {
-				JsonWebToken jwt = new JsonWebToken()
-						.id(UUID.randomUUID().toString())
-						.issuer(issuerDid)
-						.nbf(clock.instant().getEpochSecond());
-				jwt.setOtherClaims("credential", credentialVO);
-				responseVO.setCredential(session.tokens().encodeAndEncrypt(jwt));
-				break;
-			}
-			default: {
-				LOGGER.infof("Credential with unsupported format %s was requested.", requestedFormat.toString());
-				throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
-			}
-
-		}
-
-		return Response.ok().entity(responseVO)
-				.header("Access-Control-Allow-Origin", "*").build();
 	}
 
 	private List<SupportedCredentialVO> getSupportedCredentials(KeycloakContext context) {
