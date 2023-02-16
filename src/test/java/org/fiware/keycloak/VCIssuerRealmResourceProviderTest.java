@@ -309,7 +309,7 @@ public class VCIssuerRealmResourceProviderTest {
 		return Stream.of(
 				getArguments(getUserModel("e@mail.org", "Happy", "User"),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
@@ -319,7 +319,7 @@ public class VCIssuerRealmResourceProviderTest {
 				),
 				getArguments(getUserModel("e@mail.org", null, "User"),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
@@ -331,7 +331,7 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel("e@mail.org", null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
@@ -343,7 +343,7 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
@@ -354,7 +354,7 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole"))),
 						new ExpectedResult<>(
@@ -367,7 +367,7 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(

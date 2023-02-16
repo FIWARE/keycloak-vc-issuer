@@ -212,10 +212,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		UserModel userModel = getUserFromSession(Optional.ofNullable(token));
 
 		List<ClientModel> clients = getClientsOfType(vcType, format);
-		if (clients.isEmpty()) {
-			LOGGER.infof("No client for type %s, supporting format %s found.", vcType, format.toString());
-			throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
-		}
+
 		// get the smallest expiry, to not generate VCs with to long lifetimes.
 		Optional<Long> optionalMinExpiry = clients.stream()
 				.map(ClientModel::getAttributes)
