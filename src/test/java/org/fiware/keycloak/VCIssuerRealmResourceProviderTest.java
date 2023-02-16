@@ -210,7 +210,8 @@ public class VCIssuerRealmResourceProviderTest {
 								getSiopClient("did:key:1", Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
 										List.of())),
 						new ExpectedResult<>(
-								SIOP2IntegrationTest.getMetaData(Map.of(FormatVO.JWT_VC_JSON_LD, List.of("MyType"))),
+								SIOP2IntegrationTest.getMetaData(
+										List.of(new SupportedCredential("MyType", FormatVO.JWT_VC_JSON_LD))),
 								"Issuer data wioth the clients types should be returend.")
 				),
 				Arguments.of(
@@ -219,17 +220,22 @@ public class VCIssuerRealmResourceProviderTest {
 												FormatVO.JWT_VC_JSON_LD.toString() + "," + FormatVO.LDP_VC),
 										List.of())),
 						new ExpectedResult<>(
-								SIOP2IntegrationTest.getMetaData(Map.of(FormatVO.JWT_VC_JSON_LD, List.of("MyType"), FormatVO.LDP_VC, List.of("MyType"))),
+								SIOP2IntegrationTest.getMetaData(
+										List.of(new SupportedCredential("MyType", FormatVO.JWT_VC_JSON_LD),
+												new SupportedCredential("MyType", FormatVO.LDP_VC))),
 								"Issuer data with the clients types and multiple formats should be returned.")
 				),
 				Arguments.of(
 						Stream.of(
 								getSiopClient("did:key:1", Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
 										List.of()),
-								getSiopClient("did:key:2", Map.of("vctypes_MyOtherType", FormatVO.JWT_VC_JSON_LD.toString()),
+								getSiopClient("did:key:2",
+										Map.of("vctypes_MyOtherType", FormatVO.JWT_VC_JSON_LD.toString()),
 										List.of())),
 						new ExpectedResult<>(
-								SIOP2IntegrationTest.getMetaData(Map.of(FormatVO.JWT_VC_JSON_LD, List.of("MyType", "MyOtherType"))),
+								SIOP2IntegrationTest.getMetaData(
+										List.of(new SupportedCredential("MyType", FormatVO.JWT_VC_JSON_LD),
+												new SupportedCredential("MyOtherType", FormatVO.JWT_VC_JSON_LD))),
 								"Issuer data with multiple clients types should be returned.")
 				),
 				Arguments.of(
@@ -239,15 +245,20 @@ public class VCIssuerRealmResourceProviderTest {
 								getSiopClient("did:key:2", Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of())),
 						new ExpectedResult<>(
-								SIOP2IntegrationTest.getMetaData(Map.of(FormatVO.JWT_VC_JSON_LD, List.of("MyType"), FormatVO.LDP_VC, List.of("MyType"))),
+								SIOP2IntegrationTest.getMetaData(
+										List.of(new SupportedCredential("MyType", FormatVO.LDP_VC),
+												new SupportedCredential("MyType", FormatVO.JWT_VC_JSON_LD))),
 								"Issuer data with multiple clients formats should be returned.")
 				),
 				Arguments.of(
 						Stream.of(
-								getSiopClient("did:key:1", Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString(), "vctypes_MyOtherType", FormatVO.JWT_VC_JSON_LD.toString()),
+								getSiopClient("did:key:1", Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString(),
+												"vctypes_MyOtherType", FormatVO.JWT_VC_JSON_LD.toString()),
 										List.of())),
 						new ExpectedResult<>(
-								SIOP2IntegrationTest.getMetaData(Map.of(FormatVO.JWT_VC_JSON_LD, List.of("MyType", "MyOtherType"))),
+								SIOP2IntegrationTest.getMetaData(
+										List.of(new SupportedCredential("MyOtherType", FormatVO.JWT_VC_JSON_LD),
+												new SupportedCredential("MyType", FormatVO.JWT_VC_JSON_LD))),
 								"Issuer data with multiple typses should be returned.")
 				)
 		);

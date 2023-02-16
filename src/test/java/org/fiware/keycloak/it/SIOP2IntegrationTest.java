@@ -142,47 +142,55 @@ public class SIOP2IntegrationTest {
 		return Stream.of(
 				Arguments.of(List.of(getClient(TEST_CLIENT_ID_ONE,
 								List.of(new SupportedCredential("TypeA", FormatVO.LDP_VC)))),
-						new ExpectedResult<>(getMetaData(Map.of(FormatVO.LDP_VC, List.of("TypeA"))),
+						new ExpectedResult<>(getMetaData(List.of(new SupportedCredential("TypeA", FormatVO.LDP_VC))),
 								"Proper issuer metadata should have been returned.")),
 				Arguments.of(List.of(getClient(TEST_CLIENT_ID_ONE,
 								List.of(new SupportedCredential("TypeA", FormatVO.LDP_VC),
 										new SupportedCredential("TypeA", FormatVO.JWT_VC_JSON_LD)))),
-						new ExpectedResult<>(getMetaData(
-								Map.of(FormatVO.LDP_VC, List.of("TypeA"), FormatVO.JWT_VC_JSON_LD, List.of("TypeA"))),
+						new ExpectedResult<>(
+								getMetaData(
+										List.of(
+												new SupportedCredential("TypeA", FormatVO.LDP_VC),
+												new SupportedCredential("TypeA", FormatVO.JWT_VC_JSON_LD))),
 								"Proper issuer metadata with 2 credentials_supported should have been returned.")
 				),
 				Arguments.of(List.of(getClient(TEST_CLIENT_ID_ONE,
 								List.of(new SupportedCredential("TypeA", FormatVO.LDP_VC),
 										new SupportedCredential("TypeB", FormatVO.LDP_VC)))),
 						new ExpectedResult<>(getMetaData(
-								Map.of(FormatVO.LDP_VC, List.of("TypeA", "TypeB"))),
+								List.of(
+										new SupportedCredential("TypeA", FormatVO.LDP_VC),
+										new SupportedCredential("TypeB", FormatVO.LDP_VC))),
 								"Proper issuer metadata with a combined credentials_supported should have been returned.")
 				),
 				Arguments.of(List.of(getClient(TEST_CLIENT_ID_ONE,
 								List.of(new SupportedCredential("TypeA", FormatVO.LDP_VC),
 										new SupportedCredential("TypeA", FormatVO.JWT_VC_JSON_LD),
 										new SupportedCredential("TypeB", FormatVO.LDP_VC)))),
-						new ExpectedResult<>(getMetaData(
-								Map.of(FormatVO.LDP_VC, List.of("TypeA", "TypeB"), FormatVO.JWT_VC_JSON_LD,
-										List.of("TypeA"))),
+						new ExpectedResult<>(
+								getMetaData(
+										List.of(new SupportedCredential("TypeA", FormatVO.JWT_VC_JSON_LD),
+												new SupportedCredential("TypeB", FormatVO.LDP_VC),
+												new SupportedCredential("TypeA", FormatVO.LDP_VC))
+								),
 								"Proper issuer metadata with a combined credentials_supported should have been returned.")
 				)
 		);
 	}
 
-	public static IssuerMetaData getMetaData(Map<FormatVO, List<String>> supportedTypes) throws MalformedURLException {
+	public static IssuerMetaData getMetaData(List<SupportedCredential> supportedCredentials)
+			throws MalformedURLException {
+
 		return IssuerMetaData.builder()
 				.authorizationServer(new URL("http://localhost:8080/realms/test/.well-known/openid-configuration"))
 				.credentialEndpoint(new URL("http://localhost:8080/realms/test/verifiable-credential/credential"))
 				.credentialIssuer(new URL("http://localhost:8080/realms/test"))
-				.credentialsSupported(supportedTypes.entrySet().stream()
-						.map(st -> {
-							String joinedString = String.format("%s_%s", st.getKey().toString(),
-									st.getValue().stream().sorted().collect(Collectors.joining("_")));
-							return new SupportedCredentialMetadata(st.getKey().toString(), joinedString,
-									Set.copyOf(st.getValue()));
-						})
-						.collect(Collectors.toSet()))
+				.credentialsSupported(supportedCredentials.stream()
+						.map(sc -> new SupportedCredentialMetadata(sc.getFormat().toString(),
+								String.format("%s_%s", sc.getType(), sc.getFormat().toString()),
+								Set.of(sc.getType())))
+						.collect(Collectors.toSet())
+				)
 				.build();
 
 	}

@@ -376,29 +376,19 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	private List<SupportedCredentialVO> getSupportedCredentials(KeycloakContext context) {
 
-		Map<FormatVO, Set<String>> formatsWithTypes = new HashMap<>();
-
-		context.getRealm().getClientsStream()
+		return context.getRealm().getClientsStream()
 				.flatMap(cm -> cm.getAttributes().entrySet().stream())
 				.filter(entry -> entry.getKey().startsWith(VC_TYPES_PREFIX))
-				.forEach(entry -> {
+				.flatMap(entry -> {
+
 					String type = entry.getKey().replaceFirst(VC_TYPES_PREFIX, "");
 					Set<FormatVO> supportedFormats = getFormatsFromString(entry.getValue());
-					supportedFormats.forEach(format -> {
-						if (formatsWithTypes.containsKey(format)) {
-							formatsWithTypes.get(format).add(type);
-						} else {
-							formatsWithTypes.put(format, new HashSet<>(Set.of(type)));
-						}
-					});
-				});
-		return formatsWithTypes.entrySet().stream()
-				.map(entry ->
-						new SupportedCredentialVO()
-								.id(buildIdFromType(entry.getKey(), entry.getValue()))
-								.types(List.copyOf(entry.getValue()))
-								.format(entry.getKey().toString())
-				).collect(Collectors.toList());
+					return supportedFormats.stream().map(formatVO -> {
+								String id = buildIdFromType(formatVO, type);
+								return new SupportedCredentialVO().id(id).types(List.of(type)).format(formatVO);
+							}
+					);
+				}).collect(Collectors.toList());
 
 	}
 
@@ -425,9 +415,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.header("Access-Control-Allow-Origin", "*").build();
 	}
 
-	private String buildIdFromType(FormatVO formatVO, Set<String> types) {
-		String typesString = types.stream().sorted().collect(Collectors.joining("_"));
-		return String.format("%s_%s", formatVO.toString(), typesString);
+	private String buildIdFromType(FormatVO formatVO, String type) {
+		return String.format("%s_%s", type, formatVO.toString());
 	}
 
 	private Set<FormatVO> getFormatsFromString(String formatString) {
