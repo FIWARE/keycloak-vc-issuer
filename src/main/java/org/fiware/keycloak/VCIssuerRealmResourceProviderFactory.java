@@ -5,6 +5,7 @@ import com.google.auto.service.AutoService;
 import org.fiware.keycloak.model.DIDKey;
 import org.jboss.logging.Logger;
 import org.keycloak.Config;
+import org.keycloak.common.util.Time;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.services.managers.AppAuthManager;
@@ -24,7 +25,6 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 	private static final Logger LOGGER = Logger.getLogger(VCIssuerRealmResourceProviderFactory.class);
-	private static final Clock CLOCK = Clock.systemUTC();
 	private static final String ID = "verifiable-credential";
 
 	private static final String WALTID_ADDRESS_ENV_VAR = "VCISSUER_WALTID_ADDRESS";
@@ -51,7 +51,7 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 				new AppAuthManager.BearerTokenAuthenticator(
 						keycloakSession),
 				OBJECT_MAPPER,
-				CLOCK);
+				Clock.systemUTC());
 	}
 
 	@Override

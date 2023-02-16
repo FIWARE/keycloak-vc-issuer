@@ -17,6 +17,7 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.net.URI;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,9 +30,9 @@ public class SIOP2ClientRegistrationProvider extends AbstractClientRegistrationP
 
 	private static final Logger LOGGER = Logger.getLogger(SIOP2ClientRegistrationProvider.class);
 
-	public static final String SUPPORTED_VC_TYPES = "supportedVCTypes";
 	public static final String EXPIRY_IN_MIN = "expiryInMin";
 	public static final String VC_CLAIMS_PREFIX = "vc_";
+	public static final String VC_TYPES_PREFIX = "vctypes_";
 
 	public SIOP2ClientRegistrationProvider(KeycloakSession session) {
 		super(session);
@@ -109,14 +110,28 @@ public class SIOP2ClientRegistrationProvider extends AbstractClientRegistrationP
 		Optional.ofNullable(siop2Client.getName()).ifPresent(clientRepresentation::setName);
 
 		// add potential additional claims
-		Map<String, String> clientAttributes = new HashMap<>(prefixClaims(siop2Client.getAdditionalClaims()));
+		Map<String, String> clientAttributes = new HashMap<>(
+				prefixClaims(VC_CLAIMS_PREFIX, siop2Client.getAdditionalClaims()));
 
 		// only set expiry if present
 		Optional.ofNullable(siop2Client.getExpiryInMin())
 				.ifPresent(expiry -> clientAttributes.put(EXPIRY_IN_MIN, String.format("%s", expiry)));
 		// only set supported VCs if present
-		Optional.ofNullable(siop2Client.getSupportedVCTypes())
-				.ifPresent(vcTypes -> clientAttributes.put(SUPPORTED_VC_TYPES, vcTypes));
+		if (siop2Client.getSupportedVCTypes() != null) {
+			siop2Client.getSupportedVCTypes()
+					.forEach(supportedCredential -> {
+						String typeKey = String.format("%s%s", VC_TYPES_PREFIX, supportedCredential.getType());
+
+						if (clientAttributes.containsKey(typeKey)) {
+							clientAttributes.put(typeKey, String.format("%s,%s",
+									clientAttributes.get(typeKey),
+									supportedCredential.getFormat().toString()));
+						} else {
+							clientAttributes.put(typeKey,
+									supportedCredential.getFormat().toString());
+						}
+					});
+		}
 		if (!clientAttributes.isEmpty()) {
 			clientRepresentation.setAttributes(clientAttributes);
 		}
@@ -129,7 +144,7 @@ public class SIOP2ClientRegistrationProvider extends AbstractClientRegistrationP
 	 * Prefix the map of claims, to differentiate them from potential internal once. Only the prefixed claims will be
 	 * used for creating VCs.
 	 */
-	private static Map<String, String> prefixClaims(Map<String, String> claimsToPrefix) {
+	private static Map<String, String> prefixClaims(String prefix, Map<String, String> claimsToPrefix) {
 		if (claimsToPrefix == null) {
 			return Map.of();
 		}
@@ -137,7 +152,7 @@ public class SIOP2ClientRegistrationProvider extends AbstractClientRegistrationP
 				.stream()
 				.collect(
 						Collectors
-								.toMap(e -> String.format("%s%s", VC_CLAIMS_PREFIX, e.getKey()),
+								.toMap(e -> String.format("%s%s", prefix, e.getKey()),
 										Map.Entry::getValue));
 	}
 }

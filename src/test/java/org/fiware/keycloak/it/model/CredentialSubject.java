@@ -5,9 +5,7 @@ import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.fiware.keycloak.model.Role;
 
-import java.util.List;
 import java.util.Set;
 
 @AllArgsConstructor

@@ -3,6 +3,7 @@ package org.fiware.keycloak;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.fiware.keycloak.oidcvc.model.FormatVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -12,6 +13,7 @@ import org.keycloak.services.ErrorResponseException;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -66,21 +68,21 @@ public class SIOP2ClientRegistrationProviderTest {
 						new ExpectedResult(getClientRepresentation("did:test:did", "my name", "my desc", null),
 								"A valid client should have been created.")),
 				Arguments.of(
-						new SIOP2Client("did:test:did", "PacketDeliveryService,SomethingFancy", null, null, null, null),
+						new SIOP2Client("did:test:did", List.of(new SupportedCredential("PacketDeliveryService", FormatVO.LDP_VC),new SupportedCredential("SomethingFancy", FormatVO.LDP_VC)), null, null, null, null),
 						new ExpectedResult(getClientRepresentation("did:test:did", null, null,
-								Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES,
-										"PacketDeliveryService,SomethingFancy")),
+								Map.of("vctypes_PacketDeliveryService", FormatVO.LDP_VC.toString(),
+										"vctypes_SomethingFancy", FormatVO.LDP_VC.toString())),
 								"A valid client should have been created.")),
-				Arguments.of(new SIOP2Client("did:test:did", "PacketDeliveryService,SomethingFancy", null, null, null,
+				Arguments.of(new SIOP2Client("did:test:did", List.of(new SupportedCredential("PacketDeliveryService", FormatVO.LDP_VC),new SupportedCredential("SomethingFancy", FormatVO.LDP_VC)), null, null, null,
 								Map.of("additional", "claim", "another", "one")),
 						new ExpectedResult(getClientRepresentation("did:test:did", null, null,
 								Map.of(
 										"vc_another", "one",
 										"vc_additional", "claim",
-										SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES,
-										"PacketDeliveryService,SomethingFancy")),
+										"vctypes_PacketDeliveryService", FormatVO.LDP_VC.toString(),
+										"vctypes_SomethingFancy", FormatVO.LDP_VC.toString())),
 								"A valid client should have been created.")),
-				Arguments.of(new SIOP2Client("did:test:did", "PacketDeliveryService,SomethingFancy", null, null,
+				Arguments.of(new SIOP2Client("did:test:did", List.of(new SupportedCredential("PacketDeliveryService", FormatVO.LDP_VC),new SupportedCredential("SomethingFancy", FormatVO.LDP_VC)), null, null,
 								1000l,
 								Map.of("additional", "claim", "another", "one")),
 						new ExpectedResult(getClientRepresentation("did:test:did", null, null,
@@ -88,8 +90,8 @@ public class SIOP2ClientRegistrationProviderTest {
 										"vc_another", "one",
 										"vc_additional", "claim",
 										EXPIRY_IN_MIN, "1000",
-										SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES,
-										"PacketDeliveryService,SomethingFancy")),
+										"vctypes_PacketDeliveryService", FormatVO.LDP_VC.toString(),
+										"vctypes_SomethingFancy", FormatVO.LDP_VC.toString())),
 								"A valid client should have been created."))
 		);
 	}

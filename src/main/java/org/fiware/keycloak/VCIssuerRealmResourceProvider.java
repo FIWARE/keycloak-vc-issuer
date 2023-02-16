@@ -2,6 +2,9 @@ package org.fiware.keycloak;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.fiware.keycloak.model.ErrorResponse;
@@ -11,12 +14,11 @@ import org.fiware.keycloak.model.VCClaims;
 import org.fiware.keycloak.model.VCConfig;
 import org.fiware.keycloak.model.VCData;
 import org.fiware.keycloak.model.VCRequest;
-import org.fiware.keycloak.oidcvc.api.CredentialApi;
-import org.fiware.keycloak.oidcvc.api.WellKnownApi;
 import org.fiware.keycloak.oidcvc.model.CredentialIssuerVO;
 import org.fiware.keycloak.oidcvc.model.CredentialRequestVO;
 import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
 import org.fiware.keycloak.oidcvc.model.CredentialVO;
+import org.fiware.keycloak.oidcvc.model.ErrorResponseVO;
 import org.fiware.keycloak.oidcvc.model.FormatVO;
 import org.jboss.logging.Logger;
 import org.keycloak.models.ClientModel;
@@ -30,7 +32,9 @@ import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.resource.RealmResourceProvider;
 
 import javax.validation.constraints.NotNull;
+import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
+import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
@@ -42,7 +46,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -51,15 +54,18 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import static org.fiware.keycloak.SIOP2ClientRegistrationProvider.VC_TYPES_PREFIX;
+
 /**
  * Real-Resource to provide functionality for issuing VerfiableCredentials to users, depending on there roles in
  * registered SIOP-2 clients
  */
-public class VCIssuerRealmResourceProvider implements RealmResourceProvider, CredentialApi, WellKnownApi {
+public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	private static final Logger LOGGER = Logger.getLogger(VCIssuerRealmResourceProvider.class);
 	private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_DATE_TIME
 			.withZone(ZoneId.of(ZoneOffset.UTC.getId()));
+
 	public static final String LD_PROOF_TYPE = "LD_PROOF";
 
 	private final KeycloakSession session;
@@ -111,9 +117,11 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider, Cre
 		return List.copyOf(getClientModelsFromSession().stream()
 				.map(ClientModel::getAttributes)
 				.filter(Objects::nonNull)
-				.map(attrs -> attrs.get(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES))
+				.flatMap(attrs -> attrs.entrySet().stream())
+				.filter(attr -> attr.getKey().startsWith(VC_TYPES_PREFIX))
+				.map(Map.Entry::getKey)
 				.filter(Objects::nonNull)
-				.flatMap(vcTypes -> Arrays.stream(vcTypes.split(",")))
+				.map(type -> type.replaceFirst(VC_TYPES_PREFIX, ""))
 				// collect to a set to remove duplicates
 				.collect(Collectors.toSet()));
 
@@ -176,7 +184,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider, Cre
 			return vc;
 		} catch (JsonProcessingException e) {
 			LOGGER.warn("Did not receive a valid credential.", e);
-			throw new ErrorResponseException("bad_gatway",
+			throw new ErrorResponseException("bad_gateway",
 					"Did not get a valid response from walt-id.",
 					Response.Status.BAD_GATEWAY);
 		}
@@ -185,20 +193,23 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider, Cre
 	@NotNull
 	private List<ClientModel> getClientsOfType(String vcType) {
 		LOGGER.debugf("Retrieve all clients of type %s", vcType);
-		Optional.ofNullable(vcType).filter(type -> !type.isEmpty()).orElseThrow(() ->
-				new ErrorResponseException("no_type_provided",
-						"No VerifiableCredential-Type was provided in the request.",
-						Response.Status.BAD_REQUEST));
+		Optional.ofNullable(vcType).filter(type -> !type.isEmpty()).orElseThrow(() -> {
+			LOGGER.info("No VC type was provided.");
+			return new ErrorResponseException("no_type_provided",
+					"No VerifiableCredential-Type was provided in the request.",
+					Response.Status.BAD_REQUEST);
+		});
+
+		String prefixedType = String.format("%s%s", VC_TYPES_PREFIX, vcType);
 
 		List<ClientModel> vcClients = getClientModelsFromSession().stream()
 				.filter(clientModel -> Optional.ofNullable(clientModel.getAttributes())
-						.map(attributes -> attributes.get(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES))
-						.map(types -> types.contains(vcType))
-						.orElse(false))
+						.filter(attributes -> attributes.containsKey(prefixedType))
+						.isPresent())
 				.collect(Collectors.toList());
 
 		if (vcClients.isEmpty()) {
-			LOGGER.debugf("No SIOP-2-Client supporting type %s registered.", vcType);
+			LOGGER.infof("No SIOP-2-Client supporting type %s registered.", vcType);
 			throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
 		}
 		return vcClients;
@@ -305,7 +316,14 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider, Cre
 		}
 	}
 
-	@Override
+	@POST
+	@Path("/credential")
+	@Consumes({ "application/json" })
+	@Produces({ "application/json" })
+	@ApiOperation(value = "Request a credential from the issuer", notes = "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-request", tags = {})
+	@ApiResponses(value = {
+			@ApiResponse(code = 200, message = "Credential Response can be Synchronous or Deferred. The Credential Issuer MAY be able to immediately issue a requested Credential and send it to the Client. In other cases, the Credential Issuer MAY NOT be able to immediately issue a requested Credential and would want to send an acceptance_token parameter to the Client to be used later to receive a Credential when it is ready.", response = CredentialResponseVO.class),
+			@ApiResponse(code = 400, message = "When the Credential Request is invalid or unauthorized, the Credential Issuer responds the error response", response = ErrorResponseVO.class) })
 	public Response requestCredential(CredentialRequestVO credentialRequestVO) {
 
 		if (credentialRequestVO.getTypes().size() != 1) {
@@ -349,7 +367,12 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider, Cre
 				.header("Access-Control-Allow-Origin", "*").build();
 	}
 
-	@Override public Response getIssuerMetadata() {
+	@Path("/.well-known/openid-credential-issuer")
+	@GET
+	@Produces({ "application/json" })
+	@ApiOperation(value = "Return the issuer metadata", notes = "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-issuer-metadata-", tags = {})
+	@ApiResponses(value = {
+			@ApiResponse(code = 200, message = "The credentials issuer metadata", response = CredentialIssuerVO.class) }) public Response getIssuerMetadata() {
 		return null;
 	}
 

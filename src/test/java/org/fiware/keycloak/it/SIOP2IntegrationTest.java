@@ -1,5 +1,6 @@
 package org.fiware.keycloak.it;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Builder;
 import lombok.Getter;
@@ -7,10 +8,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.awaitility.Awaitility;
 import org.fiware.keycloak.ExpectedResult;
 import org.fiware.keycloak.SIOP2LoginProtocolFactory;
+import org.fiware.keycloak.SupportedCredential;
 import org.fiware.keycloak.it.model.CredentialSubject;
 import org.fiware.keycloak.it.model.Role;
+import org.fiware.keycloak.it.model.VerifiableCredential;
 import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
 import org.fiware.keycloak.oidcvc.model.CredentialVO;
+import org.fiware.keycloak.oidcvc.model.FormatVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -60,7 +64,7 @@ public class SIOP2IntegrationTest {
 	private static final String TEST_CLIENT_ID_ONE = "did:key:z6Mkv4Lh9zBTPLoFhLHHMFJA7YAeVw5HFYZV8rkdfY9fNtm3";
 	private static final String TEST_CLIENT_ID_TWO = "did:key:z6Mkp7DVYuruxmKxsy2Rb3kMnfHgZZpbWYnY9rodvVfky7uj";
 
-	private static final String KEYCLOAK_ISSUER_DID ="did:key:z6MkqmaCT2JqdUtLeKah7tEVfNXtDXtQyj4yxEgV11Y5CqUa";
+	private static final String KEYCLOAK_ISSUER_DID = "did:key:z6MkqmaCT2JqdUtLeKah7tEVfNXtDXtQyj4yxEgV11Y5CqUa";
 
 	private static final String MASTER_REALM = "master";
 	private static final String TEST_REALM = "test";
@@ -138,7 +142,7 @@ public class SIOP2IntegrationTest {
 
 		ExpectedResult expectedResult = new ExpectedResult(null,
 				"Without a valid token, nothing should be returned.",
-				new ExpectedResult.Response(401, false));
+				new ExpectedResult.Response(400, false));
 
 		testVCIssuance(true, () -> "invalid", clients, users, userToRequest,
 				credentialToRequest, expectedResult);
@@ -151,7 +155,7 @@ public class SIOP2IntegrationTest {
 
 		ExpectedResult expectedResult = new ExpectedResult(null,
 				"Without a valid token, nothing should be returned.",
-				new ExpectedResult.Response(401, false));
+				new ExpectedResult.Response(400, false));
 
 		testVCIssuance(false, () -> "invalid", clients, users, userToRequest,
 				credentialToRequest, expectedResult);
@@ -195,9 +199,8 @@ public class SIOP2IntegrationTest {
 				response.statusCode(),
 				expectedResult.getMessage());
 		if (expectedResult.getResponse().isSuccess()) {
-			CredentialResponseVO receivedVC = OBJECT_MAPPER.readValue(response.body(), CredentialResponseVO.class);
-			CredentialVO credentialVO = OBJECT_MAPPER.convertValue(receivedVC.getCredential(), CredentialVO.class);
-			CredentialSubject credentialSubject = OBJECT_MAPPER.convertValue(credentialVO.getCredentialsSubject(), CredentialSubject.class);
+			VerifiableCredential receivedVC = OBJECT_MAPPER.readValue(response.body(), VerifiableCredential.class);
+			CredentialSubject credentialSubject = receivedVC.getCredentialSubject();
 			assertEquals(expectedResult.getExpectedResult(), credentialSubject.getRoles(),
 					expectedResult.getMessage());
 
@@ -215,11 +218,11 @@ public class SIOP2IntegrationTest {
 			requestedUser.getEmail().ifPresentOrElse(
 					email -> assertEquals(email, credentialSubject.getEmail(), expectedResult.getMessage()),
 					() -> assertNull(credentialSubject.getEmail(), expectedResult.getMessage()));
-			assertEquals(issuerDid, credentialVO.get("issuer"), expectedResult.getMessage());
-			assertTrue(credentialVO.getTypes().contains(credentialToRequest), expectedResult.getMessage());
+			assertEquals(issuerDid, receivedVC.getIssuer(), expectedResult.getMessage());
+			assertTrue(receivedVC.getType().contains(credentialToRequest), expectedResult.getMessage());
 		} else {
 			try {
-				OBJECT_MAPPER.readValue(response.body(), CredentialResponseVO.class);
+				OBJECT_MAPPER.readValue(response.body(), VerifiableCredential.class);
 				fail(expectedResult.getMessage());
 			} catch (Exception e) {
 				// we want this to fail.
@@ -227,17 +230,18 @@ public class SIOP2IntegrationTest {
 		}
 	}
 
+
 	public static Stream<Arguments> provideUsersAndClients() {
 		return Stream.of(
 				Arguments.of(List.of(Client.builder()
 										.id(TEST_CLIENT_ID_ONE)
 										.roles(List.of(TEST_CREATOR_ROLE, TEST_CONSUMER_ROLE))
-										.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+										.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 										.build(),
 								Client.builder()
 										.id(TEST_CLIENT_ID_TWO)
 										.roles(List.of(TEST_CONSUMER_ROLE))
-										.supportedTypes(Optional.of("SomethingElse"))
+										.supportedTypes(List.of(new SupportedCredential("SomethingElse", FormatVO.LDP_VC)))
 										.build()),
 						List.of(User.builder().username("test-user")
 								.firstName(Optional.of("Test"))
@@ -259,7 +263,7 @@ public class SIOP2IntegrationTest {
 				Arguments.of(List.of(Client.builder()
 								.id(TEST_CLIENT_ID_ONE)
 								.roles(List.of(TEST_CREATOR_ROLE, TEST_CONSUMER_ROLE))
-								.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+								.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 								.build()),
 						List.of(User.builder().username("test-user")
 								.lastName(Optional.of("User"))
@@ -280,7 +284,7 @@ public class SIOP2IntegrationTest {
 				Arguments.of(List.of(Client.builder()
 								.id(TEST_CLIENT_ID_ONE)
 								.roles(List.of(TEST_CREATOR_ROLE, TEST_CONSUMER_ROLE))
-								.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+								.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 								.build()),
 						List.of(User.builder().username("test-user")
 								.lastName(Optional.of("User"))
@@ -299,7 +303,7 @@ public class SIOP2IntegrationTest {
 								new ExpectedResult.Response(200, true))), Arguments.of(List.of(Client.builder()
 								.id(TEST_CLIENT_ID_ONE)
 								.roles(List.of(TEST_CREATOR_ROLE, TEST_CONSUMER_ROLE))
-								.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+								.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 								.build()),
 						List.of(User.builder().username("test-user")
 								.clients(
@@ -318,7 +322,7 @@ public class SIOP2IntegrationTest {
 				Arguments.of(List.of(Client.builder()
 								.id(TEST_CLIENT_ID_ONE)
 								.roles(List.of(TEST_CREATOR_ROLE, TEST_CONSUMER_ROLE))
-								.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+								.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 								.build()),
 						List.of(User.builder().username("test-user")
 								.firstName(Optional.of("Test"))
@@ -341,7 +345,7 @@ public class SIOP2IntegrationTest {
 				Arguments.of(List.of(Client.builder()
 								.id(TEST_CLIENT_ID_ONE)
 								.roles(List.of(TEST_CREATOR_ROLE, TEST_CONSUMER_ROLE))
-								.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+								.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 								.build()),
 						List.of(User.builder().username("test-user")
 								.firstName(Optional.of("Test"))
@@ -358,12 +362,12 @@ public class SIOP2IntegrationTest {
 				Arguments.of(List.of(Client.builder()
 										.id(TEST_CLIENT_ID_ONE)
 										.roles(List.of(TEST_CREATOR_ROLE, TEST_CONSUMER_ROLE))
-										.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+										.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 										.build(),
 								Client.builder()
 										.id(TEST_CLIENT_ID_TWO)
 										.roles(List.of(TEST_CREATOR_ROLE))
-										.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+										.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 										.build()),
 						List.of(User.builder().username("test-user")
 								.firstName(Optional.of("Test"))
@@ -392,7 +396,7 @@ public class SIOP2IntegrationTest {
 				Arguments.of(List.of(Client.builder()
 								.id(TEST_CLIENT_ID_ONE)
 								.roles(List.of(TEST_CREATOR_ROLE, TEST_CONSUMER_ROLE))
-								.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+								.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 								.build()
 						),
 						List.of(User.builder().username("test-user")
@@ -410,7 +414,8 @@ public class SIOP2IntegrationTest {
 						new ExpectedResult<>(
 								Set.of(),
 								"No credential should be issued, if something unsupported is requested.",
-								new ExpectedResult.Response(404, false))));
+								new ExpectedResult.Response(400, false)))
+		);
 	}
 
 	private void enableDirectAccessForAccountConsole() {
@@ -559,7 +564,7 @@ public class SIOP2IntegrationTest {
 	}
 
 	private void assertClientCreation(String clientId,
-			Optional<String> supportedTypes) {
+			List<SupportedCredential> supportedTypes) {
 		ClientRepresentation clientRepresentation = new ClientRepresentation();
 		clientRepresentation.setClientId(clientId);
 		clientRepresentation.setName(clientId);
@@ -567,7 +572,10 @@ public class SIOP2IntegrationTest {
 		clientRepresentation.setEnabled(true);
 		clientRepresentation.setProtocol(SIOP2LoginProtocolFactory.PROTOCOL_ID);
 		Map<String, String> attributes = new HashMap<>();
-		supportedTypes.ifPresent(st -> attributes.put("supportedVCTypes", st));
+
+		supportedTypes.forEach(st -> {
+			attributes.put(String.format("vctypes_%s", st.getType()), st.getFormat().toString());
+		});
 
 		clientRepresentation.setAttributes(attributes);
 
@@ -596,7 +604,7 @@ public class SIOP2IntegrationTest {
 		private String id;
 		private List<String> roles;
 		@Builder.Default
-		private Optional<String> supportedTypes = Optional.empty();
+		private List<SupportedCredential> supportedTypes = List.of();
 	}
 
 	@Getter

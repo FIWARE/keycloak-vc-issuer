@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,7 +23,7 @@ public class SIOP2Client {
 	/**
 	 * Comma-separated list of supported credentials types
 	 */
-	private String supportedVCTypes;
+	private List<SupportedCredential> supportedVCTypes;
 	/**
 	 * Description of the client, will f.e. be displayed in the admin-console
 	 */

@@ -11,6 +11,7 @@ import org.fiware.keycloak.model.VCConfig;
 import org.fiware.keycloak.model.VCData;
 import org.fiware.keycloak.model.VCRequest;
 import org.fiware.keycloak.oidcvc.model.CredentialVO;
+import org.fiware.keycloak.oidcvc.model.FormatVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -219,7 +220,7 @@ public class VCIssuerRealmResourceProviderTest {
 		return Stream.of(
 				getArguments(getUserModel("e@mail.org", "Happy", "User"),
 						Map.of(getSiopClient("did:key:1",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult(
@@ -229,7 +230,7 @@ public class VCIssuerRealmResourceProviderTest {
 				),
 				getArguments(getUserModel("e@mail.org", null, "User"),
 						Map.of(getSiopClient("did:key:1",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult(
@@ -241,7 +242,7 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel("e@mail.org", null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult(
@@ -253,7 +254,7 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult(
@@ -264,7 +265,7 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole"))),
 						new ExpectedResult(
@@ -277,7 +278,7 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC_JSON_LD.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult(
@@ -290,16 +291,17 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult(
 								getVCRequest(Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"),
-												new Role(Set.of("AnotherRole"), "did:key:2")), null,
+												new Role(Set.of("AnotherRole"), "did:key:2")),
+										null,
 										null,
 										null,
 										null), "The request should contain roles from both clients")
@@ -307,12 +309,11 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType"),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES,
-												"AnotherType"),
+										Map.of("vctypes_AnotherType", FormatVO.LDP_VC.toString()),
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult(
@@ -325,13 +326,13 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType",
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
 												"vc_additional",
 												"claim"),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType",
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
 												"vc_more",
 												"claims"),
 										List.of("AnotherRole")),
@@ -347,13 +348,13 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType",
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
 												"vc_additional",
 												"claim"),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "MyType",
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
 												"vc_additional",
 												"claim"),
 										List.of("AnotherRole")),
@@ -393,43 +394,43 @@ public class VCIssuerRealmResourceProviderTest {
 	private static Stream<Arguments> provideTypesAndClients() {
 		return Stream.of(
 				Arguments.of(Stream.of(getOidcClient(), getNullClient(), getSiopClient(
-								Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "TestType"))),
+								Map.of("vctypes_TestType", FormatVO.LDP_VC.toString()))),
 						new ExpectedResult(List.of("TestType"), "The list of configured types should be returned.")),
 				Arguments.of(Stream.of(getOidcClient(), getNullClient()),
 						new ExpectedResult(List.of(), "An empty list should be returned if nothing is configured.")),
 				Arguments.of(Stream.of(),
 						new ExpectedResult(List.of(), "An empty list should be returned if nothing is configured.")),
 				Arguments.of(
-						Stream.of(getSiopClient(Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "TestType",
+						Stream.of(getSiopClient(Map.of("vctypes_TestType", FormatVO.LDP_VC.toString(),
 								"another", "attribute"))),
 						new ExpectedResult(List.of("TestType"), "The list of configured types should be returned.")),
 				Arguments.of(Stream.of(getSiopClient(
-								Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "TestTypeA,TestTypeB"))),
+								Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB", FormatVO.LDP_VC.toString()))),
 						new ExpectedResult(List.of("TestTypeA", "TestTypeB"),
 								"The list of configured types should be returned.")),
 				Arguments.of(Stream.of(
 								getSiopClient(Map.of()),
 								getSiopClient(
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "TestTypeA,TestTypeB"))),
+										Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB", FormatVO.LDP_VC.toString()))),
 						new ExpectedResult(List.of("TestTypeA", "TestTypeB"),
 								"The list of configured types should be returned.")),
 				Arguments.of(Stream.of(
 								getSiopClient(null),
 								getSiopClient(
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "TestTypeA,TestTypeB"))),
+										Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB", FormatVO.LDP_VC.toString()))),
 						new ExpectedResult(List.of("TestTypeA", "TestTypeB"),
 								"The list of configured types should be returned.")),
 				Arguments.of(Stream.of(
-								getSiopClient(Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "AnotherType")),
+								getSiopClient(Map.of("vctypes_AnotherType", FormatVO.LDP_VC.toString())),
 								getSiopClient(
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "TestTypeA,TestTypeB"))),
+										Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB", FormatVO.LDP_VC.toString()))),
 						new ExpectedResult(List.of("TestTypeA", "TestTypeB", "AnotherType"),
 								"The list of configured types should be returned.")),
 				Arguments.of(Stream.of(
 								getSiopClient(
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "AnotherType,AndAnother")),
+										Map.of("vctypes_AnotherType", FormatVO.LDP_VC.toString(), "vctypes_AndAnother", FormatVO.LDP_VC.toString())),
 								getSiopClient(
-										Map.of(SIOP2ClientRegistrationProvider.SUPPORTED_VC_TYPES, "TestTypeA,TestTypeB"))),
+										Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB", FormatVO.LDP_VC.toString()))),
 						new ExpectedResult(List.of("TestTypeA", "TestTypeB", "AnotherType", "AndAnother"),
 								"The list of configured types should be returned."))
 		);

@@ -1,4 +1,4 @@
-package org.fiware.keycloak.model;
+package org.fiware.keycloak.it.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,11 +9,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Builder
 @EqualsAndHashCode
-public class JWSProof {
+public class CredentialSchema {
 
-	public String type;
-	public String creator;
-	public String created;
-	public String verificationMethod;
-	public String jws;
+    public String id;
+    public String type;
+
 }

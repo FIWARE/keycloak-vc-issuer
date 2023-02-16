@@ -153,6 +153,7 @@
             <artifactId>swagger-annotations</artifactId>
             <version>${version.io.swagger.swagger-annotations}</version>
         </dependency>
+
         <!-- Testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -212,11 +213,12 @@
                         </goals>
                         <configuration>
                             <inputSpec>${project.basedir}/api/oidc4VCissuance.yaml</inputSpec>
-                            <apiPackage>org.fiware.keycloak.oidcvc.api</apiPackage>
                             <strictSpec>true</strictSpec>
                             <modelPackage>org.fiware.keycloak.oidcvc.model</modelPackage>
                             <generateAliasAsModel>true</generateAliasAsModel>
                             <generatorName>jaxrs-spec</generatorName>
+                            <!-- the generated interfaces cannot be used, since there class level annotations clash with the spi. -->
+                            <generateApis>false</generateApis>
                             <modelNameSuffix>VO</modelNameSuffix>
                             <configOptions>
                                 <interfaceOnly>true</interfaceOnly>
