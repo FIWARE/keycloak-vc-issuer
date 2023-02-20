@@ -1,9 +1,9 @@
 package org.fiware.keycloak;
 
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.fiware.keycloak.model.SupportedCredential;
 
 import java.util.List;
 import java.util.Map;

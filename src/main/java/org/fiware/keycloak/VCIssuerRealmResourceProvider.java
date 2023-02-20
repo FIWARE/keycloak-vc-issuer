@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.fiware.keycloak.model.ErrorResponse;
 import org.fiware.keycloak.model.ErrorType;
 import org.fiware.keycloak.model.Role;
+import org.fiware.keycloak.model.SupportedCredential;
 import org.fiware.keycloak.model.VCClaims;
 import org.fiware.keycloak.model.VCConfig;
 import org.fiware.keycloak.model.VCData;
@@ -18,21 +19,42 @@ import org.fiware.keycloak.oidcvc.model.CredentialIssuerVO;
 import org.fiware.keycloak.oidcvc.model.CredentialRequestVO;
 import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
 import org.fiware.keycloak.oidcvc.model.CredentialVO;
+import org.fiware.keycloak.oidcvc.model.CredentialsOfferVO;
 import org.fiware.keycloak.oidcvc.model.ErrorResponseVO;
 import org.fiware.keycloak.oidcvc.model.FormatVO;
 import org.fiware.keycloak.oidcvc.model.SupportedCredentialVO;
 import org.jboss.logging.Logger;
+import org.keycloak.OAuth2Constants;
+import org.keycloak.authorization.authorization.AuthorizationTokenService;
+import org.keycloak.common.VerificationException;
+import org.keycloak.common.util.Time;
+import org.keycloak.models.AuthenticatedClientSessionModel;
 import org.keycloak.models.ClientModel;
+import org.keycloak.models.ClientSessionContext;
 import org.keycloak.models.KeycloakContext;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.models.UserSessionModel;
+import org.keycloak.protocol.oidc.OIDCLoginProtocol;
+import org.keycloak.protocol.oidc.OIDCWellKnownProvider;
+import org.keycloak.protocol.oidc.TokenManager;
+import org.keycloak.protocol.oidc.representations.OIDCConfigurationRepresentation;
+import org.keycloak.protocol.oidc.utils.OAuth2Code;
+import org.keycloak.protocol.oidc.utils.OAuth2CodeParser;
+import org.keycloak.representations.AccessToken;
+import org.keycloak.representations.IDToken;
 import org.keycloak.representations.JsonWebToken;
 import org.keycloak.services.ErrorResponseException;
 import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.managers.AuthenticationManager;
+import org.keycloak.services.managers.IdentityCookieToken;
 import org.keycloak.services.resource.RealmResourceProvider;
+import org.keycloak.services.util.AuthorizationContextUtil;
+import org.keycloak.services.util.DefaultClientSessionContext;
+import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.urls.UrlType;
+import org.keycloak.util.JsonSerialization;
 
 import javax.validation.constraints.NotNull;
 import javax.ws.rs.Consumes;
@@ -43,8 +65,11 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -73,6 +98,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	public static final String LD_PROOF_TYPE = "LD_PROOF";
 	public static final String CREDENTIAL_PATH = "credential";
 	public static final String TYPE_VERIFIABLE_CREDENTIAL = "VerifiableCredential";
+	private static final String OFFER_TEMPLATE = "openid-credential-offer://credential_offer=%s";
 
 	private final KeycloakSession session;
 	private final String issuerDid;
@@ -111,13 +137,10 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	@GET
 	@Path("types")
 	@Produces(MediaType.APPLICATION_JSON)
-	public List<String> getTypes() {
-		AuthenticationManager.AuthResult authResult = bearerTokenAuthenticator.authenticate();
-		if (authResult == null) {
-			throw new ErrorResponseException("unauthorized", "Types is only available to authorized users.",
-					Response.Status.UNAUTHORIZED);
-		}
-		UserModel userModel = authResult.getUser();
+	public List<SupportedCredential> getTypes() {
+		UserModel userModel = getUserModel(
+				new ErrorResponseException("unauthorized", "Types is only available to authorized users.",
+						Response.Status.UNAUTHORIZED));
 		LOGGER.debugf("User is {}", userModel.getId());
 
 		return List.copyOf(getClientModelsFromSession().stream()
@@ -125,12 +148,143 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.filter(Objects::nonNull)
 				.flatMap(attrs -> attrs.entrySet().stream())
 				.filter(attr -> attr.getKey().startsWith(VC_TYPES_PREFIX))
-				.map(Map.Entry::getKey)
-				.filter(Objects::nonNull)
-				.map(type -> type.replaceFirst(VC_TYPES_PREFIX, ""))
-				// collect to a set to remove duplicates
+				.flatMap(entry -> mapAttributeEntryToSc(entry).stream())
 				.collect(Collectors.toSet()));
+	}
 
+	private UserModel getUserModel(ErrorResponseException errorResponse) {
+		return getAuthResult(errorResponse).getUser();
+	}
+
+	private UserSessionModel getUserSessionModel() {
+		return getAuthResult(new ErrorResponseException(getErrorResponse(ErrorType.INVALID_TOKEN))).getSession();
+	}
+
+	private AuthenticationManager.AuthResult getAuthResult() {
+		return getAuthResult(new ErrorResponseException(getErrorResponse(ErrorType.INVALID_TOKEN)));
+	}
+
+	private AuthenticationManager.AuthResult getAuthResult(ErrorResponseException errorResponse) {
+		AuthenticationManager.AuthResult authResult = bearerTokenAuthenticator.authenticate();
+		if (authResult == null) {
+			throw errorResponse;
+		}
+		return authResult;
+	}
+
+	private UserModel getUserModel() {
+		return getUserModel(new ErrorResponseException(getErrorResponse(ErrorType.INVALID_TOKEN)));
+	}
+
+	/**
+	 * OIDC well-known for the issuer
+	 */
+	@GET
+	@Path(".well-known/openid-configuration")
+	@Produces({ MediaType.APPLICATION_JSON })
+	public Response getOIDCConfig() {
+		OIDCWellKnownProvider wkp = new OIDCWellKnownProvider(session, null, true);
+		Object originalConfig = wkp.getConfig();
+		if (originalConfig instanceof OIDCConfigurationRepresentation) {
+
+			OIDCConfigurationRepresentation config = (OIDCConfigurationRepresentation) originalConfig;
+			// has to be configurable in the future
+			config.setOtherClaims("subject_syntax_types_supported",
+					List.of("did:key", "urn:ietf:params:oauth:jwk-thumbprint"));
+			return Response.ok().entity(config).build();
+		} else {
+			throw new ErrorResponseException("invalid_config", "Original config was invalid.",
+					Response.Status.INTERNAL_SERVER_ERROR);
+		}
+	}
+
+	@GET
+	@Path(".well-known/openid-credential-issuer")
+	@Produces({ MediaType.APPLICATION_JSON })
+	@ApiOperation(value = "Return the issuer metadata", notes = "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-issuer-metadata-", tags = {})
+	@ApiResponses(value = {
+			@ApiResponse(code = 200, message = "The credentials issuer metadata", response = CredentialIssuerVO.class) })
+	public Response getIssuerMetadata() {
+		KeycloakContext currentContext = session.getContext();
+		String realm = currentContext.getRealm().getId();
+		String backendUrl = currentContext.getUri(UrlType.BACKEND).getBaseUri().toString();
+		String issuer = String.format("%srealms/%s", backendUrl, realm);
+		String issuerResourcePathPattern = "%srealms/%s/%s";
+		String authorizationEndpointPattern = "%srealms/%s/.well-known/openid-configuration";
+		String providerEndpoint = String.format(issuerResourcePathPattern, backendUrl, realm,
+				VCIssuerRealmResourceProviderFactory.ID);
+		return Response.ok().entity(new CredentialIssuerVO()
+						.credentialIssuer(issuer)
+						.authorizationServer(String.format(authorizationEndpointPattern, backendUrl, realm))
+						.credentialEndpoint(providerEndpoint + "/" + CREDENTIAL_PATH)
+						.credentialsSupported(getSupportedCredentials(currentContext)))
+				.header("Access-Control-Allow-Origin", "*").build();
+	}
+
+	private String getIssuer() {
+		KeycloakContext currentContext = session.getContext();
+		String realm = currentContext.getRealm().getId();
+		String backendUrl = currentContext.getUri(UrlType.BACKEND).getBaseUri().toString();
+		return String.format("%srealms/%s", backendUrl, realm);
+	}
+
+	@GET
+	@Path("credential-offer")
+	@Produces({ MediaType.TEXT_PLAIN })
+	public Response getCredentialOffer(@QueryParam("type") String vcType, @QueryParam("format") FormatVO format) {
+		// validate that the user is able to get the offered credentials
+		getClientsOfType(vcType, format);
+
+		SupportedCredential offeredCredential = new SupportedCredential(vcType, format);
+		Instant now = clock.instant();
+		JsonWebToken token = new JsonWebToken()
+				.id(UUID.randomUUID().toString())
+				.subject(getUserModel().getId())
+				.nbf(now.getEpochSecond())
+				//maybe configurable in the future, needs to be short lived
+				.exp(now.plus(Duration.of(30, ChronoUnit.SECONDS)).getEpochSecond());
+		token.setOtherClaims("offeredCredential", new SupportedCredential(vcType, format));
+
+		CredentialsOfferVO theOffer = new CredentialsOfferVO()
+				.credentialIssuer(getIssuer())
+				.credentials(List.of(offeredCredential))
+				//TODO: Maybe change the encvoding
+				.issuerState(generateAuthorizationCode());
+		try {
+			String encodedOffer = URLEncoder.encode(objectMapper.writeValueAsString(theOffer), "UTF-8");
+			String offerURI = String.format(OFFER_TEMPLATE, encodedOffer);
+			LOGGER.infof("Responding with offer: %s", offerURI);
+			return Response.ok()
+					.entity(offerURI)
+					.header("Access-Control-Allow-Origin", "*")
+					.build();
+		} catch (UnsupportedEncodingException | JsonProcessingException e) {
+			LOGGER.warn("Was not able to create a credential offer.", e);
+			throw new ErrorResponseException("bad_gateway", "Was not able to create an offer.",
+					Response.Status.INTERNAL_SERVER_ERROR);
+		}
+	}
+
+	public String generateAuthorizationCode() {
+
+		AuthenticationManager.AuthResult authResult = getAuthResult();
+		UserSessionModel userSessionModel = getUserSessionModel();
+
+		AuthenticatedClientSessionModel clientSessionModel = userSessionModel.
+				getAuthenticatedClientSessionByClient(
+						authResult.getClient().getId());
+		int expiration = Time.currentTime() + getUserSessionModel().getRealm().getAccessCodeLifespan();
+
+		LOGGER.infof("Get the model %s", clientSessionModel);
+		LOGGER.infof("Get the usersession %s", clientSessionModel.getUserSession());
+		LOGGER.infof("Get the realm %s", clientSessionModel.getUserSession().getRealm());
+
+		LOGGER.infof("Get the span %s", clientSessionModel.getUserSession().getRealm().getAccessCodeLifespan());
+		String codeId = UUID.randomUUID().toString();
+		String nonce = UUID.randomUUID().toString();
+		OAuth2Code oAuth2Code = new OAuth2Code(codeId, expiration, nonce, null, null, null, null);
+
+		return OAuth2CodeParser.persistCode(session, clientSessionModel, oAuth2Code);
 	}
 
 	private Response getErrorResponse(ErrorType errorType) {
@@ -284,11 +438,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		// automatically be evaluated
 		optionalToken.ifPresent(bearerTokenAuthenticator::setTokenString);
 
-		AuthenticationManager.AuthResult authResult = bearerTokenAuthenticator.authenticate();
-		if (authResult == null) {
-			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_TOKEN));
-		}
-		UserModel userModel = authResult.getUser();
+		UserModel userModel = getUserModel();
 		LOGGER.debugf("Authorized user is %s.", userModel.getId());
 		return userModel;
 	}
@@ -383,40 +533,29 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		return context.getRealm().getClientsStream()
 				.flatMap(cm -> cm.getAttributes().entrySet().stream())
 				.filter(entry -> entry.getKey().startsWith(VC_TYPES_PREFIX))
-				.flatMap(entry -> {
-
-					String type = entry.getKey().replaceFirst(VC_TYPES_PREFIX, "");
-					Set<FormatVO> supportedFormats = getFormatsFromString(entry.getValue());
-					return supportedFormats.stream().map(formatVO -> {
-								String id = buildIdFromType(formatVO, type);
-								return new SupportedCredentialVO().id(id).types(List.of(type)).format(formatVO);
-							}
-					);
-				}).collect(Collectors.toList());
+				.flatMap(entry -> mapAttributeEntryToScVO(entry).stream())
+				.collect(Collectors.toList());
 
 	}
 
-	@GET
-	@Path(".well-known/openid-credential-issuer")
-	@Produces({ "application/json" })
-	@ApiOperation(value = "Return the issuer metadata", notes = "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-issuer-metadata-", tags = {})
-	@ApiResponses(value = {
-			@ApiResponse(code = 200, message = "The credentials issuer metadata", response = CredentialIssuerVO.class) })
-	public Response getIssuerMetadata() {
-		KeycloakContext currentContext = session.getContext();
-		String realm = currentContext.getRealm().getId();
-		String backendUrl = currentContext.getUri(UrlType.BACKEND).getBaseUri().toString();
-		String issuer = String.format("%srealms/%s", backendUrl, realm);
-		String issuerResourcePathPattern = "%srealms/%s/%s";
-		String authorizationEndpointPattern = "%srealms/%s/.well-known/openid-configuration";
-		String providerEndpoint = String.format(issuerResourcePathPattern, backendUrl, realm,
-				VCIssuerRealmResourceProviderFactory.ID);
-		return Response.ok().entity(new CredentialIssuerVO()
-						.credentialIssuer(issuer)
-						.authorizationServer(String.format(authorizationEndpointPattern, backendUrl, realm))
-						.credentialEndpoint(providerEndpoint + "/" + CREDENTIAL_PATH)
-						.credentialsSupported(getSupportedCredentials(currentContext)))
-				.header("Access-Control-Allow-Origin", "*").build();
+	private List<SupportedCredential> mapAttributeEntryToSc(Map.Entry<String, String> typesEntry) {
+		String type = typesEntry.getKey().replaceFirst(VC_TYPES_PREFIX, "");
+		Set<FormatVO> supportedFormats = getFormatsFromString(typesEntry.getValue());
+		return supportedFormats.stream().map(formatVO -> {
+					String id = buildIdFromType(formatVO, type);
+					return new SupportedCredential(type, formatVO);
+				}
+		).collect(Collectors.toList());
+	}
+
+	private List<SupportedCredentialVO> mapAttributeEntryToScVO(Map.Entry<String, String> typesEntry) {
+		String type = typesEntry.getKey().replaceFirst(VC_TYPES_PREFIX, "");
+		Set<FormatVO> supportedFormats = getFormatsFromString(typesEntry.getValue());
+		return supportedFormats.stream().map(formatVO -> {
+					String id = buildIdFromType(formatVO, type);
+					return new SupportedCredentialVO().id(id).types(List.of(type)).format(formatVO);
+				}
+		).collect(Collectors.toList());
 	}
 
 	private String buildIdFromType(FormatVO formatVO, String type) {

@@ -8,7 +8,7 @@ import org.apache.http.HttpStatus;
 import org.awaitility.Awaitility;
 import org.fiware.keycloak.ExpectedResult;
 import org.fiware.keycloak.SIOP2LoginProtocolFactory;
-import org.fiware.keycloak.SupportedCredential;
+import org.fiware.keycloak.model.SupportedCredential;
 import org.fiware.keycloak.it.model.CredentialSubject;
 import org.fiware.keycloak.it.model.IssuerMetaData;
 import org.fiware.keycloak.it.model.Role;

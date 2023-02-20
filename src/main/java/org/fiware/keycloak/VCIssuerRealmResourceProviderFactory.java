@@ -5,6 +5,7 @@ import com.google.auto.service.AutoService;
 import org.fiware.keycloak.model.DIDKey;
 import org.jboss.logging.Logger;
 import org.keycloak.Config;
+import org.keycloak.cluster.ManagedCacheManagerProvider;
 import org.keycloak.common.util.Time;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
@@ -16,6 +17,7 @@ import java.io.File;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.Optional;
+import java.util.ServiceLoader;
 
 /**
  * Factory implementation to provide the VCIssuer functionality as a realm resource.
@@ -57,7 +59,6 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 	@Override
 	public void init(Config.Scope config) {
 		try {
-
 			// read the address of walt from the realm resource.
 			waltIdURL = System.getenv(WALTID_ADDRESS_ENV_VAR);
 			initializeCorePort();

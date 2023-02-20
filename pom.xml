@@ -132,6 +132,12 @@
         </dependency>
         <dependency>
             <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-services</artifactId>
+            <version>${version.org.keycloak.libs}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
             <artifactId>keycloak-model-map</artifactId>
             <version>${version.org.keycloak.libs}</version>
             <scope>provided</scope>

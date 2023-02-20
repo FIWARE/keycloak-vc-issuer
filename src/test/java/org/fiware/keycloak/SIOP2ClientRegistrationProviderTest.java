@@ -1,8 +1,7 @@
 package org.fiware.keycloak;
 
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.fiware.keycloak.model.SupportedCredential;
 import org.fiware.keycloak.oidcvc.model.FormatVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;

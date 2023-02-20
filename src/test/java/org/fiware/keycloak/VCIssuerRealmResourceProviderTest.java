@@ -9,6 +9,7 @@ import org.fiware.keycloak.it.model.IssuerMetaData;
 import org.fiware.keycloak.model.ErrorResponse;
 import org.fiware.keycloak.model.ErrorType;
 import org.fiware.keycloak.model.Role;
+import org.fiware.keycloak.model.SupportedCredential;
 import org.fiware.keycloak.model.VCClaims;
 import org.fiware.keycloak.model.VCConfig;
 import org.fiware.keycloak.model.VCData;
@@ -89,7 +90,8 @@ public class VCIssuerRealmResourceProviderTest {
 
 	@ParameterizedTest
 	@MethodSource("provideTypesAndClients")
-	public void testGetTypes(Stream<ClientModel> clientModelStream, ExpectedResult<List<String>> expectedResult) {
+	public void testGetTypes(Stream<ClientModel> clientModelStream,
+			ExpectedResult<Set<SupportedCredential>> expectedResult) {
 		AuthenticationManager.AuthResult authResult = mock(AuthenticationManager.AuthResult.class);
 		UserModel userModel = mock(UserModel.class);
 		KeycloakContext context = mock(KeycloakContext.class);
@@ -103,10 +105,10 @@ public class VCIssuerRealmResourceProviderTest {
 		when(keycloakSession.clients()).thenReturn(clientProvider);
 		when(clientProvider.getClientsStream(any())).thenReturn(clientModelStream);
 
-		List<String> returnedTypes = testProvider.getTypes();
+		List<SupportedCredential> returnedTypes = testProvider.getTypes();
 
 		// copy to set to ignore order
-		assertEquals(Set.copyOf(expectedResult.getExpectedResult()), Set.copyOf(returnedTypes),
+		assertEquals(expectedResult.getExpectedResult(), Set.copyOf(returnedTypes),
 				expectedResult.getMessage());
 		// compare size in addition to the set, to not get duplicates
 		assertEquals(expectedResult.getExpectedResult().size(), returnedTypes.size(), "The size should be equal.");
@@ -156,7 +158,8 @@ public class VCIssuerRealmResourceProviderTest {
 
 	@ParameterizedTest
 	@MethodSource("provideTypesAndClients")
-	public void testGetVCNoSuchType(Stream<ClientModel> clientModelStream, ExpectedResult<List<String>> ignored) {
+	public void testGetVCNoSuchType(Stream<ClientModel> clientModelStream,
+			ExpectedResult<Set<SupportedCredential>> ignored) {
 		AuthenticationManager.AuthResult authResult = mock(AuthenticationManager.AuthResult.class);
 		UserModel userModel = mock(UserModel.class);
 		KeycloakContext context = mock(KeycloakContext.class);
@@ -484,40 +487,51 @@ public class VCIssuerRealmResourceProviderTest {
 		return Stream.of(
 				Arguments.of(Stream.of(getOidcClient(), getNullClient(), getSiopClient(
 								Map.of("vctypes_TestType", FormatVO.LDP_VC.toString()))),
-						new ExpectedResult<>(List.of("TestType"), "The list of configured types should be returned.")),
+						new ExpectedResult<>(Set.of(new SupportedCredential("TestType", FormatVO.LDP_VC)),
+								"The list of configured types should be returned.")),
 				Arguments.of(Stream.of(getOidcClient(), getNullClient()),
-						new ExpectedResult<>(List.of(), "An empty list should be returned if nothing is configured.")),
+						new ExpectedResult<>(Set.of(), "An empty list should be returned if nothing is configured.")),
 				Arguments.of(Stream.of(),
-						new ExpectedResult<>(List.of(), "An empty list should be returned if nothing is configured.")),
+						new ExpectedResult<>(Set.of(), "An empty list should be returned if nothing is configured.")),
 				Arguments.of(
 						Stream.of(getSiopClient(Map.of("vctypes_TestType", FormatVO.LDP_VC.toString(),
 								"another", "attribute"))),
-						new ExpectedResult<>(List.of("TestType"), "The list of configured types should be returned.")),
+						new ExpectedResult<>(Set.of(new SupportedCredential("TestType", FormatVO.LDP_VC)),
+								"The list of configured types should be returned.")),
 				Arguments.of(Stream.of(getSiopClient(
 								Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB",
 										FormatVO.LDP_VC.toString()))),
-						new ExpectedResult<>(List.of("TestTypeA", "TestTypeB"),
+						new ExpectedResult<>(
+								Set.of(new SupportedCredential("TestTypeA", FormatVO.LDP_VC),
+										new SupportedCredential("TestTypeB", FormatVO.LDP_VC)),
 								"The list of configured types should be returned.")),
 				Arguments.of(Stream.of(
 								getSiopClient(Map.of()),
 								getSiopClient(
 										Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB",
 												FormatVO.LDP_VC.toString()))),
-						new ExpectedResult<>(List.of("TestTypeA", "TestTypeB"),
+						new ExpectedResult<>(
+								Set.of(new SupportedCredential("TestTypeA", FormatVO.LDP_VC),
+										new SupportedCredential("TestTypeB", FormatVO.LDP_VC)),
 								"The list of configured types should be returned.")),
 				Arguments.of(Stream.of(
 								getSiopClient(null),
 								getSiopClient(
 										Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB",
 												FormatVO.LDP_VC.toString()))),
-						new ExpectedResult<>(List.of("TestTypeA", "TestTypeB"),
+						new ExpectedResult<>(
+								Set.of(new SupportedCredential("TestTypeA", FormatVO.LDP_VC),
+										new SupportedCredential("TestTypeB", FormatVO.LDP_VC)),
 								"The list of configured types should be returned.")),
 				Arguments.of(Stream.of(
 								getSiopClient(Map.of("vctypes_AnotherType", FormatVO.LDP_VC.toString())),
 								getSiopClient(
 										Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB",
 												FormatVO.LDP_VC.toString()))),
-						new ExpectedResult<>(List.of("TestTypeA", "TestTypeB", "AnotherType"),
+						new ExpectedResult<>(
+								Set.of(new SupportedCredential("TestTypeA", FormatVO.LDP_VC),
+										new SupportedCredential("TestTypeB", FormatVO.LDP_VC),
+										new SupportedCredential("AnotherType", FormatVO.LDP_VC)),
 								"The list of configured types should be returned.")),
 				Arguments.of(Stream.of(
 								getSiopClient(
@@ -526,7 +540,11 @@ public class VCIssuerRealmResourceProviderTest {
 								getSiopClient(
 										Map.of("vctypes_TestTypeA", FormatVO.LDP_VC.toString(), "vctypes_TestTypeB",
 												FormatVO.LDP_VC.toString()))),
-						new ExpectedResult<>(List.of("TestTypeA", "TestTypeB", "AnotherType", "AndAnother"),
+						new ExpectedResult<>(
+								Set.of(new SupportedCredential("TestTypeA", FormatVO.LDP_VC),
+										new SupportedCredential("TestTypeB", FormatVO.LDP_VC),
+										new SupportedCredential("AnotherType", FormatVO.LDP_VC),
+										new SupportedCredential("AndAnother", FormatVO.LDP_VC)),
 								"The list of configured types should be returned."))
 		);
 	}
