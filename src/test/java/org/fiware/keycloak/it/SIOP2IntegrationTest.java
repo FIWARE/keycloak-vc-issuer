@@ -125,9 +125,10 @@ public class SIOP2IntegrationTest {
 
 		HttpRequest.Builder requestBuilder = HttpRequest.newBuilder().GET();
 		requestBuilder.uri(URI.create(
-				String.format("%s/realms/%s/verifiable-credential/.well-known/openid-credential-issuer",
+				String.format("%s/realms/%s/verifiable-credential/%s/.well-known/openid-credential-issuer",
 						KEYCLOAK_ADDRESS,
-						TEST_REALM)));
+						TEST_REALM,
+						KEYCLOAK_ISSUER_DID)));
 		HttpResponse<String> response = HttpClient.newHttpClient()
 				.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
 
@@ -183,8 +184,9 @@ public class SIOP2IntegrationTest {
 
 		return IssuerMetaData.builder()
 				.authorizationServer(new URL("http://localhost:8080/realms/test/.well-known/openid-configuration"))
-				.credentialEndpoint(new URL("http://localhost:8080/realms/test/verifiable-credential/credential"))
-				.credentialIssuer(new URL("http://localhost:8080/realms/test"))
+				.credentialEndpoint(
+						new URL("http://localhost:8080/realms/test/verifiable-credential/did:key:test/credential"))
+				.credentialIssuer(new URL(" http://localhost:8080/realms/test/verifiable-credential/did:key:test"))
 				.credentialsSupported(supportedCredentials.stream()
 						.map(sc -> new SupportedCredentialMetadata(sc.getFormat().toString(),
 								String.format("%s_%s", sc.getType(), sc.getFormat().toString()),
@@ -270,14 +272,14 @@ public class SIOP2IntegrationTest {
 		if (useAuthHeader) {
 			requestBuilder
 					.uri(URI.create(
-							String.format("%s/realms/%s/verifiable-credential?type=%s", KEYCLOAK_ADDRESS,
-									TEST_REALM, credentialToRequest)))
+							String.format("%s/realms/%s/verifiable-credential/%s?type=%s", KEYCLOAK_ADDRESS,
+									TEST_REALM, KEYCLOAK_ISSUER_DID, credentialToRequest)))
 					.header("Authorization", String.format("Bearer %s", tokenMethod.call()));
 		} else {
 			requestBuilder
 					.uri(URI.create(
-							String.format("%s/realms/%s/verifiable-credential?type=%s&token=%s", KEYCLOAK_ADDRESS,
-									TEST_REALM, credentialToRequest, tokenMethod.call())));
+							String.format("%s/realms/%s/verifiable-credential/%s?type=%s&token=%s", KEYCLOAK_ADDRESS,
+									TEST_REALM, KEYCLOAK_ISSUER_DID, credentialToRequest, tokenMethod.call())));
 		}
 
 		HttpResponse<String> response = HttpClient.newHttpClient()

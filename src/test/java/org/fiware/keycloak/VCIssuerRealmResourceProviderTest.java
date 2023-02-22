@@ -194,7 +194,7 @@ public class VCIssuerRealmResourceProviderTest {
 		when(realmModel.getId()).thenReturn("test");
 		when(realmModel.getClientsStream()).thenReturn(clientModelStream);
 		KeycloakUriInfo keycloakUriInfo = mock(KeycloakUriInfo.class);
-		when(keycloakUriInfo.getBaseUri()).thenReturn(new URI("http://localhost:8080/"));
+		when(keycloakUriInfo.getBaseUri()).thenReturn(new URI("http://localhost:8080"));
 		when(context.getUri(any())).thenReturn(keycloakUriInfo);
 		when(keycloakSession.getContext()).thenReturn(context);
 		when(context.getRealm()).thenReturn(realmModel);
@@ -291,7 +291,8 @@ public class VCIssuerRealmResourceProviderTest {
 		when(waltIdClient.getVCFromWaltId(argument.capture())).thenReturn(OBJECT_MAPPER.writeValueAsString(TEST_VC));
 		assertEquals(TEST_VC, testProvider.issueVerifiableCredential(ISSUER_DID, "MyType", null).getEntity(),
 				"The requested VC should be returned.");
-
+		// randomly generated
+		expectedResult.getExpectedResult().getConfig().setSubjectDid(argument.getValue().getConfig().getSubjectDid());
 		assertEquals(expectedResult.getExpectedResult(), argument.getValue(), expectedResult.getMessage());
 	}
 

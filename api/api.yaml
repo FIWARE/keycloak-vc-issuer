@@ -1,15 +1,38 @@
 openapi: 3.0.3
 info:
-  title: openid-4-verifiable-credential-issuance-1_0
-  description: Readable spec
+  title: Keycloak VC issuer plugin
+  description: API spec for the Keycloak issuer plugin
   version: 0.0.1
 externalDocs:
   description: API Documentation
   url: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html
-
+tags:
+  - name: OIDC4VCI
+    description: Endpoints defined by the OpenID for Verifiable Credential Issuance spec
+  - name: IssuerPlugin
+    description: Endpoints provided by the plugin for convenience, but not defined by the spec
 paths:
-  /.well-known/openid-credential-issuer:
+  /issuer:
     get:
+      tags:
+        - IssuerPlugin
+      operationId: getIssuerDid
+      description: Convenience endpoint to provide the did configured for this issuer through a (realm individual) static endpoint. Can be used to construct the issuance paths. Allows extension for multi-issuer support in the future.
+      responses:
+        '200':
+          description: The did.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: did:key:z6MkkSMQG86ZC5pcJUXNg1evKugKjstRbUhWmMKwt1hE3Pmq
+
+  /{issuerDid}/.well-known/openid-credential-issuer:
+    get:
+      tags:
+        - OIDC4VCI
+      parameters:
+        - $ref: '#/components/parameters/IssuerDid'
       operationId: getIssuerMetadata
       description: "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-issuer-metadata-"
       summary: Return the issuer metadata
@@ -20,8 +43,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CredentialIssuer'
-  /credential:
+
+  /{issuerDid}/credential:
     post:
+      tags:
+        - OIDC4VCI
+      parameters:
+        - $ref: '#/components/parameters/IssuerDid'
       operationId: requestCredential
       summary: Request a credential from the issuer
       description: "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-request"
@@ -44,8 +72,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /.well-known/openid-configuration:
+
+  /{issuerDid}/.well-known/openid-configuration:
     get:
+      tags:
+        - OIDC4VCI
+      parameters:
+        - $ref: '#/components/parameters/IssuerDid'
       operationId: getOpenIdConfig
       summary: provide SIOP-2 metadata
       responses:
@@ -55,7 +88,138 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SIOPMetadata'
+
+  /{issuerDid}/token:
+    post:
+      tags:
+        - OIDC4VCI
+      parameters:
+        - $ref: '#/components/parameters/IssuerDid'
+      operationId: exchangeToken
+      description: Token endpoint to exchange pre_authorized codes for access tokens.
+      requestBody:
+        description: The token request to be exchanged
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      responses:
+        '200':
+          description: The token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+
+  /{issuerDid}/types:
+    get:
+      tags:
+        - IssuerPlugin
+      parameters:
+        - $ref: '#/components/parameters/IssuerDid'
+      description: Convenience endpoint, provides all available type and format combinations available for the loggedin user.
+      operationId: getTypes
+      responses:
+        '200':
+          description: The list of supported credentials with there format.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      example: BatteryPassAuthCredential
+                    format:
+                      $ref: '#/components/schemas/Format'
+                  required:
+                    - type
+                    - format
+
+  /{issuerDid}/credential-offer:
+    get:
+      tags:
+        - IssuerPlugin
+        - OIDC4VCI
+      parameters:
+        - $ref: '#/components/parameters/IssuerDid'
+        - $ref: '#/components/parameters/VcType'
+        - $ref: '#/components/parameters/VcFormat'
+      description: Endpoint to retrieve an OIDC4VCI compliant offer, that can f.e. be used in QR-Code presented to a compliant wallet.
+      operationId: getCredentialOffer
+      responses:
+        '200':
+          description: A valid credential offer. It will provide the pre-authorized flow, wich is currently the only one supported by the plugin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialsOffer'
+        '400':
+          description: When the Credential Request is invalid or unauthorized, the Credential Issuer responds the error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /{issuerDid}/:
+    get:
+      tags:
+        - IssuerPlugin
+      parameters:
+        - $ref: '#/components/parameters/IssuerDid'
+        - $ref: '#/components/parameters/VcType'
+        - $ref: '#/components/parameters/Token'
+      description: Convenience endpoint to return verifiable credentials accoridng to the request. Will always be in ldp_vc format
+      operationId: issueVerifiableCredential
+      responses:
+        '200':
+          description: The credential.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Credential'
+        '400':
+          description: When the Credential Request is invalid or unauthorized, the Credential Issuer responds the error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
+  parameters:
+    IssuerDid:
+      description: Did configured for the requested issuer
+      name: issuerDid
+      in: path
+      required: true
+      schema:
+        type: string
+        example: did:key:z6MkqmaCT2JqdUtLeKah7tEVfNXtDXtQyj4yxEgV11Y5CqUa
+    VcType:
+      description: Type of the credential to get.
+      name: type
+      in: query
+      required: true
+      schema:
+        type: string
+        example: BatteryPassAuthCredential
+    VcFormat:
+      description: Format of the credential to get.
+      name: format
+      in: query
+      required: true
+      schema:
+        $ref: '#/components/schemas/Format'
+    Token:
+      description: JWT to be used for getting the VC. Intended for compatibility with the demo wallet
+      name: token
+      in: query
+      required: false
+      schema:
+        type: string
+        example: eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJkNi0xekdLVlNGSHUzREF1SHFpdmRaS1loTmN1dzZpUEpxaGRJNTNKMDVBIn0.eyJleHAiOjE2NzcwNjg3NDUsImlhdCI6MTY3NzA2ODQ0NSwiYXV0aF90aW1lIjoxNjc3MDY3NTUyLCJqdGkiOiIxYjBiYTg1NS0yZDJmLTQ1MGYtOGUxMy00ZjBkMWUyYmFiOTYiLCJpc3MiOiJodHRwczovL2tjLW9uZS5iYXR0ZXJ5cGFzcy5maXdhcmUuZGV2L3JlYWxtcy9maXdhcmUtc2VydmVyIiwiYXVkIjoiYWNjb3VudCIsInN1YiI6IjQ4MzBhNzJkLWM4MTAtNDU2Ny1hNThlLWU5ZWU1Mzk0NjM4OSIsInR5cCI6IkJlYXJlciIsImF6cCI6ImFjY291bnQtY29uc29sZSIsInNlc3Npb25fc3RhdGUiOiJjY2JkYmNjMi0wMDhmLTRiOTAtYTc0ZS04NDdjZTNlMGFlODIiLCJyZXNvdXJjZV9hY2Nlc3MiOnsiYWNjb3VudCI6eyJyb2xlcyI6WyJtYW5hZ2UtYWNjb3VudCIsIm1hbmFnZS1hY2NvdW50LWxpbmtzIl19fSwic2NvcGUiOiJvcGVuaWQgZW1haWwgcHJvZmlsZSIsInNpZCI6ImNjYmRiY2MyLTAwOGYtNGI5MC1hNzRlLTg0N2NlM2UwYWU4MiIsImVtYWlsX3ZlcmlmaWVkIjpmYWxzZSwibmFtZSI6IlRlc3QgVXNlciIsInByZWZlcnJlZF91c2VybmFtZSI6ImFkbWluLXVzZXIiLCJnaXZlbl9uYW1lIjoiVGVzdCIsImZhbWlseV9uYW1lIjoiVXNlciIsImVtYWlsIjoiYWRtaW4tdXNlckBmaXdhcmUub3JnIn0.pOS7B833u9zgCRpijbJEV56kg9j7ggLUA2UI38nQZE-30nOWn5xzQB1l2_EGcVJAjWeDJNbTEvhRa5Ik2yl7H6piGF9X37sxhFmJ-f7K-i9ca1rhEinxxGWh14Bi75w2lQhpHFw_U_Ee579i-2it8V7ibmUXVifRc0P9qq9faWhrQdgCtUeTLbsZHLZio_bgLVmlOPVh7DCowiZArbfcH55Fl3cEOfxGYnYCJwnzsqH7CsMP30WaEePxen2SefdSHE9j117eAuXuRbnloGXlkf7qVXtVrHWUGtPtVt16dtqIybxS_cNmgI9EfGtJneXgzKR-GANXHV0ew6V6S_OoOw
   schemas:
     Format:
       type: string
@@ -343,3 +507,41 @@ components:
         - subject_types_supported
         - id_token_signing_alg_values_supported
         - request_object_signing_alg_values_supported
+    TokenRequest:
+      type: object
+      properties:
+        grant_type:
+          type: string
+          enum: ["urn:ietf:params:oauth:grant-type:pre-authorized_code"]
+        code:
+          type: string
+          description: The pre-authorized code, that should be exchanged with an access_token
+          example: 4900f6fc-851e-480f-9dc1-3d2efd10da4e.ccbdbcc2-008f-4b90-a74e-847ce3e0ae82.49eea076-5df7-471c-abc2-7c325c4605a9
+        pre-authorized_code:
+          type: string
+          description: Same as 'code', just to provide backward-compatibility for some not yet standard compliant wallets.
+      required:
+        - grant_type
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: The Access Token.
+          example: eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJkNi0xekdLVlNGSHUzREF1SHFpdmRaS1loTmN1dzZpUEpxaGRJNTNKMDVBIn0.eyJleHAiOjE2NzcwNjg3NDUsImlhdCI6MTY3NzA2ODQ0NSwiYXV0aF90aW1lIjoxNjc3MDY3NTUyLCJqdGkiOiIxYjBiYTg1NS0yZDJmLTQ1MGYtOGUxMy00ZjBkMWUyYmFiOTYiLCJpc3MiOiJodHRwczovL2tjLW9uZS5iYXR0ZXJ5cGFzcy5maXdhcmUuZGV2L3JlYWxtcy9maXdhcmUtc2VydmVyIiwiYXVkIjoiYWNjb3VudCIsInN1YiI6IjQ4MzBhNzJkLWM4MTAtNDU2Ny1hNThlLWU5ZWU1Mzk0NjM4OSIsInR5cCI6IkJlYXJlciIsImF6cCI6ImFjY291bnQtY29uc29sZSIsInNlc3Npb25fc3RhdGUiOiJjY2JkYmNjMi0wMDhmLTRiOTAtYTc0ZS04NDdjZTNlMGFlODIiLCJyZXNvdXJjZV9hY2Nlc3MiOnsiYWNjb3VudCI6eyJyb2xlcyI6WyJtYW5hZ2UtYWNjb3VudCIsIm1hbmFnZS1hY2NvdW50LWxpbmtzIl19fSwic2NvcGUiOiJvcGVuaWQgZW1haWwgcHJvZmlsZSIsInNpZCI6ImNjYmRiY2MyLTAwOGYtNGI5MC1hNzRlLTg0N2NlM2UwYWU4MiIsImVtYWlsX3ZlcmlmaWVkIjpmYWxzZSwibmFtZSI6IlRlc3QgVXNlciIsInByZWZlcnJlZF91c2VybmFtZSI6ImFkbWluLXVzZXIiLCJnaXZlbl9uYW1lIjoiVGVzdCIsImZhbWlseV9uYW1lIjoiVXNlciIsImVtYWlsIjoiYWRtaW4tdXNlckBmaXdhcmUub3JnIn0.pOS7B833u9zgCRpijbJEV56kg9j7ggLUA2UI38nQZE-30nOWn5xzQB1l2_EGcVJAjWeDJNbTEvhRa5Ik2yl7H6piGF9X37sxhFmJ-f7K-i9ca1rhEinxxGWh14Bi75w2lQhpHFw_U_Ee579i-2it8V7ibmUXVifRc0P9qq9faWhrQdgCtUeTLbsZHLZio_bgLVmlOPVh7DCowiZArbfcH55Fl3cEOfxGYnYCJwnzsqH7CsMP30WaEePxen2SefdSHE9j117eAuXuRbnloGXlkf7qVXtVrHWUGtPtVt16dtqIybxS_cNmgI9EfGtJneXgzKR-GANXHV0ew6V6S_OoOw
+        token_type:
+          type: string
+          enum: ["bearer"]
+        expires_in:
+          type: number
+          example: 300
+        c_nonce:
+          type: string
+          example: tZignsnFbp
+        c_nonce_expires_in:
+          type: number
+          example: 86400
+      required:
+        - access_token
+        - token_type
+        - expires_in

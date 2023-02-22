@@ -100,6 +100,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	public static final String LD_PROOF_TYPE = "LD_PROOF";
 	public static final String CREDENTIAL_PATH = "credential";
 	public static final String TYPE_VERIFIABLE_CREDENTIAL = "VerifiableCredential";
+	public static final String GRANT_TYPE_PRE_AUTHORIZED_CODE = "urn:ietf:params:oauth:grant-type:pre-authorized_code";
 
 	private final KeycloakSession session;
 	private final String issuerDid;
@@ -207,7 +208,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		KeycloakContext currentContext = session.getContext();
 		String realm = currentContext.getRealm().getId();
 		String backendUrl = currentContext.getUri(UrlType.BACKEND).getBaseUri().toString();
-		String authorizationEndpointPattern = "%srealms/%s/.well-known/openid-configuration";
+		String authorizationEndpointPattern = "%s/realms/%s/.well-known/openid-configuration";
 
 		return Response.ok().entity(new CredentialIssuerVO()
 						.credentialIssuer(getIssuer())
@@ -316,7 +317,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		assertIssuerDid(issuerDidParam);
 		LOGGER.infof("Received token request %s - %s - %s.", grantType, code, preauth);
 
-		if (!grantType.equals("urn:ietf:params:oauth:grant-type:pre-authorized_code")) {
+		if (!grantType.equals(GRANT_TYPE_PRE_AUTHORIZED_CODE)) {
 			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_TOKEN));
 		}
 		// some (not fully OIDC4VCI compatible) wallets send the preauthorized code as an alternative parameter

@@ -92,6 +92,7 @@
     </properties>
 
     <dependencies>
+
         <!-- lazy dev -->
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -218,7 +219,7 @@
                             <goal>generate</goal>
                         </goals>
                         <configuration>
-                            <inputSpec>${project.basedir}/api/oidc4VCissuance.yaml</inputSpec>
+                            <inputSpec>${project.basedir}/api/api.yaml</inputSpec>
                             <strictSpec>true</strictSpec>
                             <modelPackage>org.fiware.keycloak.oidcvc.model</modelPackage>
                             <generateAliasAsModel>true</generateAliasAsModel>

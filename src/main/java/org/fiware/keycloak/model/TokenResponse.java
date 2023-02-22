@@ -25,6 +25,6 @@ public class TokenResponse {
 	private String nonce;
 
 	@JsonProperty("c_nonce_expires_in")
-	private String nonceExpiresIn;
+	private Long nonceExpiresIn;
 }
 
