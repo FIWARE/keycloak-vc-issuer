@@ -214,7 +214,8 @@ public class VCIssuerRealmResourceProviderTest {
 										List.of())),
 						new ExpectedResult<>(
 								SIOP2IntegrationTest.getMetaData(
-										List.of(new SupportedCredential("MyType", FormatVO.JWT_VC_JSON_LD))),
+										List.of(new SupportedCredential("MyType", FormatVO.JWT_VC_JSON_LD)),
+										ISSUER_DID),
 								"Issuer data wioth the clients types should be returend.")
 				),
 				Arguments.of(
@@ -225,7 +226,7 @@ public class VCIssuerRealmResourceProviderTest {
 						new ExpectedResult<>(
 								SIOP2IntegrationTest.getMetaData(
 										List.of(new SupportedCredential("MyType", FormatVO.JWT_VC_JSON_LD),
-												new SupportedCredential("MyType", FormatVO.LDP_VC))),
+												new SupportedCredential("MyType", FormatVO.LDP_VC)), ISSUER_DID),
 								"Issuer data with the clients types and multiple formats should be returned.")
 				),
 				Arguments.of(
@@ -238,7 +239,8 @@ public class VCIssuerRealmResourceProviderTest {
 						new ExpectedResult<>(
 								SIOP2IntegrationTest.getMetaData(
 										List.of(new SupportedCredential("MyType", FormatVO.JWT_VC_JSON_LD),
-												new SupportedCredential("MyOtherType", FormatVO.JWT_VC_JSON_LD))),
+												new SupportedCredential("MyOtherType", FormatVO.JWT_VC_JSON_LD)),
+										ISSUER_DID),
 								"Issuer data with multiple clients types should be returned.")
 				),
 				Arguments.of(
@@ -250,7 +252,8 @@ public class VCIssuerRealmResourceProviderTest {
 						new ExpectedResult<>(
 								SIOP2IntegrationTest.getMetaData(
 										List.of(new SupportedCredential("MyType", FormatVO.LDP_VC),
-												new SupportedCredential("MyType", FormatVO.JWT_VC_JSON_LD))),
+												new SupportedCredential("MyType", FormatVO.JWT_VC_JSON_LD)),
+										ISSUER_DID),
 								"Issuer data with multiple clients formats should be returned.")
 				),
 				Arguments.of(
@@ -261,7 +264,8 @@ public class VCIssuerRealmResourceProviderTest {
 						new ExpectedResult<>(
 								SIOP2IntegrationTest.getMetaData(
 										List.of(new SupportedCredential("MyOtherType", FormatVO.JWT_VC_JSON_LD),
-												new SupportedCredential("MyType", FormatVO.JWT_VC_JSON_LD))),
+												new SupportedCredential("MyType", FormatVO.JWT_VC_JSON_LD)),
+										ISSUER_DID),
 								"Issuer data with multiple typses should be returned.")
 				)
 		);

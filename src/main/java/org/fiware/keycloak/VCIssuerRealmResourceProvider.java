@@ -208,7 +208,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		KeycloakContext currentContext = session.getContext();
 		String realm = currentContext.getRealm().getId();
 		String backendUrl = currentContext.getUri(UrlType.BACKEND).getBaseUri().toString();
-		String authorizationEndpointPattern = "%s/realms/%s/.well-known/openid-configuration";
+		String authorizationEndpointPattern = "%srealms/%s/.well-known/openid-configuration";
 
 		return Response.ok().entity(new CredentialIssuerVO()
 						.credentialIssuer(getIssuer())
