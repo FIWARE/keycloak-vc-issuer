@@ -5,6 +5,8 @@ import com.google.auto.service.AutoService;
 import org.fiware.keycloak.model.DIDKey;
 import org.jboss.logging.Logger;
 import org.keycloak.Config;
+import org.keycloak.cluster.ManagedCacheManagerProvider;
+import org.keycloak.common.util.Time;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.services.managers.AppAuthManager;
@@ -13,7 +15,9 @@ import org.keycloak.services.resource.RealmResourceProviderFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Optional;
+import java.util.ServiceLoader;
 
 /**
  * Factory implementation to provide the VCIssuer functionality as a realm resource.
@@ -23,7 +27,7 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 	private static final Logger LOGGER = Logger.getLogger(VCIssuerRealmResourceProviderFactory.class);
-	private static final String ID = "verifiable-credential";
+	public static final String ID = "verifiable-credential";
 
 	private static final String WALTID_ADDRESS_ENV_VAR = "VCISSUER_WALTID_ADDRESS";
 	private static final String WALTID_CORE_PORT_ENV_VAR = "VCISSUER_WALTID_CORE_PORT";
@@ -47,13 +51,14 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 				issuerDid,
 				waltIdClient,
 				new AppAuthManager.BearerTokenAuthenticator(
-						keycloakSession));
+						keycloakSession),
+				OBJECT_MAPPER,
+				Clock.systemUTC());
 	}
 
 	@Override
 	public void init(Config.Scope config) {
 		try {
-
 			// read the address of walt from the realm resource.
 			waltIdURL = System.getenv(WALTID_ADDRESS_ENV_VAR);
 			initializeCorePort();

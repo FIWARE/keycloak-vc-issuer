@@ -4,12 +4,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.http.HttpStatus;
 import org.awaitility.Awaitility;
 import org.fiware.keycloak.ExpectedResult;
 import org.fiware.keycloak.SIOP2LoginProtocolFactory;
+import org.fiware.keycloak.model.SupportedCredential;
 import org.fiware.keycloak.it.model.CredentialSubject;
+import org.fiware.keycloak.it.model.IssuerMetaData;
 import org.fiware.keycloak.it.model.Role;
+import org.fiware.keycloak.it.model.SupportedCredentialMetadata;
 import org.fiware.keycloak.it.model.VerifiableCredential;
+import org.fiware.keycloak.oidcvc.model.FormatVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,7 +33,10 @@ import org.keycloak.representations.idm.UserRepresentation;
 
 import javax.ws.rs.ClientErrorException;
 import javax.ws.rs.core.Response;
+import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -59,7 +67,7 @@ public class SIOP2IntegrationTest {
 	private static final String TEST_CLIENT_ID_ONE = "did:key:z6Mkv4Lh9zBTPLoFhLHHMFJA7YAeVw5HFYZV8rkdfY9fNtm3";
 	private static final String TEST_CLIENT_ID_TWO = "did:key:z6Mkp7DVYuruxmKxsy2Rb3kMnfHgZZpbWYnY9rodvVfky7uj";
 
-	private static final String KEYCLOAK_ISSUER_DID ="did:key:z6MkqmaCT2JqdUtLeKah7tEVfNXtDXtQyj4yxEgV11Y5CqUa";
+	private static final String KEYCLOAK_ISSUER_DID = "did:key:z6MkqmaCT2JqdUtLeKah7tEVfNXtDXtQyj4yxEgV11Y5CqUa";
 
 	private static final String MASTER_REALM = "master";
 	private static final String TEST_REALM = "test";
@@ -108,6 +116,98 @@ public class SIOP2IntegrationTest {
 		assertEquals(KEYCLOAK_ISSUER_DID, issuerDid, "The preconfigured did should have been imported.");
 	}
 
+	@DisplayName("Retrieve issuer metadata.")
+	@ParameterizedTest
+	@MethodSource("provideClients")
+	public void testMetadataRetrieval(List<Client> clients, ExpectedResult<IssuerMetaData> expectedResult)
+			throws IOException, InterruptedException {
+		clients.forEach(c -> assertClientCreation(c.getId(), c.getSupportedTypes()));
+
+		HttpRequest.Builder requestBuilder = HttpRequest.newBuilder().GET();
+		requestBuilder.uri(URI.create(
+				String.format("%s/realms/%s/verifiable-credential/%s/.well-known/openid-credential-issuer",
+						KEYCLOAK_ADDRESS,
+						TEST_REALM,
+						KEYCLOAK_ISSUER_DID)));
+		HttpResponse<String> response = HttpClient.newHttpClient()
+				.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
+
+		assertEquals(HttpStatus.SC_OK, response.statusCode(),
+				expectedResult.getMessage());
+		assertEquals(expectedResult.getExpectedResult(),
+				OBJECT_MAPPER.readValue(response.body(), IssuerMetaData.class), expectedResult.getMessage());
+
+	}
+
+	public static Stream<Arguments> provideClients() throws MalformedURLException {
+		return Stream.of(
+				Arguments.of(List.of(getClient(TEST_CLIENT_ID_ONE,
+								List.of(new SupportedCredential("TypeA", FormatVO.LDP_VC)))),
+						new ExpectedResult<>(getMetaData(List.of(new SupportedCredential("TypeA", FormatVO.LDP_VC))),
+								"Proper issuer metadata should have been returned.")),
+				Arguments.of(List.of(getClient(TEST_CLIENT_ID_ONE,
+								List.of(new SupportedCredential("TypeA", FormatVO.LDP_VC),
+										new SupportedCredential("TypeA", FormatVO.JWT_VC_JSON_LD)))),
+						new ExpectedResult<>(
+								getMetaData(
+										List.of(
+												new SupportedCredential("TypeA", FormatVO.LDP_VC),
+												new SupportedCredential("TypeA", FormatVO.JWT_VC_JSON_LD))),
+								"Proper issuer metadata with 2 credentials_supported should have been returned.")
+				),
+				Arguments.of(List.of(getClient(TEST_CLIENT_ID_ONE,
+								List.of(new SupportedCredential("TypeA", FormatVO.LDP_VC),
+										new SupportedCredential("TypeB", FormatVO.LDP_VC)))),
+						new ExpectedResult<>(getMetaData(
+								List.of(
+										new SupportedCredential("TypeA", FormatVO.LDP_VC),
+										new SupportedCredential("TypeB", FormatVO.LDP_VC))),
+								"Proper issuer metadata with a combined credentials_supported should have been returned.")
+				),
+				Arguments.of(List.of(getClient(TEST_CLIENT_ID_ONE,
+								List.of(new SupportedCredential("TypeA", FormatVO.LDP_VC),
+										new SupportedCredential("TypeA", FormatVO.JWT_VC_JSON_LD),
+										new SupportedCredential("TypeB", FormatVO.LDP_VC)))),
+						new ExpectedResult<>(
+								getMetaData(
+										List.of(new SupportedCredential("TypeA", FormatVO.JWT_VC_JSON_LD),
+												new SupportedCredential("TypeB", FormatVO.LDP_VC),
+												new SupportedCredential("TypeA", FormatVO.LDP_VC))
+								),
+								"Proper issuer metadata with a combined credentials_supported should have been returned.")
+				)
+		);
+	}
+
+	public static IssuerMetaData getMetaData(List<SupportedCredential> supportedCredentials, String issuerDid)
+			throws MalformedURLException {
+		return IssuerMetaData.builder()
+				.authorizationServer(new URL("http://localhost:8080/realms/test/.well-known/openid-configuration"))
+				.credentialEndpoint(
+						new URL(String.format("http://localhost:8080/realms/test/verifiable-credential/%s/credential",
+								issuerDid)))
+				.credentialIssuer(new URL(String.format(" http://localhost:8080/realms/test/verifiable-credential/%s",
+						issuerDid)))
+				.credentialsSupported(supportedCredentials.stream()
+						.map(sc -> new SupportedCredentialMetadata(sc.getFormat().toString(),
+								String.format("%s_%s", sc.getType(), sc.getFormat().toString()),
+								Set.of(sc.getType())))
+						.collect(Collectors.toSet())
+				)
+				.build();
+	}
+
+	public static IssuerMetaData getMetaData(List<SupportedCredential> supportedCredentials)
+			throws MalformedURLException {
+		return getMetaData(supportedCredentials, KEYCLOAK_ISSUER_DID);
+	}
+
+	private static Client getClient(String id, List<SupportedCredential> supportedTypes) {
+
+		return Client.builder().id(id)
+				.supportedTypes(supportedTypes).build();
+	}
+
 	@DisplayName("Issue credentials using a bearer token.")
 	@ParameterizedTest
 	@MethodSource("provideUsersAndClients")
@@ -137,7 +237,7 @@ public class SIOP2IntegrationTest {
 
 		ExpectedResult expectedResult = new ExpectedResult(null,
 				"Without a valid token, nothing should be returned.",
-				new ExpectedResult.Response(401, false));
+				new ExpectedResult.Response(400, false));
 
 		testVCIssuance(true, () -> "invalid", clients, users, userToRequest,
 				credentialToRequest, expectedResult);
@@ -150,7 +250,7 @@ public class SIOP2IntegrationTest {
 
 		ExpectedResult expectedResult = new ExpectedResult(null,
 				"Without a valid token, nothing should be returned.",
-				new ExpectedResult.Response(401, false));
+				new ExpectedResult.Response(400, false));
 
 		testVCIssuance(false, () -> "invalid", clients, users, userToRequest,
 				credentialToRequest, expectedResult);
@@ -177,14 +277,14 @@ public class SIOP2IntegrationTest {
 		if (useAuthHeader) {
 			requestBuilder
 					.uri(URI.create(
-							String.format("%s/realms/%s/verifiable-credential?type=%s", KEYCLOAK_ADDRESS,
-									TEST_REALM, credentialToRequest)))
+							String.format("%s/realms/%s/verifiable-credential/%s?type=%s", KEYCLOAK_ADDRESS,
+									TEST_REALM, KEYCLOAK_ISSUER_DID, credentialToRequest)))
 					.header("Authorization", String.format("Bearer %s", tokenMethod.call()));
 		} else {
 			requestBuilder
 					.uri(URI.create(
-							String.format("%s/realms/%s/verifiable-credential?type=%s&token=%s", KEYCLOAK_ADDRESS,
-									TEST_REALM, credentialToRequest, tokenMethod.call())));
+							String.format("%s/realms/%s/verifiable-credential/%s?type=%s&token=%s", KEYCLOAK_ADDRESS,
+									TEST_REALM, KEYCLOAK_ISSUER_DID, credentialToRequest, tokenMethod.call())));
 		}
 
 		HttpResponse<String> response = HttpClient.newHttpClient()
@@ -230,12 +330,12 @@ public class SIOP2IntegrationTest {
 				Arguments.of(List.of(Client.builder()
 										.id(TEST_CLIENT_ID_ONE)
 										.roles(List.of(TEST_CREATOR_ROLE, TEST_CONSUMER_ROLE))
-										.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+										.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 										.build(),
 								Client.builder()
 										.id(TEST_CLIENT_ID_TWO)
 										.roles(List.of(TEST_CONSUMER_ROLE))
-										.supportedTypes(Optional.of("SomethingElse"))
+										.supportedTypes(List.of(new SupportedCredential("SomethingElse", FormatVO.LDP_VC)))
 										.build()),
 						List.of(User.builder().username("test-user")
 								.firstName(Optional.of("Test"))
@@ -257,7 +357,7 @@ public class SIOP2IntegrationTest {
 				Arguments.of(List.of(Client.builder()
 								.id(TEST_CLIENT_ID_ONE)
 								.roles(List.of(TEST_CREATOR_ROLE, TEST_CONSUMER_ROLE))
-								.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+								.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 								.build()),
 						List.of(User.builder().username("test-user")
 								.lastName(Optional.of("User"))
@@ -278,7 +378,7 @@ public class SIOP2IntegrationTest {
 				Arguments.of(List.of(Client.builder()
 								.id(TEST_CLIENT_ID_ONE)
 								.roles(List.of(TEST_CREATOR_ROLE, TEST_CONSUMER_ROLE))
-								.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+								.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 								.build()),
 						List.of(User.builder().username("test-user")
 								.lastName(Optional.of("User"))
@@ -297,7 +397,7 @@ public class SIOP2IntegrationTest {
 								new ExpectedResult.Response(200, true))), Arguments.of(List.of(Client.builder()
 								.id(TEST_CLIENT_ID_ONE)
 								.roles(List.of(TEST_CREATOR_ROLE, TEST_CONSUMER_ROLE))
-								.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+								.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 								.build()),
 						List.of(User.builder().username("test-user")
 								.clients(
@@ -316,7 +416,7 @@ public class SIOP2IntegrationTest {
 				Arguments.of(List.of(Client.builder()
 								.id(TEST_CLIENT_ID_ONE)
 								.roles(List.of(TEST_CREATOR_ROLE, TEST_CONSUMER_ROLE))
-								.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+								.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 								.build()),
 						List.of(User.builder().username("test-user")
 								.firstName(Optional.of("Test"))
@@ -339,7 +439,7 @@ public class SIOP2IntegrationTest {
 				Arguments.of(List.of(Client.builder()
 								.id(TEST_CLIENT_ID_ONE)
 								.roles(List.of(TEST_CREATOR_ROLE, TEST_CONSUMER_ROLE))
-								.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+								.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 								.build()),
 						List.of(User.builder().username("test-user")
 								.firstName(Optional.of("Test"))
@@ -356,12 +456,13 @@ public class SIOP2IntegrationTest {
 				Arguments.of(List.of(Client.builder()
 										.id(TEST_CLIENT_ID_ONE)
 										.roles(List.of(TEST_CREATOR_ROLE, TEST_CONSUMER_ROLE))
-										.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+										.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 										.build(),
 								Client.builder()
 										.id(TEST_CLIENT_ID_TWO)
 										.roles(List.of(TEST_CREATOR_ROLE))
-										.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+										.supportedTypes(
+												List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 										.build()),
 						List.of(User.builder().username("test-user")
 								.firstName(Optional.of("Test"))
@@ -390,7 +491,7 @@ public class SIOP2IntegrationTest {
 				Arguments.of(List.of(Client.builder()
 								.id(TEST_CLIENT_ID_ONE)
 								.roles(List.of(TEST_CREATOR_ROLE, TEST_CONSUMER_ROLE))
-								.supportedTypes(Optional.of("BatteryPassAuthCredential"))
+								.supportedTypes(List.of(new SupportedCredential("BatteryPassAuthCredential", FormatVO.LDP_VC)))
 								.build()
 						),
 						List.of(User.builder().username("test-user")
@@ -408,7 +509,8 @@ public class SIOP2IntegrationTest {
 						new ExpectedResult<>(
 								Set.of(),
 								"No credential should be issued, if something unsupported is requested.",
-								new ExpectedResult.Response(404, false))));
+								new ExpectedResult.Response(400, false)))
+		);
 	}
 
 	private void enableDirectAccessForAccountConsole() {
@@ -557,7 +659,7 @@ public class SIOP2IntegrationTest {
 	}
 
 	private void assertClientCreation(String clientId,
-			Optional<String> supportedTypes) {
+			List<SupportedCredential> supportedTypes) {
 		ClientRepresentation clientRepresentation = new ClientRepresentation();
 		clientRepresentation.setClientId(clientId);
 		clientRepresentation.setName(clientId);
@@ -565,7 +667,15 @@ public class SIOP2IntegrationTest {
 		clientRepresentation.setEnabled(true);
 		clientRepresentation.setProtocol(SIOP2LoginProtocolFactory.PROTOCOL_ID);
 		Map<String, String> attributes = new HashMap<>();
-		supportedTypes.ifPresent(st -> attributes.put("supportedVCTypes", st));
+
+		supportedTypes.forEach(st -> {
+			String typeKey = String.format("vctypes_%s", st.getType());
+			if (attributes.containsKey(typeKey)) {
+				attributes.put(typeKey, String.format("%s,%s", attributes.get(typeKey), st.getFormat().toString()));
+			} else {
+				attributes.put(typeKey, st.getFormat().toString());
+			}
+		});
 
 		clientRepresentation.setAttributes(attributes);
 
@@ -594,7 +704,7 @@ public class SIOP2IntegrationTest {
 		private String id;
 		private List<String> roles;
 		@Builder.Default
-		private Optional<String> supportedTypes = Optional.empty();
+		private List<SupportedCredential> supportedTypes = List.of();
 	}
 
 	@Getter

@@ -1,24 +1,25 @@
 package org.fiware.keycloak.it.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 import java.util.Set;
 
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@Getter
 @EqualsAndHashCode
-public class CredentialSubject {
+@Getter
+@ToString
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class SupportedCredentialMetadata {
 
+	public String format;
 	public String id;
-	public String familyName;
-	public String firstName;
-	public String email;
-	public Set<Role> roles;
-
+	public Set<String> types;
 }
