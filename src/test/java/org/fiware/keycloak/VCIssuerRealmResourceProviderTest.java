@@ -80,7 +80,7 @@ public class VCIssuerRealmResourceProviderTest {
 		when(bearerTokenAuthenticator.authenticate()).thenReturn(null);
 
 		try {
-			testProvider.getTypes();
+			testProvider.getTypes(ISSUER_DID);
 			fail("VCs should only be accessible for authorized users.");
 		} catch (ErrorResponseException e) {
 			assertEquals(Response.Status.UNAUTHORIZED.getStatusCode(), e.getResponse().getStatus(),
@@ -105,7 +105,7 @@ public class VCIssuerRealmResourceProviderTest {
 		when(keycloakSession.clients()).thenReturn(clientProvider);
 		when(clientProvider.getClientsStream(any())).thenReturn(clientModelStream);
 
-		List<SupportedCredential> returnedTypes = testProvider.getTypes();
+		List<SupportedCredential> returnedTypes = testProvider.getTypes(ISSUER_DID);
 
 		// copy to set to ignore order
 		assertEquals(expectedResult.getExpectedResult(), Set.copyOf(returnedTypes),
@@ -124,7 +124,7 @@ public class VCIssuerRealmResourceProviderTest {
 		when(bearerTokenAuthenticator.authenticate()).thenReturn(null);
 
 		try {
-			testProvider.issueVerifiableCredential("MyVC", null);
+			testProvider.issueVerifiableCredential(ISSUER_DID, "MyVC", null);
 			fail("VCs should only be accessible for authorized users.");
 		} catch (ErrorResponseException e) {
 			assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), e.getResponse().getStatus(),
@@ -145,7 +145,7 @@ public class VCIssuerRealmResourceProviderTest {
 		when(bearerTokenAuthenticator.authenticate()).thenReturn(null);
 
 		try {
-			testProvider.issueVerifiableCredential("MyVC", "myToken");
+			testProvider.issueVerifiableCredential(ISSUER_DID, "MyVC", "myToken");
 			fail("VCs should only be accessible for authorized users.");
 		} catch (ErrorResponseException e) {
 			assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), e.getResponse().getStatus(),
@@ -174,7 +174,7 @@ public class VCIssuerRealmResourceProviderTest {
 		when(clientProvider.getClientsStream(any())).thenReturn(clientModelStream);
 
 		try {
-			testProvider.issueVerifiableCredential("MyNonExistentType", null);
+			testProvider.issueVerifiableCredential(ISSUER_DID, "MyNonExistentType", null);
 			fail("Not found types should be a 400");
 		} catch (ErrorResponseException e) {
 			assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), e.getResponse().getStatus(),
@@ -199,7 +199,7 @@ public class VCIssuerRealmResourceProviderTest {
 		when(keycloakSession.getContext()).thenReturn(context);
 		when(context.getRealm()).thenReturn(realmModel);
 
-		Response metaDataResponse = testProvider.getIssuerMetadata();
+		Response metaDataResponse = testProvider.getIssuerMetadata(ISSUER_DID);
 		assertEquals(HttpStatus.SC_OK, metaDataResponse.getStatus(), expectedResult.getMessage());
 		assertEquals(expectedResult.getExpectedResult(),
 				OBJECT_MAPPER.convertValue(metaDataResponse.getEntity(), IssuerMetaData.class),
@@ -289,7 +289,7 @@ public class VCIssuerRealmResourceProviderTest {
 		ArgumentCaptor<VCRequest> argument = ArgumentCaptor.forClass(VCRequest.class);
 
 		when(waltIdClient.getVCFromWaltId(argument.capture())).thenReturn(OBJECT_MAPPER.writeValueAsString(TEST_VC));
-		assertEquals(TEST_VC, testProvider.issueVerifiableCredential("MyType", null).getEntity(),
+		assertEquals(TEST_VC, testProvider.issueVerifiableCredential(ISSUER_DID, "MyType", null).getEntity(),
 				"The requested VC should be returned.");
 
 		assertEquals(expectedResult.getExpectedResult(), argument.getValue(), expectedResult.getMessage());

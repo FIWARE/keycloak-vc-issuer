@@ -38,6 +38,17 @@ import { AccountServiceContext } from "../../account-service/AccountServiceConte
 interface VCProps {
 }
 
+interface PreAuthorized {
+  'pre-authorized_code': string,
+  'user_pin_required': boolean
+}
+
+interface CredentialOffer {
+  credential_issuer: string,
+  credentials: SupportedCredential[],
+  grants: PreAuthorized
+}
+
 interface SupportedCredential {
   type: string,
   format: string
@@ -47,6 +58,7 @@ interface VCState {
   dropdownItems: string[],
   selectOptions: Map<string, SupportedCredential>,
   credential: string,
+  issuerDid: string,
   vcUrl: string,
   offerUrl: string,
   isOpen: boolean,
@@ -69,6 +81,7 @@ export class VC extends React.Component<VCProps, VCState> {
       dropdownItems: [],
       selectOptions: new Map<string, SupportedCredential>(),
       credential: "",
+      issuerDid: "",
       vcUrl: "",
       offerUrl: "",
       isOpen: false,
@@ -78,14 +91,31 @@ export class VC extends React.Component<VCProps, VCState> {
       selected:"",
       offerQRVisible: false
     }
-    this.fetchAvailableTypes()
+    this.fetchIssuer()
+    .then(data => {
+      console.log(data)
+      this.setState({ ...{issuerDid: data}});
+      this.fetchAvailableTypes()
+    })
   }
 
+  private fetchIssuer(): Promise<string> {
+
+    const accountURL = new URL(this.context.accountUrl);
+    const keycloakContext = this.context.kcSvc.keycloakAuth;
+    const path = accountURL.protocol + "//" + accountURL.host + "/realms/" + keycloakContext.realm + "/verifiable-credential/issuer"
+    var options = {  
+      method: 'GET'
+      }
+    return fetch(path, options)
+      .then(response => response.text());
+      
+  }
 
   private fetchAvailableTypes() {
       const accountURL = new URL(this.context.accountUrl)
       const keycloakContext = this.context.kcSvc.keycloakAuth;
-      const vcTypes = accountURL.protocol + "//" + accountURL.host + "/realms/" + keycloakContext.realm + "/verifiable-credential/types";
+      const vcTypes = accountURL.protocol + "//" + accountURL.host + "/realms/" + keycloakContext.realm + "/verifiable-credential/" + this.state.issuerDid + "/types";
       const token = keycloakContext.token
 
       var options = {  
@@ -115,7 +145,7 @@ export class VC extends React.Component<VCProps, VCState> {
 
     const accountURL = new URL(this.context.accountUrl);
     const keycloakContext = this.context.kcSvc.keycloakAuth;
-    const vcIssue = accountURL.protocol + "//" + accountURL.host + "/realms/" + keycloakContext.realm + "/verifiable-credential?type="+  supportedCredential.type + "&token=" + keycloakContext.token;
+    const vcIssue = accountURL.protocol + "//" + accountURL.host + "/realms/" + keycloakContext.realm + "/verifiable-credential/" +  this.state.issuerDid + "?type="+  supportedCredential.type + "&token=" + keycloakContext.token;
 
     this.setState({ ...{
       vcUrl: vcIssue,
@@ -124,26 +154,22 @@ export class VC extends React.Component<VCProps, VCState> {
       urlQRVisible: true}});
   }
 
-  private requestOID4VCI() {
+  private requestVC() {
 
  
     const supportedCredential: SupportedCredential = this.getSelectedCredential()
 
     const accountURL = new URL(this.context.accountUrl)
     const keycloakContext = this.context.kcSvc.keycloakAuth;
-    const vcIssue = accountURL.protocol + "//" + accountURL.host + "/realms/" + keycloakContext.realm + "/verifiable-credential/credential";
+    const vcIssue = accountURL.protocol + "//" + accountURL.host + "/realms/" + keycloakContext.realm + "/verifiable-credential/" +  this.state.issuerDid + "?type="+  supportedCredential.type;
     const token = keycloakContext.token
   
     var options = {  
-      method: 'POST',
+      method: 'GET',
       headers: {
         'Authorization': 'Bearer ' + token,
         'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        'format': supportedCredential.format,
-        'types': [supportedCredential.type]
-      })
+      }
     }
     fetch(vcIssue, options)
       .then(response => this.handleResponse(response))
@@ -159,15 +185,6 @@ export class VC extends React.Component<VCProps, VCState> {
 
   }
 
-  private buildOIDCConfigDiscovery() : string{
-
-    const accountURL = new URL(this.context.accountUrl)
-    const keycloakContext = this.context.kcSvc.keycloakAuth;
-    const discoveryUrl =  accountURL.protocol + "//" + accountURL.host + "/realms/" + keycloakContext.realm + "/verifiable-credential";
-    return "openid://discovery?issuer="+discoveryUrl
-
-
-  }
 
   private requestVCOffer() {
 
@@ -176,7 +193,7 @@ export class VC extends React.Component<VCProps, VCState> {
 
     const accountURL = new URL(this.context.accountUrl)
     const keycloakContext = this.context.kcSvc.keycloakAuth;
-    const vcIssue = accountURL.protocol + "//" + accountURL.host + "/realms/" + keycloakContext.realm + "/verifiable-credential/credential-offer?type="+ supportedCredential.type+"&format="+supportedCredential.format;
+    const vcIssue = accountURL.protocol + "//" + accountURL.host + "/realms/" + keycloakContext.realm + "/verifiable-credential/" +  this.state.issuerDid + "/credential-offer?type="+ supportedCredential.type+"&format="+supportedCredential.format;
     const token = keycloakContext.token
 
     var options = {  
@@ -190,16 +207,23 @@ export class VC extends React.Component<VCProps, VCState> {
   }
   
   private handleOfferResponse(response: Response) {
-    response.text()
-      .then(textData => {
+    response.json()
+      .then((offer: CredentialOffer) => {
         if (response.status !== 200) {
           console.log("Did not receive an offer.");
-          ContentAlert.warning(textData);
+          ContentAlert.warning(response.status + ":" + response.statusText);
         } else {
+          const credUrl = "openid-initiate-issuance://?issuer="
+          +encodeURIComponent(offer.credential_issuer)
+          +"&credential_type=" + encodeURIComponent("[\"" + this.getSelectedCredential().type +"\"]") +
+          +"&format="+this.getSelectedCredential().format
+          +"&pre-authorized_code="+offer.grants['pre-authorized_code']
+          +"&user_pin_required="+offer.grants['user_pin_required']
+
           this.setState({ ...{
-            credential: textData,
-            vcQRVisible: true,
-            offerQRVisible: false,
+            offerUrl: credUrl,
+            vcQRVisible: false,
+            offerQRVisible: true,
             urlQRVisible: false}});
         }
       })    
@@ -213,9 +237,9 @@ export class VC extends React.Component<VCProps, VCState> {
         ContentAlert.warning(textData);
       } else {
         this.setState({ ...{
-          offerUrl: textData,
-          vcQRVisible: false,
-          offerQRVisible: true,
+          credential: textData,
+          vcQRVisible: true,
+          offerQRVisible: false,
           urlQRVisible: false}});
       }
     })      
@@ -258,7 +282,7 @@ export class VC extends React.Component<VCProps, VCState> {
             <ActionList>
               <ActionListItem>
                 <Button 
-                  onClick={() => this.requestOID4VCI()} 
+                  onClick={() => this.requestVC()} 
                   isDisabled={isDisabled}>
                   Request VerifiableCredential
                 </Button>
@@ -274,7 +298,7 @@ export class VC extends React.Component<VCProps, VCState> {
                 <Button 
                   onClick={() => this.requestVCOffer()} 
                   isDisabled={isDisabled}>
-                  Initiate VerifiableCredential-Issuance
+                  Initiate Credential-Issuance(OIDC4CI)
                 </Button>
               </ActionListItem>
             </ActionList>
@@ -316,20 +340,6 @@ export class VC extends React.Component<VCProps, VCState> {
               </ActionListItem>
           }   
             </ActionList>
-          </ListItem>
-          <ListItem>
-          <ActionList>  
-              <ActionListItem>
-            <QRCodeSVG 
-              value={this.buildOIDCConfigDiscovery()}
-              bgColor={"#ffffff"}
-              fgColor={"#000000"}
-              level={"L"}
-              includeMargin={false}
-              size={512}/> 
-              </ActionListItem>
-          
-              </ActionList>
           </ListItem>
         </List>       
       </PageSection>   

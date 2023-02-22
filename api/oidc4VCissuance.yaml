@@ -63,6 +63,7 @@ components:
         - "jwt_vc_json"
         - "jwt_vc_json-ld"
         - "ldp_vc"
+        - "jwt_vc"
       example: "jwt_vc_json-ld"
     CredentialRequest:
       type: object
@@ -249,6 +250,18 @@ components:
         - credential_issuer
         - credential_endpoint
         - credentials_supported
+    PreAuthorized:
+      type: object
+      properties:
+        pre-authorized_code:
+          type: string
+          example: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI5MjhkYWVhNS01YmFmLTRhYjQtYjJjMC1mOWJlZDI1N2RiZDkiLCJwcmUtYXV0aG9yaXplZCI6dHJ1ZX0.BlsNWJqMA3sM0HSvs8RKP51M9Fzw_qLyHH81iv7FKIY
+        user_pin_required:
+          type: boolean
+          example: false
+      required:
+        - pre-authorized_code
+        - user_pin_required
     CredentialsOffer:
       type: object
       properties:
@@ -261,8 +274,8 @@ components:
           items:
             type: object
             description: Either the id of a credential, offered in the issuer metadata or a supported credential object
-        issuer_state:
-          type: string
+        grants:
+          $ref: '#/components/schemas/PreAuthorized'
       required:
         - credential_issuer
         - credentials

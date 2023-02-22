@@ -2,6 +2,7 @@ package org.fiware.keycloak;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.fiware.keycloak.model.DIDCreate;
 import org.fiware.keycloak.model.DIDKey;
@@ -36,6 +37,7 @@ public class WaltIdClient {
 	private static final String WALT_IMPORT_DID_PATH = "%s:%s/v1/did/import?keyId=%s";
 	private static final String WALT_ISSUE_VC_PATH = "%s:%s/v1/credentials/issue";
 
+	@Getter
 	private final String waltIdAddress;
 	private final int waltIdCorePort;
 	private final int waltIdSignatoryPort;
