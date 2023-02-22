@@ -206,16 +206,21 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		LOGGER.info("Retrieve issuer meta data");
 		assertIssuerDid(issuerDidParam);
 		KeycloakContext currentContext = session.getContext();
-		String realm = currentContext.getRealm().getId();
-		String backendUrl = currentContext.getUri(UrlType.BACKEND).getBaseUri().toString();
-		String authorizationEndpointPattern = "%srealms/%s/.well-known/openid-configuration";
+		String authorizationEndpointPattern = "%s/.well-known/openid-configuration";
 
 		return Response.ok().entity(new CredentialIssuerVO()
 						.credentialIssuer(getIssuer())
-						.authorizationServer(String.format(authorizationEndpointPattern, backendUrl, realm))
+						.authorizationServer(String.format(authorizationEndpointPattern, getRealmResourcePath()))
 						.credentialEndpoint(getCredentialEndpoint())
 						.credentialsSupported(getSupportedCredentials(currentContext)))
 				.header("Access-Control-Allow-Origin", "*").build();
+	}
+
+	private String getRealmResourcePath() {
+		KeycloakContext currentContext = session.getContext();
+		String realm = currentContext.getRealm().getId();
+		String backendUrl = currentContext.getUri(UrlType.BACKEND).getBaseUri().toString();
+		return String.format("%s/realms/%s", backendUrl, realm);
 	}
 
 	private String getCredentialEndpoint() {
@@ -224,10 +229,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	private String getIssuer() {
-		KeycloakContext currentContext = session.getContext();
-		String realm = currentContext.getRealm().getId();
-		String backendUrl = currentContext.getUri(UrlType.BACKEND).getBaseUri().toString();
-		return String.format("%srealms/%s/%s/%s", backendUrl, realm, VCIssuerRealmResourceProviderFactory.ID,
+		return String.format("%s/%s", getRealmResourcePath(), VCIssuerRealmResourceProviderFactory.ID,
 				issuerDid);
 	}
 
