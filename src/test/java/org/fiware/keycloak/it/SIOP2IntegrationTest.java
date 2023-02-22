@@ -179,14 +179,15 @@ public class SIOP2IntegrationTest {
 		);
 	}
 
-	public static IssuerMetaData getMetaData(List<SupportedCredential> supportedCredentials)
+	public static IssuerMetaData getMetaData(List<SupportedCredential> supportedCredentials, String issuerDid)
 			throws MalformedURLException {
-
 		return IssuerMetaData.builder()
 				.authorizationServer(new URL("http://localhost:8080/realms/test/.well-known/openid-configuration"))
 				.credentialEndpoint(
-						new URL("http://localhost:8080/realms/test/verifiable-credential/did:key:test/credential"))
-				.credentialIssuer(new URL(" http://localhost:8080/realms/test/verifiable-credential/did:key:test"))
+						new URL(String.format("http://localhost:8080/realms/test/verifiable-credential/%s/credential",
+								issuerDid)))
+				.credentialIssuer(new URL(String.format(" http://localhost:8080/realms/test/verifiable-credential/%s",
+						issuerDid)))
 				.credentialsSupported(supportedCredentials.stream()
 						.map(sc -> new SupportedCredentialMetadata(sc.getFormat().toString(),
 								String.format("%s_%s", sc.getType(), sc.getFormat().toString()),
@@ -194,7 +195,11 @@ public class SIOP2IntegrationTest {
 						.collect(Collectors.toSet())
 				)
 				.build();
+	}
 
+	public static IssuerMetaData getMetaData(List<SupportedCredential> supportedCredentials)
+			throws MalformedURLException {
+		return getMetaData(supportedCredentials, KEYCLOAK_ISSUER_DID);
 	}
 
 	private static Client getClient(String id, List<SupportedCredential> supportedTypes) {

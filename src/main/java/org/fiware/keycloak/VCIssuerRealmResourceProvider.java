@@ -227,7 +227,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		KeycloakContext currentContext = session.getContext();
 		String realm = currentContext.getRealm().getId();
 		String backendUrl = currentContext.getUri(UrlType.BACKEND).getBaseUri().toString();
-		return String.format("%s/realms/%s/%s/%s", backendUrl, realm, VCIssuerRealmResourceProviderFactory.ID,
+		return String.format("%srealms/%s/%s/%s", backendUrl, realm, VCIssuerRealmResourceProviderFactory.ID,
 				issuerDid);
 	}
 
