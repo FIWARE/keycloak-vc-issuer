@@ -229,7 +229,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	private String getIssuer() {
-		return String.format("%s/%s", getRealmResourcePath(), VCIssuerRealmResourceProviderFactory.ID,
+		return String.format("%s/%s/%s", getRealmResourcePath(), VCIssuerRealmResourceProviderFactory.ID,
 				issuerDid);
 	}
 
