@@ -14,6 +14,32 @@ The plugin is developed with the [20.0.3 libraries](https://github.com/keycloak/
 all Keycloak Minor-Releases >=18.0.0. Please check the [Compatibility-Matrix](./doc/compatibility/compatibility.md) for more information. 
 The matrix gets updated every night.
 
+## OpenID for Verifiable Credential Issuance 
+
+The plugin targets compliance with the [OpenID for Verifiable Credential Issuance(OIDC4VCI)](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html) standard, 
+in order to be compatible with Wallets complying with the [European Digital Identity Wallet Architecture and Reference Framework](https://digital-strategy.ec.europa.eu/en/library/european-digital-identity-wallet-architecture-and-reference-framework) and
+any other standard-conformant Wallet-implementation. It currently supports the following parts of the spec:
+
+- [3.5 Pre-Authorized Code Flow](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-pre-authorized-code-flow):
+  - in order to securely issue credentials, the plugin can offer pre-authorized authorization codes to authenticated users
+  - the code is connected to the user-session that requested the [Credential Offer](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-offer)
+  - the code can be exchanged for an access-token through a token-endpoint as described in [RFC 6749](https://www.rfc-editor.org/info/rfc6749)
+- [4. Credential Offer Endpoint](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-offer-endpoint):
+  - to initiate standard conformant issuance, an endpoint to retrieve [Credential Offer](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-offer) is provided
+  - the endpoint is available at ```/realms/{realm-id}/verifiable-credential/{issuer-did}/credential-offer``` and accepts the type and format to be offered
+  - see [api-spec](./api/api.yaml) for more
+- [6. Token Endpoint](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-token-endpoint)
+  - supports token exchange through the pre-authorized flow
+  - available per issuer at ```/realms/{realm-id}/verifiable-credential/{issuer-did}/token```
+  - see [api-spec](./api/api.yaml) for more
+  - pin-check is currently not supported
+- [7. Credential Endpoint](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-endpoint)
+  - provides a valid credential, according to the requested type and format
+  - currently supports jwt_vc_json, jwt_vc_json-ld, ldp_vc and for backward-compatibility jwt_vc(which defaults to jwt_vc_json)
+  - does not support binding to the enduser(e.g. via proof-parameter), yet
+- [10.2. Credential Issuer Metadata](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-issuer-metadata)
+  - provides the metadata for the issuer
+
 ## Functionality
 
 The VC-Issuer plugin provides an integration [VerifiableCredentials](https://www.w3.org/TR/vc-data-model/)

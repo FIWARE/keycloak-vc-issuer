@@ -1,0 +1,547 @@
+openapi: 3.0.3
+info:
+  title: Keycloak VC issuer plugin
+  description: API spec for the Keycloak issuer plugin
+  version: 0.0.1
+externalDocs:
+  description: API Documentation
+  url: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html
+tags:
+  - name: OIDC4VCI
+    description: Endpoints defined by the OpenID for Verifiable Credential Issuance spec
+  - name: IssuerPlugin
+    description: Endpoints provided by the plugin for convenience, but not defined by the spec
+paths:
+  /issuer:
+    get:
+      tags:
+        - IssuerPlugin
+      operationId: getIssuerDid
+      description: Convenience endpoint to provide the did configured for this issuer through a (realm individual) static endpoint. Can be used to construct the issuance paths. Allows extension for multi-issuer support in the future.
+      responses:
+        '200':
+          description: The did.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: did:key:z6MkkSMQG86ZC5pcJUXNg1evKugKjstRbUhWmMKwt1hE3Pmq
+
+  /{issuerDid}/.well-known/openid-credential-issuer:
+    get:
+      tags:
+        - OIDC4VCI
+      parameters:
+        - $ref: '#/components/parameters/IssuerDid'
+      operationId: getIssuerMetadata
+      description: "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-issuer-metadata-"
+      summary: Return the issuer metadata
+      responses:
+        '200':
+          description: The credentials issuer metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialIssuer'
+
+  /{issuerDid}/credential:
+    post:
+      tags:
+        - OIDC4VCI
+      parameters:
+        - $ref: '#/components/parameters/IssuerDid'
+      operationId: requestCredential
+      summary: Request a credential from the issuer
+      description: "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-request"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialRequest'
+      responses:
+        '200':
+          description: Credential Response can be Synchronous or Deferred. The Credential Issuer MAY be able to immediately issue a requested Credential and send it to the Client. In other cases, the Credential Issuer MAY NOT be able to immediately issue a requested Credential and would want to send an acceptance_token parameter to the Client to be used later to receive a Credential when it is ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialResponse'
+        '400':
+          description: When the Credential Request is invalid or unauthorized, the Credential Issuer responds the error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /{issuerDid}/.well-known/openid-configuration:
+    get:
+      tags:
+        - OIDC4VCI
+      parameters:
+        - $ref: '#/components/parameters/IssuerDid'
+      operationId: getOpenIdConfig
+      summary: provide SIOP-2 metadata
+      responses:
+        '200':
+          description: OpenID Provider Metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SIOPMetadata'
+
+  /{issuerDid}/token:
+    post:
+      tags:
+        - OIDC4VCI
+      parameters:
+        - $ref: '#/components/parameters/IssuerDid'
+      operationId: exchangeToken
+      description: Token endpoint to exchange pre_authorized codes for access tokens.
+      requestBody:
+        description: The token request to be exchanged
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      responses:
+        '200':
+          description: The token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+
+  /{issuerDid}/types:
+    get:
+      tags:
+        - IssuerPlugin
+      parameters:
+        - $ref: '#/components/parameters/IssuerDid'
+      description: Convenience endpoint, provides all available type and format combinations available for the loggedin user.
+      operationId: getTypes
+      responses:
+        '200':
+          description: The list of supported credentials with there format.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      example: BatteryPassAuthCredential
+                    format:
+                      $ref: '#/components/schemas/Format'
+                  required:
+                    - type
+                    - format
+
+  /{issuerDid}/credential-offer:
+    get:
+      tags:
+        - IssuerPlugin
+        - OIDC4VCI
+      parameters:
+        - $ref: '#/components/parameters/IssuerDid'
+        - $ref: '#/components/parameters/VcType'
+        - $ref: '#/components/parameters/VcFormat'
+      description: Endpoint to retrieve an OIDC4VCI compliant offer, that can f.e. be used in QR-Code presented to a compliant wallet.
+      operationId: getCredentialOffer
+      responses:
+        '200':
+          description: A valid credential offer. It will provide the pre-authorized flow, wich is currently the only one supported by the plugin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialsOffer'
+        '400':
+          description: When the Credential Request is invalid or unauthorized, the Credential Issuer responds the error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /{issuerDid}/:
+    get:
+      tags:
+        - IssuerPlugin
+      parameters:
+        - $ref: '#/components/parameters/IssuerDid'
+        - $ref: '#/components/parameters/VcType'
+        - $ref: '#/components/parameters/Token'
+      description: Convenience endpoint to return verifiable credentials accoridng to the request. Will always be in ldp_vc format
+      operationId: issueVerifiableCredential
+      responses:
+        '200':
+          description: The credential.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Credential'
+        '400':
+          description: When the Credential Request is invalid or unauthorized, the Credential Issuer responds the error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  parameters:
+    IssuerDid:
+      description: Did configured for the requested issuer
+      name: issuerDid
+      in: path
+      required: true
+      schema:
+        type: string
+        example: did:key:z6MkqmaCT2JqdUtLeKah7tEVfNXtDXtQyj4yxEgV11Y5CqUa
+    VcType:
+      description: Type of the credential to get.
+      name: type
+      in: query
+      required: true
+      schema:
+        type: string
+        example: BatteryPassAuthCredential
+    VcFormat:
+      description: Format of the credential to get.
+      name: format
+      in: query
+      required: true
+      schema:
+        $ref: '#/components/schemas/Format'
+    Token:
+      description: JWT to be used for getting the VC. Intended for compatibility with the demo wallet
+      name: token
+      in: query
+      required: false
+      schema:
+        type: string
+        example: eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJkNi0xekdLVlNGSHUzREF1SHFpdmRaS1loTmN1dzZpUEpxaGRJNTNKMDVBIn0.eyJleHAiOjE2NzcwNjg3NDUsImlhdCI6MTY3NzA2ODQ0NSwiYXV0aF90aW1lIjoxNjc3MDY3NTUyLCJqdGkiOiIxYjBiYTg1NS0yZDJmLTQ1MGYtOGUxMy00ZjBkMWUyYmFiOTYiLCJpc3MiOiJodHRwczovL2tjLW9uZS5iYXR0ZXJ5cGFzcy5maXdhcmUuZGV2L3JlYWxtcy9maXdhcmUtc2VydmVyIiwiYXVkIjoiYWNjb3VudCIsInN1YiI6IjQ4MzBhNzJkLWM4MTAtNDU2Ny1hNThlLWU5ZWU1Mzk0NjM4OSIsInR5cCI6IkJlYXJlciIsImF6cCI6ImFjY291bnQtY29uc29sZSIsInNlc3Npb25fc3RhdGUiOiJjY2JkYmNjMi0wMDhmLTRiOTAtYTc0ZS04NDdjZTNlMGFlODIiLCJyZXNvdXJjZV9hY2Nlc3MiOnsiYWNjb3VudCI6eyJyb2xlcyI6WyJtYW5hZ2UtYWNjb3VudCIsIm1hbmFnZS1hY2NvdW50LWxpbmtzIl19fSwic2NvcGUiOiJvcGVuaWQgZW1haWwgcHJvZmlsZSIsInNpZCI6ImNjYmRiY2MyLTAwOGYtNGI5MC1hNzRlLTg0N2NlM2UwYWU4MiIsImVtYWlsX3ZlcmlmaWVkIjpmYWxzZSwibmFtZSI6IlRlc3QgVXNlciIsInByZWZlcnJlZF91c2VybmFtZSI6ImFkbWluLXVzZXIiLCJnaXZlbl9uYW1lIjoiVGVzdCIsImZhbWlseV9uYW1lIjoiVXNlciIsImVtYWlsIjoiYWRtaW4tdXNlckBmaXdhcmUub3JnIn0.pOS7B833u9zgCRpijbJEV56kg9j7ggLUA2UI38nQZE-30nOWn5xzQB1l2_EGcVJAjWeDJNbTEvhRa5Ik2yl7H6piGF9X37sxhFmJ-f7K-i9ca1rhEinxxGWh14Bi75w2lQhpHFw_U_Ee579i-2it8V7ibmUXVifRc0P9qq9faWhrQdgCtUeTLbsZHLZio_bgLVmlOPVh7DCowiZArbfcH55Fl3cEOfxGYnYCJwnzsqH7CsMP30WaEePxen2SefdSHE9j117eAuXuRbnloGXlkf7qVXtVrHWUGtPtVt16dtqIybxS_cNmgI9EfGtJneXgzKR-GANXHV0ew6V6S_OoOw
+  schemas:
+    Format:
+      type: string
+      enum:
+        - "jwt_vc_json"
+        - "jwt_vc_json-ld"
+        - "ldp_vc"
+        - "jwt_vc"
+      example: "jwt_vc_json-ld"
+    CredentialRequest:
+      type: object
+      properties:
+        format:
+          $ref: '#/components/schemas/Format'
+        types:
+          type: array
+          items:
+            type: string
+          example:
+            - UniversityDegreeCredential
+        proof:
+          $ref: '#/components/schemas/Proof'
+      required:
+        - format
+    Proof:
+      type: object
+      properties:
+        proof_type:
+          type: string
+          enum: ["jwt"]
+          example: "jwt"
+        jwt:
+          type: string
+          example: "eyJraWQiOiJkaWQ6ZXhhbXBsZTplYmZlYjFmNzEyZWJjNmYxYzI3NmUxMmVjMjEva2V5cy8
+            xIiwiYWxnIjoiRVMyNTYiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJzNkJoZFJrcXQzIiwiYXVkIjoiaHR
+            0cHM6Ly9zZXJ2ZXIuZXhhbXBsZS5jb20iLCJpYXQiOiIyMDE4LTA5LTE0VDIxOjE5OjEwWiIsIm5vbm
+            NlIjoidFppZ25zbkZicCJ9.ewdkIkPV50iOeBUqMXCC_aZKPxgihac0aW9EkL1nOzM"
+      required:
+        - proof_type
+        - jwt
+    CredentialResponse:
+      type: object
+      properties:
+        format:
+          $ref: '#/components/schemas/Format'
+        credential:
+          type: object
+          description: The object is oneOf '#/components/schemas/JwtCredential' '#/components/schemas/Credential' but oneOf is currently not supported by the code-gen
+        acceptance_token:
+          description: A JSON string containing a security token subsequently used to obtain a Credential. MUST be present when credential is not returned.
+          type: string
+        c_nonce:
+          description: JSON string containing a nonce to be used to create a proof of possession of key material when requesting a Credential. When received, the Wallet MUST use this nonce value for its subsequent credential requests until the Credential Issuer provides a fresh nonce.
+          type: string
+        c_nonce_expires_in:
+          description: JSON integer denoting the lifetime in seconds of the c_nonce.
+          type: number
+      required:
+        - format
+        - credential
+    CredentialsType:
+      type: array
+      items:
+        type: string
+      example:
+        - "UniversityDegreeCredential"
+        - "VerifiableCredential"
+    JwtCredential:
+      type: string
+      description: "JWT encoded $ref: /components/schemas/Credential. For jwt_vc_json, the ld-context needs to be removed"
+      example: eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJ2YyI6eyJAY29udGV4dCI
+        6WyJodHRwczovL3d3dy53My5vcmcvMjAxOC9jcmVkZW50aWFscy92MSIsImh0dHBzOi8vd3d3Ln
+        czLm9yZy8yMDE4L2NyZWRlbnRpYWxzL2V4YW1wbGVzL3YxIl0sImlkIjoiaHR0cDovL2V4YW1wb
+        GUuZWR1L2NyZWRlbnRpYWxzLzM3MzIiLCJ0eXBlIjpbIlZlcmlmaWFibGVDcmVkZW50aWFsIiwi
+        VW5pdmVyc2l0eURlZ3JlZUNyZWRlbnRpYWwiXSwiaXNzdWVyIjoiaHR0cHM6Ly9leGFtcGxlLmV
+        kdS9pc3N1ZXJzLzU2NTA0OSIsImlzc3VhbmNlRGF0ZSI6IjIwMTAtMDEtMDFUMDA6MDA6MDBaIi
+        wiY3JlZGVudGlhbFN1YmplY3QiOnsiaWQiOiJkaWQ6ZXhhbXBsZTplYmZlYjFmNzEyZWJjNmYxY
+        zI3NmUxMmVjMjEiLCJkZWdyZWUiOnsidHlwZSI6IkJhY2hlbG9yRGVncmVlIiwibmFtZSI6IkJh
+        Y2hlbG9yIG9mIFNjaWVuY2UgYW5kIEFydHMifX19LCJpc3MiOiJodHRwczovL2V4YW1wbGUuZWR
+        1L2lzc3VlcnMvNTY1MDQ5IiwibmJmIjoxMjYyMzA0MDAwLCJqdGkiOiJodHRwOi8vZXhhbXBsZS
+        5lZHUvY3JlZGVudGlhbHMvMzczMiIsInN1YiI6ImRpZDpleGFtcGxlOmViZmViMWY3MTJlYmM2Z
+        jFjMjc2ZTEyZWMyMSJ9.z5vgMTK1nfizNCg5N-niCOL3WUIAL7nXy-nGhDZYO_-PNGeE-0djCpW
+        AMH8fD8eWSID5PfkPBYkx_dfLJnQ7NA
+
+    Credential:
+      description: Credential in the format ldp_vc
+      type: object
+      properties:
+        types:
+          $ref: '#/components/schemas/CredentialsType'
+        '@context':
+          type: array
+          items:
+            type: string
+            format: uri
+          example:
+            - https://www.w3.org/2018/credentials/v1
+            - https://w3id.org/security/suites/jws-2020/v1
+        credentialsSubject:
+          description: A JSON object containing a list of key value pairs, where the key identifies the claim offered in the Credential. The value MAY be a dictionary, which allows to represent the full (potentially deeply nested) structure of the verifiable credential to be issued.
+          type: object
+      additionalProperties: true
+      required:
+        - '@context'
+        - types
+        - format
+
+    DisplayObject:
+      type: object
+      properties:
+        name:
+          type: string
+          description: String value of a display name for the claim
+          example: "University Credential"
+        locale:
+          type: string
+          description: String value that identifies language of this object represented as language tag values defined in BCP47 [RFC5646]. There MUST be only one object with the same language.
+          example: "en-US"
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          enum:
+            - invalid_request
+            - invalid_token
+            - unsupported_credential_type
+            - unsupported_credential_format
+            - invalid_or_missing_proof
+          example: "invalid_request"
+    SupportedCredential:
+      type: object
+      properties:
+        format:
+          type: object
+          description: "oneOf: $ref: '#/components/schemas/Format', '#/components/schemas/CredentialObject'"
+        id:
+          type: string
+          example: "UniversityDegree_JWT"
+        types:
+          type: array
+          items:
+            type: string
+          example:
+            - "UniversityDegreeCredential"
+            - "VerifiableCredential"
+        cryptographic_binding_methods_supported:
+          description: Identifies how the Credential is bound to the identifier of the End-User who possesses the Credential. Support for keys in JWK format [RFC7517] is indicated by the value jwk. Support for keys expressed as a COSE Key object [RFC8152] (for example, used in [ISO.18013-5]) is indicated by the value cose_key. When Cryptographic Binding Method is a DID, valid values MUST be a 'did:' prefix but without a :and method-specific-id. For example, support for the DID method with a method-name 'example' would be represented by did:example.
+          type: array
+          items:
+            type: string
+            example:
+              - did
+        cryptographic_suites_supported:
+          type: array
+          items:
+            type: string
+            example:
+              - ES256K
+          description: Case sensitive strings that identify the cryptographic suites that are supported for the cryptographic_binding_methods_supported. Cryptosuites for Credentials in jwt_vc format should use algorithm names defined in IANA JOSE Algorithms Registry. Cryptosuites for Credentials in ldp_vc format should use signature suites names defined in Linked Data Cryptographic Suite Registry.
+        display:
+          $ref: '#/components/schemas/DisplayObject'
+      required:
+        - format
+    CredentialIssuer:
+      type: object
+      properties:
+        credential_issuer:
+          type: string
+          format: url
+          description: The Credential Issuer's identifier
+          example: https://kc-one.batterypass.fiware.dev/realms/fiware-server/verifiable-credential
+        authorization_server:
+          type: string
+          description: Identifier of the OAuth 2.0 Authorization Server (as defined in [RFC8414]) the Credential Issuer relies on for authorization. If this element is omitted, the entity providing the Credential Issuer is also acting as the AS, i.e. the Credential Issuer's identifier is used as the OAuth 2.0 Issuer value to obtain the Authorization Server metadata as per [RFC8414].
+        credential_endpoint:
+          type: string
+          format: url
+          description: URL of the Credential Issuer's Credential Endpoint. This URL MUST use the https scheme and MAY contain port, path and query parameter components.
+          example: https://kc-one.batterypass.fiware.dev/realms/fiware-server/verifiable-credential/credential
+        batch_credential_endpoint:
+          type: string
+          format: url
+          description: URL of the Credential Issuer's Batch Credential Endpoint. This URL MUST use the https scheme and MAY contain port, path and query parameter components. If omitted, the Credential Issuer does not support the Batch Credential Endpoint.
+        credentials_supported:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportedCredential'
+        display:
+          $ref: '#/components/schemas/DisplayObject'
+      required:
+        - credential_issuer
+        - credential_endpoint
+        - credentials_supported
+    PreAuthorized:
+      type: object
+      properties:
+        pre-authorized_code:
+          type: string
+          example: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI5MjhkYWVhNS01YmFmLTRhYjQtYjJjMC1mOWJlZDI1N2RiZDkiLCJwcmUtYXV0aG9yaXplZCI6dHJ1ZX0.BlsNWJqMA3sM0HSvs8RKP51M9Fzw_qLyHH81iv7FKIY
+        user_pin_required:
+          type: boolean
+          example: false
+      required:
+        - pre-authorized_code
+        - user_pin_required
+    CredentialsOffer:
+      type: object
+      properties:
+        credential_issuer:
+          type: string
+          format: url
+          example: https://kc-one.batterypass.fiware.dev/realms/fiware-server
+        credentials:
+          type: array
+          items:
+            type: object
+            description: Either the id of a credential, offered in the issuer metadata or a supported credential object
+        grants:
+          $ref: '#/components/schemas/PreAuthorized'
+      required:
+        - credential_issuer
+        - credentials
+    SignatureAlgorithm:
+      type: string
+      enum: ["RS256","ES256","ES256K","EdDSA"]
+    SIOPMetadata:
+      type: object
+      properties:
+        authorization_endpoint:
+          description: URL of the Self-Issued OP used by the RP to perform Authentication of the End-User. Can be custom URI scheme, or Universal Links/App links.
+          type: string
+          format: url
+          example: "https://my-keycloak.org"
+        issuer:
+          description: URL using the https scheme with no query or fragment component that the Self-Issued OP asserts as its Issuer Identifier. MUST be identical to the iss Claim value in ID Tokens issued from this Self-Issued OP.
+          type: string
+          format: url
+          example: "https://kc-one.batterypass.fiware.dev/realms/fiware-server/verifiable-credential"
+        response_types_supported:
+          type: array
+          description: A JSON array of strings representing supported response types. MUST be id_token.
+          items:
+            type: string
+            enum: ["id_token"]
+        scopes_supported:
+          description:  A JSON array of strings representing supported scopes. MUST support the openid scope value
+          type: array
+          items:
+            type: string
+            enum: ["openid"]
+        subject_types_supported:
+          description: A JSON array of strings representing supported subject types. Valid values include pairwise and public
+          type: array
+          items:
+            type: string
+            enum: ["pairwise", "public"]
+        id_token_signing_alg_values_supported:
+          description: A JSON array containing a list of the JWS signing algorithms (alg values) supported by the OP for the ID Token to encode the Claims in a JWT [RFC7519]. Valid values include RS256, ES256, ES256K, and EdDSA.
+          type: array
+          items:
+            $ref: '#/components/schemas/SignatureAlgorithm'
+          example:
+            - "EdDSA"
+            - "ES256"
+        request_object_signing_alg_values_supported:
+          description: A JSON array containing a list of the JWS signing algorithms (alg values) supported by the OP for Request Objects, which are described in Section 6.1 of [OpenID.Core]. Valid values include none, RS256, ES256, ES256K, and EdDSA
+          type: array
+          items:
+            $ref: '#/components/schemas/SignatureAlgorithm'
+        subject_syntax_types_supported:
+          type: array
+          items:
+            type: string
+            enum:
+              - "urn:ietf:params:oauth:jwk-thumbprint"
+              - "did:key"
+          example:
+            - "did:key"
+      required:
+        - authorization_endpoint
+        - issuer
+        - response_types_supported
+        - scopes_supported
+        - subject_types_supported
+        - id_token_signing_alg_values_supported
+        - request_object_signing_alg_values_supported
+    TokenRequest:
+      type: object
+      properties:
+        grant_type:
+          type: string
+          enum: ["urn:ietf:params:oauth:grant-type:pre-authorized_code"]
+        code:
+          type: string
+          description: The pre-authorized code, that should be exchanged with an access_token
+          example: 4900f6fc-851e-480f-9dc1-3d2efd10da4e.ccbdbcc2-008f-4b90-a74e-847ce3e0ae82.49eea076-5df7-471c-abc2-7c325c4605a9
+        pre-authorized_code:
+          type: string
+          description: Same as 'code', just to provide backward-compatibility for some not yet standard compliant wallets.
+      required:
+        - grant_type
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: The Access Token.
+          example: eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJkNi0xekdLVlNGSHUzREF1SHFpdmRaS1loTmN1dzZpUEpxaGRJNTNKMDVBIn0.eyJleHAiOjE2NzcwNjg3NDUsImlhdCI6MTY3NzA2ODQ0NSwiYXV0aF90aW1lIjoxNjc3MDY3NTUyLCJqdGkiOiIxYjBiYTg1NS0yZDJmLTQ1MGYtOGUxMy00ZjBkMWUyYmFiOTYiLCJpc3MiOiJodHRwczovL2tjLW9uZS5iYXR0ZXJ5cGFzcy5maXdhcmUuZGV2L3JlYWxtcy9maXdhcmUtc2VydmVyIiwiYXVkIjoiYWNjb3VudCIsInN1YiI6IjQ4MzBhNzJkLWM4MTAtNDU2Ny1hNThlLWU5ZWU1Mzk0NjM4OSIsInR5cCI6IkJlYXJlciIsImF6cCI6ImFjY291bnQtY29uc29sZSIsInNlc3Npb25fc3RhdGUiOiJjY2JkYmNjMi0wMDhmLTRiOTAtYTc0ZS04NDdjZTNlMGFlODIiLCJyZXNvdXJjZV9hY2Nlc3MiOnsiYWNjb3VudCI6eyJyb2xlcyI6WyJtYW5hZ2UtYWNjb3VudCIsIm1hbmFnZS1hY2NvdW50LWxpbmtzIl19fSwic2NvcGUiOiJvcGVuaWQgZW1haWwgcHJvZmlsZSIsInNpZCI6ImNjYmRiY2MyLTAwOGYtNGI5MC1hNzRlLTg0N2NlM2UwYWU4MiIsImVtYWlsX3ZlcmlmaWVkIjpmYWxzZSwibmFtZSI6IlRlc3QgVXNlciIsInByZWZlcnJlZF91c2VybmFtZSI6ImFkbWluLXVzZXIiLCJnaXZlbl9uYW1lIjoiVGVzdCIsImZhbWlseV9uYW1lIjoiVXNlciIsImVtYWlsIjoiYWRtaW4tdXNlckBmaXdhcmUub3JnIn0.pOS7B833u9zgCRpijbJEV56kg9j7ggLUA2UI38nQZE-30nOWn5xzQB1l2_EGcVJAjWeDJNbTEvhRa5Ik2yl7H6piGF9X37sxhFmJ-f7K-i9ca1rhEinxxGWh14Bi75w2lQhpHFw_U_Ee579i-2it8V7ibmUXVifRc0P9qq9faWhrQdgCtUeTLbsZHLZio_bgLVmlOPVh7DCowiZArbfcH55Fl3cEOfxGYnYCJwnzsqH7CsMP30WaEePxen2SefdSHE9j117eAuXuRbnloGXlkf7qVXtVrHWUGtPtVt16dtqIybxS_cNmgI9EfGtJneXgzKR-GANXHV0ew6V6S_OoOw
+        token_type:
+          type: string
+          enum: ["bearer"]
+        expires_in:
+          type: number
+          example: 300
+        c_nonce:
+          type: string
+          example: tZignsnFbp
+        c_nonce_expires_in:
+          type: number
+          example: 86400
+      required:
+        - access_token
+        - token_type
+        - expires_in
