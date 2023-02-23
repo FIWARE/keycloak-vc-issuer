@@ -1,5 +1,6 @@
 package org.fiware.keycloak.it;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Builder;
 import lombok.Getter;
@@ -8,12 +9,18 @@ import org.apache.http.HttpStatus;
 import org.awaitility.Awaitility;
 import org.fiware.keycloak.ExpectedResult;
 import org.fiware.keycloak.SIOP2LoginProtocolFactory;
-import org.fiware.keycloak.model.SupportedCredential;
+import org.fiware.keycloak.it.model.CredentialObject;
 import org.fiware.keycloak.it.model.CredentialSubject;
 import org.fiware.keycloak.it.model.IssuerMetaData;
 import org.fiware.keycloak.it.model.Role;
 import org.fiware.keycloak.it.model.SupportedCredentialMetadata;
 import org.fiware.keycloak.it.model.VerifiableCredential;
+import org.fiware.keycloak.model.SupportedCredential;
+import org.fiware.keycloak.model.TokenResponse;
+import org.fiware.keycloak.oidcvc.model.CredentialIssuerVO;
+import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
+import org.fiware.keycloak.oidcvc.model.CredentialVO;
+import org.fiware.keycloak.oidcvc.model.CredentialsOfferVO;
 import org.fiware.keycloak.oidcvc.model.FormatVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,9 +44,11 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
@@ -51,7 +60,10 @@ import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.fiware.keycloak.VCIssuerRealmResourceProvider.GRANT_TYPE_PRE_AUTHORIZED_CODE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -182,11 +194,13 @@ public class SIOP2IntegrationTest {
 	public static IssuerMetaData getMetaData(List<SupportedCredential> supportedCredentials, String issuerDid)
 			throws MalformedURLException {
 		return IssuerMetaData.builder()
-				.authorizationServer(new URL("http://localhost:8080/realms/test/.well-known/openid-configuration"))
+				.authorizationServer(new URL(String.format(
+						"http://localhost:8080/realms/test/verifiable-credential/%s/.well-known/openid-configuration",
+						issuerDid)))
 				.credentialEndpoint(
 						new URL(String.format("http://localhost:8080/realms/test/verifiable-credential/%s/credential",
 								issuerDid)))
-				.credentialIssuer(new URL(String.format(" http://localhost:8080/realms/test/verifiable-credential/%s",
+				.credentialIssuer(new URL(String.format("http://localhost:8080/realms/test/verifiable-credential/%s",
 						issuerDid)))
 				.credentialsSupported(supportedCredentials.stream()
 						.map(sc -> new SupportedCredentialMetadata(sc.getFormat().toString(),
@@ -230,6 +244,7 @@ public class SIOP2IntegrationTest {
 				credentialToRequest, expectedResult);
 	}
 
+	@DisplayName("Credentials issuance with an invalid token in the header should be denied")
 	@ParameterizedTest
 	@MethodSource("provideUsersAndClients")
 	public void testVCIssuanceWithInvalidAuthHeader(List<Client> clients, List<User> users, String userToRequest,
@@ -243,6 +258,7 @@ public class SIOP2IntegrationTest {
 				credentialToRequest, expectedResult);
 	}
 
+	@DisplayName("Credentials issuance with an invalid token in the token parameter should be denied")
 	@ParameterizedTest
 	@MethodSource("provideUsersAndClients")
 	public void testVCIssuanceWithInvalidToken(List<Client> clients, List<User> users, String userToRequest,
@@ -254,6 +270,159 @@ public class SIOP2IntegrationTest {
 
 		testVCIssuance(false, () -> "invalid", clients, users, userToRequest,
 				credentialToRequest, expectedResult);
+	}
+
+	@Test
+	public void testIssuanceFlow() throws IOException, InterruptedException {
+		String credentialType = "BatteryPassAuthCredential";
+
+		Client clientOne = Client.builder()
+				.id(TEST_CLIENT_ID_ONE)
+				.roles(List.of(TEST_CREATOR_ROLE, TEST_CONSUMER_ROLE))
+				.supportedTypes(List.of(new SupportedCredential(credentialType, FormatVO.LDP_VC),
+						new SupportedCredential(credentialType, FormatVO.JWT_VC_JSON)))
+				.build();
+		assertClientCreation(clientOne.getId(), clientOne.getSupportedTypes());
+		clientOne.getRoles().forEach(r -> createTestRole(clientOne.getId(), r));
+
+		User testUser = User.builder().username("test-user")
+				.firstName(Optional.of("Test"))
+				.lastName(Optional.of("User"))
+				.email(Optional.of("e@mail.org"))
+				.clients(
+						List.of(Client.builder()
+								.id(TEST_CLIENT_ID_ONE)
+								.roles(List.of(TEST_CONSUMER_ROLE))
+								.build()))
+				.build();
+		createTestUser(testUser.getUsername(),
+				testUser.getEmail(),
+				testUser.getFirstName(),
+				testUser.getLastName());
+
+		testUser.clients.forEach(
+				c -> addClientRoles(testUser.getUsername(), getClientRolesMap(c.getId(), c.getRoles())));
+		String userToken = getUserTokenForAccounts(testUser.getUsername());
+
+		// get credentials offer
+		HttpResponse<String> response = HttpClient.newHttpClient()
+				.send(HttpRequest.newBuilder()
+								.GET()
+								.uri(URI.create(
+										String.format(
+												"%s/realms/%s/verifiable-credential/%s/credential-offer?type=%s&format=%s",
+												KEYCLOAK_ADDRESS,
+												TEST_REALM, KEYCLOAK_ISSUER_DID, credentialType, FormatVO.LDP_VC)))
+								.header("Authorization", String.format("Bearer %s", userToken)).build(),
+						HttpResponse.BodyHandlers.ofString());
+		assertEquals(HttpStatus.SC_OK, response.statusCode(), "The offer should have been successfully returned.");
+		CredentialsOfferVO credentialsOfferVO = OBJECT_MAPPER.readValue(response.body(), CredentialsOfferVO.class);
+		assertNotNull(credentialsOfferVO.getCredentialIssuer(), "An issuer should provided as part of the offer.");
+		String issuerUrl = credentialsOfferVO.getCredentialIssuer();
+
+		List<CredentialObject> offeredCredentials = credentialsOfferVO.getCredentials().stream()
+				.map(co -> OBJECT_MAPPER.convertValue(co, CredentialObject.class)).collect(
+						Collectors.toList());
+		assertEquals(1, offeredCredentials.size(), "Just the requested credential should be offered.");
+		assertEquals(new CredentialObject(credentialType, FormatVO.LDP_VC), offeredCredentials.get(0),
+				"Just the requested credential should be offered.");
+		assertNotNull(credentialsOfferVO.getGrants(), "An authorization should be provided within the offer.");
+
+		// get OIDC4VCI-compliant issuer meta-data
+		HttpResponse<String> oid4VciResponse = HttpClient.newHttpClient()
+				.send(HttpRequest.newBuilder()
+								.GET()
+								.uri(URI.create(
+										issuerUrl + "/.well-known/openid-credential-issuer"))
+								.build(),
+						HttpResponse.BodyHandlers.ofString());
+		assertEquals(HttpStatus.SC_OK, oid4VciResponse.statusCode(),
+				"The metadata should have been successfully returned.");
+		CredentialIssuerVO issuerVO = OBJECT_MAPPER.readValue(oid4VciResponse.body(), CredentialIssuerVO.class);
+		assertNotNull(issuerVO.getAuthorizationServer(), "An authorization server should be provided.");
+		assertEquals(credentialsOfferVO.getCredentialIssuer(), issuerVO.getCredentialIssuer(),
+				"The metadata for the offered issuer should have been returend.");
+		assertNotNull(issuerVO.getCredentialsSupported(), "The supported credentials should be included.");
+		assertFalse(issuerVO.getCredentialsSupported().isEmpty(), "The supported credentials should be included.");
+		boolean requestedCredentialIsSupported = issuerVO.getCredentialsSupported().stream().anyMatch(cs -> {
+			FormatVO format = OBJECT_MAPPER.convertValue(cs.getFormat(), FormatVO.class);
+			return (format == FormatVO.LDP_VC && cs.getTypes().contains(credentialType));
+		});
+		assertTrue(requestedCredentialIsSupported, "The requested credential should be supported by the issuer.");
+
+		// follow authorization server address to get openid-configuration for the provided issuer
+		HttpResponse<String> oidConfigResponse = HttpClient.newHttpClient()
+				.send(HttpRequest.newBuilder()
+								.GET()
+								.uri(URI.create(issuerVO.getAuthorizationServer()))
+								.build(),
+						HttpResponse.BodyHandlers.ofString());
+		assertEquals(HttpStatus.SC_OK, oidConfigResponse.statusCode(),
+				"The config should have been successfully returned.");
+		Map<String, Object> configMap = OBJECT_MAPPER.readValue(oidConfigResponse.body(),
+				new TypeReference<Map<String, Object>>() {
+				});
+
+		assertNotNull(configMap.get("token_endpoint"), "The token_endpoint should be provided in the metadata.");
+		assertNotNull(configMap.get("credential_endpoint"),
+				"The credential_endpoint should be provided in the metadata.");
+		assertEquals(configMap.get("credential_endpoint"), issuerVO.getCredentialEndpoint(),
+				"The credential endpoint should be present in both.");
+		assertNotNull(configMap.get("grant_types_supported"),
+				"Information about the supported grant_types should be included.");
+		List<String> supportedGrantTypes = OBJECT_MAPPER.convertValue(configMap.get("grant_types_supported"),
+				new TypeReference<List<String>>() {
+				});
+		assertTrue(supportedGrantTypes.contains(GRANT_TYPE_PRE_AUTHORIZED_CODE),
+				"The preauthorized grant type should be supported.");
+
+		Map<String, String> tokenRequestFormData = Map.of("grant_type",
+				GRANT_TYPE_PRE_AUTHORIZED_CODE, "code", credentialsOfferVO.getGrants().getPreAuthorizedCode());
+
+		// now get an access token
+		HttpResponse<String> tokenResponse = HttpClient.newHttpClient()
+				.send(HttpRequest.newBuilder()
+								.POST(HttpRequest.BodyPublishers.ofString(getFormDataAsString(tokenRequestFormData)))
+								.header("Content-Type", "application/x-www-form-urlencoded")
+								.uri(URI.create(configMap.get("token_endpoint").toString()))
+								.build(),
+						HttpResponse.BodyHandlers.ofString());
+
+		assertEquals(HttpStatus.SC_OK, tokenResponse.statusCode(), "The token should have been successfully provided.");
+		TokenResponse token = OBJECT_MAPPER.readValue(tokenResponse.body(), TokenResponse.class);
+		assertNotNull(token.getAccessToken(), "The access token should have been provided.");
+
+		Map<String, Object> credentialRequest = Map.of("format", FormatVO.LDP_VC, "types", List.of(credentialType));
+
+		// use the token to get the credential
+		HttpResponse<String> credentialResponse = HttpClient.newHttpClient()
+				.send(HttpRequest.newBuilder()
+								.POST(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(credentialRequest)))
+								.uri(URI.create(issuerVO.getCredentialEndpoint()))
+								.header("Authorization", String.format("Bearer %s", token.getAccessToken()))
+								.header("Content-Type", "application/json")
+								.build(),
+						HttpResponse.BodyHandlers.ofString());
+		assertEquals(HttpStatus.SC_OK, credentialResponse.statusCode(),
+				"The credential should have been successfully created.");
+
+		CredentialResponseVO credentialResponseVO = OBJECT_MAPPER.readValue(credentialResponse.body(),
+				CredentialResponseVO.class);
+		assertEquals(FormatVO.LDP_VC, credentialResponseVO.getFormat(),
+				"The requested format should have been returned");
+		assertNotNull(credentialResponseVO.getCredential(), "The credential should be returned.");
+
+		Map<String, Object> credentialMap = OBJECT_MAPPER.convertValue(credentialResponseVO.getCredential(),
+				new TypeReference<Map<String, Object>>() {
+				});
+
+		assertTrue(credentialMap.containsKey("type"), "The credential should have the types contained.");
+		assertTrue(OBJECT_MAPPER.convertValue(credentialMap.get("type"), List.class).contains(credentialType),
+				"The credential should have the correct type.");
+		assertTrue(credentialMap.containsKey("proof"), "The credential should be proofen.");
+		assertNotNull(credentialMap.get("credentialSubject"), "A subject should be set for the credential.");
+		assertEquals(KEYCLOAK_ISSUER_DID, credentialMap.get("issuer"),
+				"The issuer should be the one we asked for the credential.");
 	}
 
 	private void testVCIssuance(boolean useAuthHeader, Callable<String> tokenMethod, List<Client> clients,
@@ -696,6 +865,19 @@ public class SIOP2IntegrationTest {
 				.clientId(ADMIN_CLI_CLIENT_ID)
 				.serverUrl(KEYCLOAK_ADDRESS)
 				.build();
+	}
+
+	private static String getFormDataAsString(Map<String, String> formData) {
+		StringBuilder formBodyBuilder = new StringBuilder();
+		for (Map.Entry<String, String> singleEntry : formData.entrySet()) {
+			if (formBodyBuilder.length() > 0) {
+				formBodyBuilder.append("&");
+			}
+			formBodyBuilder.append(URLEncoder.encode(singleEntry.getKey(), StandardCharsets.UTF_8));
+			formBodyBuilder.append("=");
+			formBodyBuilder.append(URLEncoder.encode(singleEntry.getValue(), StandardCharsets.UTF_8));
+		}
+		return formBodyBuilder.toString();
 	}
 
 	@Getter
