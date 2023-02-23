@@ -1,6 +1,7 @@
 package org.fiware.keycloak;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
@@ -210,7 +211,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		return Response.ok().entity(new CredentialIssuerVO()
 						.credentialIssuer(getIssuer())
-						.authorizationServer(String.format(authorizationEndpointPattern, getRealmResourcePath()))
+						.authorizationServer(String.format(authorizationEndpointPattern, getIssuer()))
 						.credentialEndpoint(getCredentialEndpoint())
 						.credentialsSupported(getSupportedCredentials(currentContext)))
 				.header("Access-Control-Allow-Origin", "*").build();
@@ -220,6 +221,9 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		KeycloakContext currentContext = session.getContext();
 		String realm = currentContext.getRealm().getId();
 		String backendUrl = currentContext.getUri(UrlType.BACKEND).getBaseUri().toString();
+		if (backendUrl.endsWith("/")) {
+			return String.format("%srealms/%s", backendUrl, realm);
+		}
 		return String.format("%s/realms/%s", backendUrl, realm);
 	}
 
@@ -229,7 +233,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	private String getIssuer() {
-		return String.format("%s/%s/%s", getRealmResourcePath(), VCIssuerRealmResourceProviderFactory.ID,
+		return String.format("%s/%s/%s", getRealmResourcePath(),
+				VCIssuerRealmResourceProviderFactory.ID,
 				issuerDid);
 	}
 
@@ -245,6 +250,14 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		Map<String, Object> configAsMap = objectMapper.convertValue(
 				new OIDCWellKnownProvider(session, null, false).getConfig(),
 				Map.class);
+
+		List<String> supportedGrantTypes = Optional.ofNullable(configAsMap.get("grant_types_supported"))
+				.map(grantTypesObject -> objectMapper.convertValue(
+						grantTypesObject, new TypeReference<List<String>>() {
+						})).orElse(new ArrayList<>());
+		// newly invented by OIDC4VCI and supported by this implementation
+		supportedGrantTypes.add(GRANT_TYPE_PRE_AUTHORIZED_CODE);
+		configAsMap.put("grant_types_supported", supportedGrantTypes);
 		configAsMap.put("token_endpoint", getIssuer() + "/token");
 		configAsMap.put("credential_endpoint", getCredentialEndpoint());
 		IssuerDisplay issuerDisplay = new IssuerDisplay();
