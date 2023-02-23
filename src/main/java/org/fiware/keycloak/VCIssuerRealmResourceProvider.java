@@ -439,7 +439,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		}
 		if (credentialRequestVO.getProof() != null) {
 			LOGGER.infof("Including requested proofs into the credential is currently unsupported.");
-			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
+//			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
 		}
 		FormatVO requestedFormat = credentialRequestVO.getFormat();
 		// workaround to support implementations not differentiating json & json-ld
