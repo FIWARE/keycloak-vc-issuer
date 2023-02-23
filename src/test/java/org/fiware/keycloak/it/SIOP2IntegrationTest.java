@@ -375,7 +375,6 @@ public class SIOP2IntegrationTest {
 				});
 		assertTrue(supportedGrantTypes.contains(GRANT_TYPE_PRE_AUTHORIZED_CODE),
 				"The preauthorized grant type should be supported.");
-		URL credentialEndpoint = OBJECT_MAPPER.convertValue(configMap.get("credential_endpoint"), URL.class);
 
 		Map<String, String> tokenRequestFormData = Map.of("grant_type",
 				GRANT_TYPE_PRE_AUTHORIZED_CODE, "code", credentialsOfferVO.getGrants().getPreAuthorizedCode());
@@ -384,7 +383,8 @@ public class SIOP2IntegrationTest {
 		HttpResponse<String> tokenResponse = HttpClient.newHttpClient()
 				.send(HttpRequest.newBuilder()
 								.POST(HttpRequest.BodyPublishers.ofString(getFormDataAsString(tokenRequestFormData)))
-								.uri(URI.create(OBJECT_MAPPER.writeValueAsString(configMap.get("token_endpoint"))))
+								.header("Content-Type", "application/x-www-form-urlencoded")
+								.uri(URI.create(configMap.get("token_endpoint").toString()))
 								.build(),
 						HttpResponse.BodyHandlers.ofString());
 
@@ -398,8 +398,9 @@ public class SIOP2IntegrationTest {
 		HttpResponse<String> credentialResponse = HttpClient.newHttpClient()
 				.send(HttpRequest.newBuilder()
 								.POST(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(credentialRequest)))
-								.uri(URI.create(OBJECT_MAPPER.writeValueAsString(configMap.get("token_endpoint"))))
+								.uri(URI.create(issuerVO.getCredentialEndpoint()))
 								.header("Authorization", String.format("Bearer %s", token.getAccessToken()))
+								.header("Content-Type", "application/json")
 								.build(),
 						HttpResponse.BodyHandlers.ofString());
 		assertEquals(HttpStatus.SC_OK, credentialResponse.statusCode(),
@@ -411,12 +412,16 @@ public class SIOP2IntegrationTest {
 				"The requested format should have been returned");
 		assertNotNull(credentialResponseVO.getCredential(), "The credential should be returned.");
 
-		CredentialVO credentialVO = OBJECT_MAPPER.convertValue(credentialResponseVO.getCredential(),
-				CredentialVO.class);
-		assertTrue(credentialVO.getTypes().contains(credentialType), "The credential should have the correct type.");
-		assertTrue(credentialVO.containsKey("proof"), "The credential should be proofen.");
-		assertNotNull(credentialVO.getCredentialsSubject(), "A subject should be set for the credential.");
-		assertEquals(KEYCLOAK_ISSUER_DID, credentialVO.get("issuer"),
+		Map<String, Object> credentialMap = OBJECT_MAPPER.convertValue(credentialResponseVO.getCredential(),
+				new TypeReference<Map<String, Object>>() {
+				});
+
+		assertTrue(credentialMap.containsKey("type"), "The credential should have the types contained.");
+		assertTrue(OBJECT_MAPPER.convertValue(credentialMap.get("type"), List.class).contains(credentialType),
+				"The credential should have the correct type.");
+		assertTrue(credentialMap.containsKey("proof"), "The credential should be proofen.");
+		assertNotNull(credentialMap.get("credentialSubject"), "A subject should be set for the credential.");
+		assertEquals(KEYCLOAK_ISSUER_DID, credentialMap.get("issuer"),
 				"The issuer should be the one we asked for the credential.");
 	}
 
