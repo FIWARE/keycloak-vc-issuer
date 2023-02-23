@@ -234,6 +234,9 @@ components:
       properties:
         format:
           $ref: '#/components/schemas/Format'
+        type:
+          type: string
+          description: For compatibility with the current waltid wallet, we also allow the request with just the type
         types:
           type: array
           items:
