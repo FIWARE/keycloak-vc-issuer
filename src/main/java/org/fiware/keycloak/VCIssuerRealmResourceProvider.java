@@ -490,7 +490,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 			}
 			// TODO: check nonce in the future, when we actually provide one.
 		} catch (VerificationException e) {
-			LOGGER.warnf("Signature of the provided jwt-proof was not valid: %s", proofVO.getJwt());
+			LOGGER.warnf("Signature of the provided jwt-proof was not valid: %s", proofVO.getJwt(), e);
 			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
 		}
 
@@ -596,7 +596,6 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.stream()
 				.map(RoleModel::getName)
 				.collect(Collectors.toSet());
-
 		return new Role(roleNames, crm.getClientId());
 	}
 
@@ -681,11 +680,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	private List<SupportedCredential> mapAttributeEntryToSc(Map.Entry<String, String> typesEntry) {
 		String type = typesEntry.getKey().replaceFirst(VC_TYPES_PREFIX, "");
 		Set<FormatVO> supportedFormats = getFormatsFromString(typesEntry.getValue());
-		return supportedFormats.stream().map(formatVO -> {
-					String id = buildIdFromType(formatVO, type);
-					return new SupportedCredential(type, formatVO);
-				}
-		).collect(Collectors.toList());
+		return supportedFormats.stream().map(formatVO -> new SupportedCredential(type, formatVO))
+				.collect(Collectors.toList());
 	}
 
 	private List<SupportedCredentialVO> mapAttributeEntryToScVO(Map.Entry<String, String> typesEntry) {
