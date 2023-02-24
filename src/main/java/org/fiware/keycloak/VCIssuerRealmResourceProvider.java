@@ -21,6 +21,7 @@ import org.fiware.keycloak.model.walt.CredentialDisplay;
 import org.fiware.keycloak.model.walt.CredentialMetadata;
 import org.fiware.keycloak.model.walt.FormatObject;
 import org.fiware.keycloak.model.walt.IssuerDisplay;
+import org.fiware.keycloak.model.walt.ProofType;
 import org.fiware.keycloak.oidcvc.model.CredentialIssuerVO;
 import org.fiware.keycloak.oidcvc.model.CredentialRequestVO;
 import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
@@ -520,9 +521,9 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.filter(role -> !role.getNames().isEmpty())
 				.collect(Collectors.toSet());
 
-		ProofTypeVO proofType = ProofTypeVO.JWT;
+		ProofType proofType = ProofType.JWT;
 		if (format == FormatVO.LDP_VC) {
-			proofType = ProofTypeVO.LD_PROOF;
+			proofType = ProofType.LD_PROOF;
 		}
 
 		VCRequest vcRequest = getVCRequest(vcType, proofType, userModel, clients, roles, optionalMinExpiry);
@@ -600,7 +601,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	@NotNull
-	private VCRequest getVCRequest(String vcType, ProofTypeVO proofType, UserModel userModel, List<ClientModel> clients,
+	private VCRequest getVCRequest(String vcType, ProofType proofType, UserModel userModel, List<ClientModel> clients,
 			Set<Role> roles,
 			Optional<Long> optionalMinExpiry) {
 		// only include non-null & non-empty claims
