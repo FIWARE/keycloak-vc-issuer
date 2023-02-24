@@ -478,7 +478,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		}
 		TokenVerifier<JsonWebToken> verifier = TokenVerifier.create(proofVO.getJwt(), JsonWebToken.class);
 		try {
-			verifier.verifySignature();
+			// TODO: did signature verification needs to be implemented
+			//verifier.verifySignature();
 			JsonWebToken jwt = verifier.getToken();
 			if (!Arrays.asList(jwt.getAudience()).contains(getIssuer())) {
 				LOGGER.warnf("Provided jwt was not intended for the issuer %s. Was: %s", getIssuer(), proofVO.getJwt());
