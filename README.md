@@ -37,7 +37,7 @@ any other standard-conformant Wallet-implementation. It currently supports the f
 - [7. Credential Endpoint](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-endpoint)
   - provides a valid credential, according to the requested type and format
   - currently supports jwt_vc_json, jwt_vc_json-ld, ldp_vc and for backward-compatibility jwt_vc(which defaults to jwt_vc_json)
-  - does not support binding to the enduser(e.g. via proof-parameter), yet
+  - proof-checking for the request is only supported for proof-type jwt(yet)
 - [10.2. Credential Issuer Metadata](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-issuer-metadata)
   - provides the metadata for the issuer
 
