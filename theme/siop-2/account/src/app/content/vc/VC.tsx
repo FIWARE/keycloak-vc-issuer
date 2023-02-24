@@ -215,11 +215,11 @@ export class VC extends React.Component<VCProps, VCState> {
         } else {
           const credUrl = "openid-initiate-issuance://?issuer="
           +encodeURIComponent(offer.credential_issuer)
-          +"&credential_type=" + encodeURIComponent("[\"" + this.getSelectedCredential().type +"\"]") +
+          +"&credential_type=" + encodeURIComponent("[\"" + this.getSelectedCredential().type +"\"]") 
           +"&format="+this.getSelectedCredential().format
           +"&pre-authorized_code="+offer.grants['pre-authorized_code']
           +"&user_pin_required="+offer.grants['user_pin_required']
-
+          console.log(credUrl)
           this.setState({ ...{
             offerUrl: credUrl,
             vcQRVisible: false,

@@ -1,9 +1,11 @@
-package org.fiware.keycloak.model;
+package org.fiware.keycloak.model.walt;
 
 import lombok.Getter;
 
 public enum ProofType {
-	JWT("jwt");
+
+	LD_PROOF("LD_PROOF"),
+	JWT("JWT");
 
 	@Getter
 	private final String value;
