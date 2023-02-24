@@ -249,8 +249,8 @@ components:
         - format
     ProofType:
       type: string
-      enum: ["JWT", "LD_PROOF"]
-      example: "JWT"
+      enum: ["jwt", "ld_proof"]
+      example: "jwt"
     Proof:
       type: object
       properties:
