@@ -10,11 +10,6 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.fiware.keycloak.model.ErrorResponse;
 import org.fiware.keycloak.model.ErrorType;
-import org.fiware.keycloak.model.walt.CredentialDisplay;
-import org.fiware.keycloak.model.walt.CredentialMetadata;
-import org.fiware.keycloak.model.walt.FormatObject;
-import org.fiware.keycloak.model.walt.IssuerDisplay;
-import org.fiware.keycloak.model.PreAuthorizedToken;
 import org.fiware.keycloak.model.Role;
 import org.fiware.keycloak.model.SupportedCredential;
 import org.fiware.keycloak.model.TokenResponse;
@@ -22,6 +17,10 @@ import org.fiware.keycloak.model.VCClaims;
 import org.fiware.keycloak.model.VCConfig;
 import org.fiware.keycloak.model.VCData;
 import org.fiware.keycloak.model.VCRequest;
+import org.fiware.keycloak.model.walt.CredentialDisplay;
+import org.fiware.keycloak.model.walt.CredentialMetadata;
+import org.fiware.keycloak.model.walt.FormatObject;
+import org.fiware.keycloak.model.walt.IssuerDisplay;
 import org.fiware.keycloak.oidcvc.model.CredentialIssuerVO;
 import org.fiware.keycloak.oidcvc.model.CredentialRequestVO;
 import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
@@ -31,9 +30,13 @@ import org.fiware.keycloak.oidcvc.model.DisplayObjectVO;
 import org.fiware.keycloak.oidcvc.model.ErrorResponseVO;
 import org.fiware.keycloak.oidcvc.model.FormatVO;
 import org.fiware.keycloak.oidcvc.model.PreAuthorizedVO;
+import org.fiware.keycloak.oidcvc.model.ProofTypeVO;
+import org.fiware.keycloak.oidcvc.model.ProofVO;
 import org.fiware.keycloak.oidcvc.model.SupportedCredentialVO;
 import org.jboss.logging.Logger;
 import org.keycloak.OAuth2Constants;
+import org.keycloak.TokenVerifier;
+import org.keycloak.common.VerificationException;
 import org.keycloak.common.util.Time;
 import org.keycloak.events.EventBuilder;
 import org.keycloak.models.AuthenticatedClientSessionModel;
@@ -44,7 +47,6 @@ import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.protocol.oidc.OIDCWellKnownProvider;
-import org.keycloak.protocol.oidc.OIDCWellKnownProviderFactory;
 import org.keycloak.protocol.oidc.TokenManager;
 import org.keycloak.protocol.oidc.utils.OAuth2Code;
 import org.keycloak.protocol.oidc.utils.OAuth2CodeParser;
@@ -78,7 +80,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -380,14 +381,6 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		return OAuth2CodeParser.persistCode(session, clientSessionModel, oAuth2Code);
 	}
 
-	public String generatePreauthorizedToken() {
-
-		PreAuthorizedToken preAuthorizedToken = new PreAuthorizedToken();
-		preAuthorizedToken.exp(Time.currentTime() + 30l);
-		preAuthorizedToken.subject(getUserModel().getId());
-		return session.tokens().encodeAndEncrypt(preAuthorizedToken);
-	}
-
 	private Response getErrorResponse(ErrorType errorType) {
 		return Response.status(Response.Status.BAD_REQUEST).entity(new ErrorResponse(errorType.getValue())).build();
 	}
@@ -438,8 +431,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_REQUEST));
 		}
 		if (credentialRequestVO.getProof() != null) {
-			LOGGER.infof("Including requested proofs into the credential is currently unsupported.");
-//			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
+			validateProof(credentialRequestVO.getProof());
 		}
 		FormatVO requestedFormat = credentialRequestVO.getFormat();
 		// workaround to support implementations not differentiating json & json-ld
@@ -478,6 +470,31 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.header("Access-Control-Allow-Origin", "*").build();
 	}
 
+	private void validateProof(ProofVO proofVO) {
+		if (proofVO.getProofType() != ProofTypeVO.JWT) {
+			LOGGER.warn("We currently only support JWT proofs.");
+			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
+		}
+		TokenVerifier<JsonWebToken> verifier = TokenVerifier.create(proofVO.getJwt(), JsonWebToken.class);
+		try {
+			verifier.verifySignature();
+			JsonWebToken jwt = verifier.getToken();
+			if (!Arrays.asList(jwt.getAudience()).contains(getIssuer())) {
+				LOGGER.warnf("Provided jwt was not intended for the issuer %s. Was: %s", getIssuer(), proofVO.getJwt());
+				throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
+			}
+			if (jwt.getIat() == null) {
+				LOGGER.warnf("Provided jwt does not have the mandatory iat: %s", proofVO.getJwt());
+				throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
+			}
+			// TODO: check nonce in the future, when we actually provide one.
+		} catch (VerificationException e) {
+			LOGGER.warnf("Signature of the provided jwt-proof was not valid: %s", proofVO.getJwt());
+			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
+		}
+
+	}
+
 	private CredentialVO getCredential(String vcType, FormatVO format, String token) {
 		UserModel userModel = getUserFromSession(Optional.ofNullable(token));
 
@@ -503,7 +520,12 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.filter(role -> !role.getNames().isEmpty())
 				.collect(Collectors.toSet());
 
-		VCRequest vcRequest = getVCRequest(vcType, userModel, clients, roles, optionalMinExpiry);
+		ProofTypeVO proofType = ProofTypeVO.JWT;
+		if (format == FormatVO.LDP_VC) {
+			proofType = ProofTypeVO.LD_PROOF;
+		}
+
+		VCRequest vcRequest = getVCRequest(vcType, proofType, userModel, clients, roles, optionalMinExpiry);
 
 		String response = waltIdClient.getVCFromWaltId(vcRequest);
 
@@ -578,7 +600,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	@NotNull
-	private VCRequest getVCRequest(String vcType, UserModel userModel, List<ClientModel> clients, Set<Role> roles,
+	private VCRequest getVCRequest(String vcType, ProofTypeVO proofType, UserModel userModel, List<ClientModel> clients,
+			Set<Role> roles,
 			Optional<Long> optionalMinExpiry) {
 		// only include non-null & non-empty claims
 		var claimsBuilder = VCClaims.builder();
@@ -594,7 +617,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		var vcConfigBuilder = VCConfig.builder();
 		vcConfigBuilder.issuerDid(issuerDid)
 				.subjectDid(UUID.randomUUID().toString())
-				.proofType(LD_PROOF_TYPE);
+				.proofType(proofType.toString());
 		optionalMinExpiry
 				.map(minExpiry -> Clock.systemUTC()
 						.instant()

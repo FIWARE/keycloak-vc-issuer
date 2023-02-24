@@ -247,13 +247,15 @@ components:
           $ref: '#/components/schemas/Proof'
       required:
         - format
+    ProofType:
+      type: string
+      enum: ["JWT", "LD_PROOF"]
+      example: "JWT"
     Proof:
       type: object
       properties:
         proof_type:
-          type: string
-          enum: ["jwt"]
-          example: "jwt"
+          $ref: '#/components/schemas/ProofType'
         jwt:
           type: string
           example: "eyJraWQiOiJkaWQ6ZXhhbXBsZTplYmZlYjFmNzEyZWJjNmYxYzI3NmUxMmVjMjEva2V5cy8
