@@ -234,6 +234,9 @@ components:
       properties:
         format:
           $ref: '#/components/schemas/Format'
+        type:
+          type: string
+          description: For compatibility with the current waltid wallet, we also allow the request with just the type
         types:
           type: array
           items:
@@ -244,13 +247,15 @@ components:
           $ref: '#/components/schemas/Proof'
       required:
         - format
+    ProofType:
+      type: string
+      enum: ["jwt", "ld_proof"]
+      example: "jwt"
     Proof:
       type: object
       properties:
         proof_type:
-          type: string
-          enum: ["jwt"]
-          example: "jwt"
+          $ref: '#/components/schemas/ProofType'
         jwt:
           type: string
           example: "eyJraWQiOiJkaWQ6ZXhhbXBsZTplYmZlYjFmNzEyZWJjNmYxYzI3NmUxMmVjMjEva2V5cy8

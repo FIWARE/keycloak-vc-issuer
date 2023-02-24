@@ -293,7 +293,10 @@ public class VCIssuerRealmResourceProviderTest {
 		ArgumentCaptor<VCRequest> argument = ArgumentCaptor.forClass(VCRequest.class);
 
 		when(waltIdClient.getVCFromWaltId(argument.capture())).thenReturn(OBJECT_MAPPER.writeValueAsString(TEST_VC));
-		assertEquals(TEST_VC, testProvider.issueVerifiableCredential(ISSUER_DID, "MyType", null).getEntity(),
+		assertEquals(TEST_VC,
+				OBJECT_MAPPER.readValue(
+						(String) testProvider.issueVerifiableCredential(ISSUER_DID, "MyType", null).getEntity(),
+						CredentialVO.class),
 				"The requested VC should be returned.");
 		// randomly generated
 		expectedResult.getExpectedResult().getConfig().setSubjectDid(argument.getValue().getConfig().getSubjectDid());
