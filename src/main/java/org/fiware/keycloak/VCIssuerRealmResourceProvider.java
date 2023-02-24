@@ -71,6 +71,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import java.lang.reflect.Type;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -422,8 +423,15 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 			CredentialRequestVO credentialRequestVO) {
 		assertIssuerDid(issuerDidParam);
 		LOGGER.infof("Received credentials request %s.", credentialRequestVO);
-		List<String> types = new ArrayList<>(Optional.ofNullable(credentialRequestVO.getTypes())
-				.orElse(List.of(credentialRequestVO.getType())));
+		List<String> types = null;
+		try {
+			types = new ArrayList<>(Optional.ofNullable(credentialRequestVO.getTypes())
+					.orElse(objectMapper.readValue(credentialRequestVO.getType(), new TypeReference<List<String>>() {
+					})));
+		} catch (JsonProcessingException e) {
+			LOGGER.warnf("Was not able to read the type parameter: %s", credentialRequestVO.getType(), e);
+			throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
+		}
 		// remove the static type
 		types.remove(TYPE_VERIFIABLE_CREDENTIAL);
 
@@ -446,10 +454,10 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		// keep the originally requested here.
 		responseVO.format(credentialRequestVO.getFormat());
 
-		CredentialVO credentialVO = getCredential(vcType, credentialRequestVO.getFormat(), null);
+		String credentialString = getCredential(vcType, credentialRequestVO.getFormat(), null);
 		switch (requestedFormat) {
 			case LDP_VC: {
-				responseVO.setCredential(credentialVO);
+				responseVO.setCredential(credentialString);
 				break;
 			}
 			case JWT_VC_JSON: {
@@ -457,7 +465,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 						.id(UUID.randomUUID().toString())
 						.issuer(issuerDid)
 						.nbf(clock.instant().getEpochSecond());
-				jwt.setOtherClaims("credential", credentialVO);
+				jwt.setOtherClaims("credential", credentialString);
 				responseVO.setCredential(session.tokens().encodeAndEncrypt(jwt));
 				break;
 			}
@@ -478,8 +486,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		}
 		TokenVerifier<JsonWebToken> verifier = TokenVerifier.create(proofVO.getJwt(), JsonWebToken.class);
 		try {
-
-			verifier.verifySignature();
+			//TODO: enable when DID verification is implemented
+			//					verifier.verifySignature();
 			JsonWebToken jwt = verifier.getToken();
 			if (!Arrays.asList(jwt.getAudience()).contains(getIssuer())) {
 				LOGGER.warnf("Provided jwt was not intended for the issuer %s. Was: %s", getIssuer(), proofVO.getJwt());
@@ -494,10 +502,9 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 			LOGGER.warnf("Signature of the provided jwt-proof was not valid: %s", proofVO.getJwt(), e);
 			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
 		}
-
 	}
 
-	private CredentialVO getCredential(String vcType, FormatVO format, String token) {
+	private String getCredential(String vcType, FormatVO format, String token) {
 		UserModel userModel = getUserFromSession(Optional.ofNullable(token));
 
 		List<ClientModel> clients = getClientsOfType(vcType, format);
@@ -529,23 +536,18 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		VCRequest vcRequest = getVCRequest(vcType, proofType, userModel, clients, roles, optionalMinExpiry);
 
-		String response = waltIdClient.getVCFromWaltId(vcRequest);
+		return waltIdClient.getVCFromWaltId(vcRequest);
 
-		try {
-			CredentialVO vc = objectMapper.readValue(response, CredentialVO.class);
-			LOGGER.debugf("Respond with vc: %s", response);
-			return vc;
-		} catch (JsonProcessingException e) {
-			LOGGER.warn("Did not receive a valid credential.", e);
-			throw new ErrorResponseException("bad_gateway",
-					"Did not get a valid response from walt-id.",
-					Response.Status.BAD_GATEWAY);
-		}
 	}
 
 	@NotNull
 	private List<ClientModel> getClientsOfType(String vcType, FormatVO format) {
 		LOGGER.debugf("Retrieve all clients of type %s, supporting format %s", vcType, format.toString());
+		if (format == FormatVO.JWT_VC) {
+			// backward compat
+			format = FormatVO.JWT_VC_JSON;
+		}
+		String formatString = format.toString();
 		Optional.ofNullable(vcType).filter(type -> !type.isEmpty()).orElseThrow(() -> {
 			LOGGER.info("No VC type was provided.");
 			return new ErrorResponseException("no_type_provided",
@@ -554,12 +556,12 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		});
 
 		String prefixedType = String.format("%s%s", VC_TYPES_PREFIX, vcType);
-
+		LOGGER.infof("Looking for client supporting %s with format %s", prefixedType, formatString);
 		List<ClientModel> vcClients = getClientModelsFromSession().stream()
 				.filter(clientModel -> Optional.ofNullable(clientModel.getAttributes())
 						.filter(attributes -> attributes.containsKey(prefixedType))
 						.filter(attributes -> Arrays.asList(attributes.get(prefixedType).split(","))
-								.contains(format.toString()))
+								.contains(formatString))
 						.isPresent())
 				.collect(Collectors.toList());
 
