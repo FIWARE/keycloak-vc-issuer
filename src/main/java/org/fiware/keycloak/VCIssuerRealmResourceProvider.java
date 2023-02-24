@@ -472,28 +472,28 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	private void validateProof(ProofVO proofVO) {
-//		if (proofVO.getProofType() != ProofTypeVO.JWT) {
-//			LOGGER.warn("We currently only support JWT proofs.");
-//			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
-//		}
-//		TokenVerifier<JsonWebToken> verifier = TokenVerifier.create(proofVO.getJwt(), JsonWebToken.class);
-//		try {
-//			// TODO: did signature verification needs to be implemented
-//			//verifier.verifySignature();
-//			JsonWebToken jwt = verifier.getToken();
-//			if (!Arrays.asList(jwt.getAudience()).contains(getIssuer())) {
-//				LOGGER.warnf("Provided jwt was not intended for the issuer %s. Was: %s", getIssuer(), proofVO.getJwt());
-//				throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
-//			}
-//			if (jwt.getIat() == null) {
-//				LOGGER.warnf("Provided jwt does not have the mandatory iat: %s", proofVO.getJwt());
-//				throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
-//			}
-//			// TODO: check nonce in the future, when we actually provide one.
-//		} catch (VerificationException e) {
-//			LOGGER.warnf("Signature of the provided jwt-proof was not valid: %s", proofVO.getJwt(), e);
-//			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
-//		}
+		if (proofVO.getProofType() != ProofTypeVO.JWT) {
+			LOGGER.warn("We currently only support JWT proofs.");
+			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
+		}
+		TokenVerifier<JsonWebToken> verifier = TokenVerifier.create(proofVO.getJwt(), JsonWebToken.class);
+		try {
+
+			verifier.verifySignature();
+			JsonWebToken jwt = verifier.getToken();
+			if (!Arrays.asList(jwt.getAudience()).contains(getIssuer())) {
+				LOGGER.warnf("Provided jwt was not intended for the issuer %s. Was: %s", getIssuer(), proofVO.getJwt());
+				throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
+			}
+			if (jwt.getIat() == null) {
+				LOGGER.warnf("Provided jwt does not have the mandatory iat: %s", proofVO.getJwt());
+				throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
+			}
+			// TODO: check nonce in the future, when we actually provide one.
+		} catch (VerificationException e) {
+			LOGGER.warnf("Signature of the provided jwt-proof was not valid: %s", proofVO.getJwt(), e);
+			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
+		}
 
 	}
 
