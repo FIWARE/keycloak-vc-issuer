@@ -103,5 +103,10 @@
     "Keycloak": "21.0.0",
     "FIWARE/Keycloak-VC-Issuer": "0.3.1",
     "compatible": true
+  },
+  {
+    "Keycloak": "21.0.1",
+    "FIWARE/Keycloak-VC-Issuer": "0.3.1",
+    "compatible": true
   }
 ]
