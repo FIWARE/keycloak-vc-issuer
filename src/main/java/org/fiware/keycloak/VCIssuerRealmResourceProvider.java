@@ -423,15 +423,19 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 			CredentialRequestVO credentialRequestVO) {
 		assertIssuerDid(issuerDidParam);
 		LOGGER.infof("Received credentials request %s.", credentialRequestVO);
-		List<String> types = null;
-		try {
-			types = new ArrayList<>(Optional.ofNullable(credentialRequestVO.getTypes())
-					.orElse(objectMapper.readValue(credentialRequestVO.getType(), new TypeReference<List<String>>() {
-					})));
-		} catch (JsonProcessingException e) {
-			LOGGER.warnf("Was not able to read the type parameter: %s", credentialRequestVO.getType(), e);
-			throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
-		}
+
+
+		List<String> types = new ArrayList<>(Optional.ofNullable(credentialRequestVO.getTypes())
+				.orElseGet(() -> {
+					try {
+						return objectMapper.readValue(credentialRequestVO.getType(), new TypeReference<List<String>>() {
+						});
+					} catch (JsonProcessingException e) {
+						LOGGER.warnf("Was not able to read the type parameter: %s", credentialRequestVO.getType(), e);
+						return null;
+					}
+				}));
+
 		// remove the static type
 		types.remove(TYPE_VERIFIABLE_CREDENTIAL);
 
