@@ -424,6 +424,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		assertIssuerDid(issuerDidParam);
 		LOGGER.infof("Received credentials request %s.", credentialRequestVO);
 
+
 		List<String> types = new ArrayList<>(Optional.ofNullable(credentialRequestVO.getTypes())
 				.orElseGet(() -> {
 					try {
@@ -434,6 +435,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 						return null;
 					}
 				}));
+
 		// remove the static type
 		types.remove(TYPE_VERIFIABLE_CREDENTIAL);
 
