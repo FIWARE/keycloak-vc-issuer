@@ -461,7 +461,13 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		String credentialString = getCredential(vcType, credentialRequestVO.getFormat(), null);
 		switch (requestedFormat) {
 			case LDP_VC: {
-				responseVO.setCredential(credentialString);
+				try {
+					// formats the string to an object and to valid json
+					Object credentialObject = objectMapper.readValue(credentialString, Object.class);
+					responseVO.setCredential(credentialObject);
+				} catch (JsonProcessingException e) {
+					LOGGER.warnf("Was not able to format credential %s.", credentialString, e);
+					throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));				}
 				break;
 			}
 			case JWT_VC_JSON: {
