@@ -64,6 +64,7 @@ import javax.validation.constraints.NotNull;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.FormParam;
 import javax.ws.rs.GET;
+import javax.ws.rs.OPTIONS;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
@@ -366,7 +367,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		LOGGER.infof("Successfully returned the token: %s.", encryptedToken);
 		return Response.ok().entity(new TokenResponse(encryptedToken, tokenType, expiresIn, null, null))
-				.header("Access-Control-Allow-Origin", "*").build();
+				.header("Access-Control-Allow-Origin", "*")
+				.build();
 	}
 
 	public String generateAuthorizationCode() {
@@ -388,6 +390,14 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	private Response getErrorResponse(ErrorType errorType) {
 		return Response.status(Response.Status.BAD_REQUEST).entity(new ErrorResponse(errorType.getValue())).build();
+	}
+
+	// since we cannot know the address of the requesting wallets in advance, we have to accept all origins.
+	@OPTIONS
+	@Path("{any: .*}")
+	public Response optionCorsResponse() {
+		return Response.ok().header("Access-Control-Allow-Origin", "*")
+				.header("Access-Control-Allow-Methods", "POST,GET,OPTIONS").build();
 	}
 
 	/**
