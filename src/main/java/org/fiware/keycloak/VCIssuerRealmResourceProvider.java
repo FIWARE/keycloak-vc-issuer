@@ -397,7 +397,9 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	@Path("{any: .*}")
 	public Response optionCorsResponse() {
 		return Response.ok().header("Access-Control-Allow-Origin", "*")
-				.header("Access-Control-Allow-Methods", "POST,GET,OPTIONS").build();
+				.header("Access-Control-Allow-Methods", "POST,GET,OPTIONS")
+				.header("Access-Control-Allow-Headers", "Content-Type,Authorization")
+				.build();
 	}
 
 	/**
