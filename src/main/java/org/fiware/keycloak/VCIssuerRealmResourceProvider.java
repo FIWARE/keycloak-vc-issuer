@@ -285,7 +285,10 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				});
 		credentialMetadata.setFormats(Map.of(FormatVO.LDP_VC.toString(), ldpVC, FormatVO.JWT_VC.toString(), jwtVC));
 		configAsMap.put("credentials_supported", Map.of("VerifiableCredential", credentialMetadata));
-		return Response.ok().entity(configAsMap).build();
+		return Response.ok()
+				.entity(configAsMap)
+				.header("Access-Control-Allow-Origin", "*")
+				.build();
 	}
 
 	@GET
@@ -424,8 +427,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		assertIssuerDid(issuerDidParam);
 		LOGGER.infof("Received credentials request %s.", credentialRequestVO);
 
-
-		List<String> types = new ArrayList<>(Optional.ofNullable(credentialRequestVO.getTypes())
+		List<String> types = new ArrayList<>(Objects.requireNonNull(Optional.ofNullable(credentialRequestVO.getTypes())
 				.orElseGet(() -> {
 					try {
 						return objectMapper.readValue(credentialRequestVO.getType(), new TypeReference<List<String>>() {
@@ -434,7 +436,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 						LOGGER.warnf("Was not able to read the type parameter: %s", credentialRequestVO.getType(), e);
 						return null;
 					}
-				}));
+				})));
 
 		// remove the static type
 		types.remove(TYPE_VERIFIABLE_CREDENTIAL);
@@ -467,7 +469,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 					responseVO.setCredential(credentialObject);
 				} catch (JsonProcessingException e) {
 					LOGGER.warnf("Was not able to format credential %s.", credentialString, e);
-					throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));				}
+					throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
+				}
 				break;
 			}
 			case JWT_VC_JSON: {
@@ -585,7 +588,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	@NotNull
 	private UserModel getUserFromSession(Optional<String> optionalToken) {
 		LOGGER.debugf("Extract user form session. Realm in context is %s.", session.getContext().getRealm());
-		// set the token in the context if its specifically provide. If empty, the authorization header will
+		// set the token in the context if its specifically provided. If empty, the authorization header will
 		// automatically be evaluated
 		optionalToken.ifPresent(bearerTokenAuthenticator::setTokenString);
 
