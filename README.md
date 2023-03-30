@@ -1,7 +1,7 @@
 # Keycloak VC-Issuer
 
 [![FIWARE Security](https://nexus.lab.fiware.org/repository/raw/public/badges/chapters/security.svg)](https://www.fiware.org/developers/catalogue/)
-[![License badge](https://img.shields.io/github/license/FIWARE/context.Orion-LD.svg)](https://opensource.org/licenses/AGPL-3.0)
+[![License badge](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Container Repository on Quay](https://img.shields.io/badge/quay.io-VCIssuer-green "Container Repository on Quay")](https://quay.io/repository/fiware/keycloak-vc-issuer)
 [![Integration-Test](https://github.com/FIWARE/keycloak-vc-issuer/actions/workflows/integration-test.yaml/badge.svg)](https://github.com/FIWARE/keycloak-vc-issuer/actions/workflows/integration-test.yaml)
 [![Unit-Test](https://github.com/FIWARE/keycloak-vc-issuer/actions/workflows/test.yaml/badge.svg)](https://github.com/FIWARE/keycloak-vc-issuer/actions/workflows/test.yaml)
