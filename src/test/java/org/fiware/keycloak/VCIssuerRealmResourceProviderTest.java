@@ -460,7 +460,7 @@ public class VCIssuerRealmResourceProviderTest {
 						Map.of(getSiopClient("did:key:1",
 										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
 												"vc_additional", "claim",
-												"MyType_claims", "email,firstName,familyName,roles,additonal"),
+												"MyType_claims", "email,firstName,familyName,roles,additional"),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
