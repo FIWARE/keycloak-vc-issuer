@@ -320,52 +320,57 @@ public class VCIssuerRealmResourceProviderTest {
 		return Stream.of(
 				getArguments(getUserModel("e@mail.org", "Happy", "User"),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
 								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")), "e@mail.org", "Happy",
 										"User",
-										null), "A valid VCRequest should have been sent to Walt-ID")
+										Map.of()), "A valid VCRequest should have been sent to Walt-ID")
 				),
 				getArguments(getUserModel("e@mail.org", null, "User"),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
 								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")), "e@mail.org",
 										null,
 										"User",
-										null), "A valid VCRequest should have been sent to Walt-ID")
+										Map.of()), "A valid VCRequest should have been sent to Walt-ID")
 				),
 				getArguments(
 						getUserModel("e@mail.org", null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
 								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")), "e@mail.org",
 										null,
 										null,
-										null), "A valid VCRequest should have been sent to Walt-ID")
+										Map.of()), "A valid VCRequest should have been sent to Walt-ID")
 				),
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
 								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")), null, null,
 										null,
-										null), "A valid VCRequest should have been sent to Walt-ID")
+										Map.of()), "A valid VCRequest should have been sent to Walt-ID")
 				),
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole"))),
 						new ExpectedResult<>(
@@ -373,12 +378,13 @@ public class VCIssuerRealmResourceProviderTest {
 										null,
 										null,
 										null,
-										null), "Multiple roles should be included")
+										Map.of()), "Multiple roles should be included")
 				),
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
@@ -386,16 +392,18 @@ public class VCIssuerRealmResourceProviderTest {
 										null,
 										null,
 										null,
-										null), "Only assigned roles should be included.")
+										Map.of()), "Only assigned roles should be included.")
 				),
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult<>(
@@ -404,16 +412,18 @@ public class VCIssuerRealmResourceProviderTest {
 										null,
 										null,
 										null,
-										null), "The request should contain roles from both clients")
+										Map.of()), "The request should contain roles from both clients")
 				),
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
-										Map.of("vctypes_AnotherType", FormatVO.LDP_VC.toString()),
+										Map.of("vctypes_AnotherType", FormatVO.LDP_VC.toString(),
+												"AnotherType_claims", "email,firstName,familyName,roles"),
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult<>(
@@ -421,20 +431,20 @@ public class VCIssuerRealmResourceProviderTest {
 										null,
 										null,
 										null,
-										null), "Only roles for supported clients should be included.")
+										Map.of()), "Only roles for supported clients should be included.")
 				),
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
 										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
-												"vc_additional",
-												"claim"),
+												"vc_additional", "claim",
+												"MyType_claims", "email,firstName,familyName,roles,additional,more"),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
 										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
-												"vc_more",
-												"claims"),
+												"vc_more", "claims",
+												"MyType_claims", "email,firstName,familyName,roles,additional,more"),
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult<>(
@@ -449,14 +459,14 @@ public class VCIssuerRealmResourceProviderTest {
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
 										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
-												"vc_additional",
-												"claim"),
+												"vc_additional", "claim",
+												"MyType_claims", "email,firstName,familyName,roles,additonal"),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
 										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
-												"vc_additional",
-												"claim"),
+												"vc_additional", "claim",
+												"MyType_claims", "email,firstName,familyName,roles,additional"),
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult<>(
