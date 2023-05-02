@@ -633,18 +633,42 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 			Optional<Long> optionalMinExpiry) {
 		// only include non-null & non-empty claims
 		var claimsBuilder = VCClaims.builder();
-		Optional.ofNullable(userModel.getEmail()).filter(email -> !email.isEmpty()).ifPresent(claimsBuilder::email);
-		Optional.ofNullable(userModel.getFirstName()).filter(firstName -> !firstName.isEmpty())
-				.ifPresent(claimsBuilder::firstName);
-		Optional.ofNullable(userModel.getLastName()).filter(lastName -> !lastName.isEmpty())
-				.ifPresent(claimsBuilder::familyName);
-		Optional.ofNullable(roles).filter(rolesList -> !rolesList.isEmpty()).ifPresent(claimsBuilder::roles);
-		getAdditionalClaims(clients).ifPresent(claimsBuilder::additionalClaims);
-		VCClaims vcClaims = claimsBuilder.build();
+
+		List<String> claims = getClaimsToSet(vcType, clients);
+		LOGGER.infof("Will set %s", claims);
+		if (claims.contains("email")) {
+			Optional.ofNullable(userModel.getEmail()).filter(email -> !email.isEmpty()).ifPresent(claimsBuilder::email);
+		}
+		if (claims.contains("firstName")) {
+			Optional.ofNullable(userModel.getFirstName()).filter(firstName -> !firstName.isEmpty())
+					.ifPresent(claimsBuilder::firstName);
+		}
+		if (claims.contains("familyName")) {
+			Optional.ofNullable(userModel.getLastName()).filter(lastName -> !lastName.isEmpty())
+					.ifPresent(claimsBuilder::familyName);
+		}
+		if (claims.contains("roles")) {
+			Optional.ofNullable(roles).filter(rolesList -> !rolesList.isEmpty()).ifPresent(claimsBuilder::roles);
+		}
+		Map<String, String> additionalClaims = getAdditionalClaims(clients).map(claimsMap ->
+				claimsMap.entrySet().stream().filter(entry -> claims.contains(entry.getKey()))
+						.collect(Collectors.toMap(
+								Map.Entry::getKey, Map.Entry::getValue))
+		).orElse(Map.of());
 
 		var vcConfigBuilder = VCConfig.builder();
+		if (additionalClaims.containsKey("subjectDid")) {
+			LOGGER.infof("Set subject did to %s", additionalClaims.get("subjectDid"));
+			vcConfigBuilder.subjectDid(additionalClaims.get("subjectDid"));
+			additionalClaims.remove("subjectDid");
+		} else {
+			// we have to set something
+			vcConfigBuilder.subjectDid(UUID.randomUUID().toString());
+		}
+
+		claimsBuilder.additionalClaims(additionalClaims);
+		VCClaims vcClaims = claimsBuilder.build();
 		vcConfigBuilder.issuerDid(issuerDid)
-				.subjectDid(UUID.randomUUID().toString())
 				.proofType(proofType.toString());
 		optionalMinExpiry
 				.map(minExpiry -> Clock.systemUTC()
@@ -660,6 +684,23 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 						.credentialSubject(vcClaims)
 						.build())
 				.build();
+	}
+
+	@NotNull
+	private List<String> getClaimsToSet(String credentialType, List<ClientModel> clients) {
+		String claims = clients.stream()
+				.map(ClientModel::getAttributes)
+				.filter(Objects::nonNull)
+				.map(Map::entrySet)
+				.flatMap(Set::stream)
+				// get the claims
+				.filter(entry -> entry.getKey().equals(String.format("%s_%s", credentialType, "claims")))
+				.findFirst()
+				.map(Map.Entry::getValue)
+				.orElse("");
+		LOGGER.infof("Should set %s for %s.", claims, credentialType);
+		return Arrays.asList(claims.split(","));
+
 	}
 
 	@NotNull
