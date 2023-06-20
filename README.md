@@ -250,7 +250,7 @@ The frontend currently supports three types of QR-Codes:
 The VC Issuer is a fully-self-contained provider, thus the jar-file only has to be added to the ```providers```-folder
 of Keycloak(typically under ```/opt/keycloak/providers```). Keycloak will automatically pick-up the provider at
 start-time. The plugin is available as jar-file
-through [the github-releases](https://github.com/wistefan/keycloak-vc-issuer/releases) or as
+through [the github-releases](https://github.com/fiware/keycloak-vc-issuer/releases) or as
 a [container at quay.io](https://quay.io/repository/fiware/keycloak-vc-issuer). The container can for example be used as
 an init-container, to copy the jar file into a shared folder and make it available for Keycloak. See
 the [k3s-setup](./src/test/k3s)
