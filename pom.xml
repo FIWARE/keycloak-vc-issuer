@@ -10,7 +10,7 @@
 
     <name>Keycloak VC-Issuer</name>
     <description>Keycloak plugin to support issuing of verifiable credentials</description>
-    <url>https://github.com/wistefan/keycloak-vc-issuer</url>
+    <url>https://github.com/fiware/keycloak-vc-issuer</url>
     <inceptionYear>2023</inceptionYear>
     <organization>
         <name>FIWARE Foundation e.V.</name>
@@ -47,7 +47,7 @@
             VerifiableCredentials for users.
         </project.description>
         <project.summary>Keycloak plugin for issuing Verifiable Credentials.</project.summary>
-        <project.url>https://github.com/wistefan/keycloak-vc-issuer</project.url>
+        <project.url>https://github.com/fiware/keycloak-vc-issuer</project.url>
         <project.license.name>GNU Affero General Public License v3.0</project.license.name>
         <project.license.identifier>Apache License 2.0</project.license.identifier>
         <project.license.url>https://www.apache.org/licenses/LICENSE-2.0</project.license.url>
