@@ -74,8 +74,6 @@ export class VC extends React.Component<VCProps, VCState> {
 
   constructor(props: VCProps, context:  React.ContextType<typeof AccountServiceContext>){
 
-    console.log("Received context")
-    console.log(context)
     super(props, context)
     this.state = {
       dropdownItems: [],
@@ -138,43 +136,6 @@ export class VC extends React.Component<VCProps, VCState> {
           });
     }
   
-  
-  private generateVCUrl() {
- 
-    const supportedCredential: SupportedCredential = this.getSelectedCredential()
-
-    const accountURL = new URL(this.context.accountUrl);
-    const keycloakContext = this.context.kcSvc.keycloakAuth;
-    const vcIssue = accountURL.protocol + "//" + accountURL.host + "/realms/" + keycloakContext.realm + "/verifiable-credential/" +  this.state.issuerDid + "?type="+  supportedCredential.type + "&token=" + keycloakContext.token;
-
-    this.setState({ ...{
-      vcUrl: vcIssue,
-      vcQRVisible: false,
-      offerQRVisible: false,
-      urlQRVisible: true}});
-  }
-
-  private requestVC() {
-
- 
-    const supportedCredential: SupportedCredential = this.getSelectedCredential()
-
-    const accountURL = new URL(this.context.accountUrl)
-    const keycloakContext = this.context.kcSvc.keycloakAuth;
-    const vcIssue = accountURL.protocol + "//" + accountURL.host + "/realms/" + keycloakContext.realm + "/verifiable-credential/" +  this.state.issuerDid + "?type="+  supportedCredential.type;
-    const token = keycloakContext.token
-  
-    var options = {  
-      method: 'GET',
-      headers: {
-        'Authorization': 'Bearer ' + token,
-        'Content-Type': 'application/json'
-      }
-    }
-    fetch(vcIssue, options)
-      .then(response => this.handleResponse(response))
-  }
-
   private getSelectedCredential(): SupportedCredential {
     const selectedOption = this.state.selectOptions.get(this.state.selected.toString());
     if(selectedOption === undefined) {
@@ -282,20 +243,6 @@ export class VC extends React.Component<VCProps, VCState> {
             <ActionList>
               <ActionListItem>
                 <Button 
-                  onClick={() => this.requestVC()} 
-                  isDisabled={isDisabled}>
-                  Request VerifiableCredential
-                </Button>
-              </ActionListItem>
-              <ActionListItem>
-                <Button 
-                  onClick={() => this.generateVCUrl()} 
-                  isDisabled={isDisabled}>
-                  Generate VerifiableCredential-Request
-                </Button>
-              </ActionListItem>
-              <ActionListItem>
-                <Button 
                   onClick={() => this.requestVCOffer()} 
                   isDisabled={isDisabled}>
                   Initiate Credential-Issuance(OIDC4CI)
@@ -306,28 +253,6 @@ export class VC extends React.Component<VCProps, VCState> {
           
           <ListItem>
           <ActionList>  
-          { vcQRVisible &&
-              <ActionListItem>
-            <QRCodeSVG 
-              value={credential}
-              bgColor={"#ffffff"}
-              fgColor={"#000000"}
-              level={"L"}
-              includeMargin={false}
-              size={512}/> 
-              </ActionListItem>
-          }
-          { urlQRVisible &&
-              <ActionListItem>
-            <QRCodeSVG 
-              value={vcUrl}
-              bgColor={"#ffffff"}
-              fgColor={"#000000"}
-              level={"L"}
-              includeMargin={false}
-              size={512}/> 
-              </ActionListItem>
-          }   
           { offerQRVisible &&
               <ActionListItem>
             <QRCodeSVG 
