@@ -95,6 +95,7 @@ public class WaltIdClient {
 									.uri(getCoreGetDidListURI())
 									.build(), HttpResponse.BodyHandlers.ofString());
 		} catch (IOException | InterruptedException e) {
+			Thread.currentThread().interrupt();
 			throw new WaltIdConnectException("Was not able to request did list from  walt-id.", e);
 		}
 		if (response == null || response.statusCode() != 200) {
@@ -119,6 +120,7 @@ public class WaltIdClient {
 									.uri(getCoreGetDidURI(did))
 									.build(), HttpResponse.BodyHandlers.ofString());
 		} catch (IOException | InterruptedException e) {
+			Thread.currentThread().interrupt();
 			throw new WaltIdConnectException("Was not able to request did from  walt-id.", e);
 		}
 		if (response == null || response.statusCode() != 200) {
@@ -140,6 +142,7 @@ public class WaltIdClient {
 									.uri(getCoreCreateDidURI())
 									.build(), HttpResponse.BodyHandlers.ofString());
 		} catch (IOException | InterruptedException e) {
+			Thread.currentThread().interrupt();
 			throw new WaltIdConnectException("Was not able to create did at walt-id.", e);
 		}
 		if (response == null || response.statusCode() != 200) {
@@ -159,6 +162,7 @@ public class WaltIdClient {
 									.uri(getCoreImportDidURI(key))
 									.build(), HttpResponse.BodyHandlers.ofString());
 		} catch (IOException | InterruptedException e) {
+			Thread.currentThread().interrupt();
 			throw new WaltIdConnectException("Was not able to import did at walt-id.", e);
 		}
 		if (response == null || response.statusCode() != 201) {
@@ -179,6 +183,7 @@ public class WaltIdClient {
 									.uri(getCoreImportKeyURI())
 									.build(), HttpResponse.BodyHandlers.ofString());
 		} catch (IOException | InterruptedException e) {
+			Thread.currentThread().interrupt();
 			throw new WaltIdConnectException("Was not able to import the key at walt-id.", e);
 		}
 		if (response == null || response.statusCode() != 200) {
