@@ -104,7 +104,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	public static final String CREDENTIAL_PATH = "credential";
 	public static final String TYPE_VERIFIABLE_CREDENTIAL = "VerifiableCredential";
 	public static final String GRANT_TYPE_PRE_AUTHORIZED_CODE = "urn:ietf:params:oauth:grant-type:pre-authorized_code";
-	private static final String ACCESS_CONTROL_HEADER = "Access-Control-Allow-Origin;"
+	private static final String ACCESS_CONTROL_HEADER = "Access-Control-Allow-Origin";
 
 	private final KeycloakSession session;
 	public static final String SUBJECT_DID = "subjectDid";
