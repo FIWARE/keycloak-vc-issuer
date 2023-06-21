@@ -22,9 +22,19 @@ to compliant wallets.
     - [OCI-Container](#oci-container)
     - [UI-Integration](#ui-integration)
     - [WaltId-SSIKit](#waltid-ssikit)
+    - [Configuration](#configuration)
 - [Usage](#usage)
     - [API](#api)
     - [Protocol](#protocol)
+    - [Configure Claims for Credential-Types](#configure-claims-for-credential-types)
+      - [Static values](#static-values)
+      - [Dynamic values](#dynamic-values)
+- [Demo](#demo)
+- [Testing](#testing)
+  - [Unit-Testing](#unit-testing)
+  - [Integration-Testing](#integration-testing)
+  - [Compatibility-Testing](#compatibility-testing)
+- [License](#license)
 
 ## Background
 
@@ -141,7 +151,7 @@ in the well-known Keycloak way. In addition to that, it provides the endpoints f
 VerifiableCredentials for their account. To integrate with the Account-Console frontend, a theme(```siop-2```) is
 included.
 
-### Api
+### API
 
 The plugin provides multiple endpoints through its API ([see OpenApi-Doc](./doc/api.yaml)) as a realm resource. They
 seperate into two categories. See the [see OpenApi-Doc](./doc/api.yaml) for detailed information and examples:
