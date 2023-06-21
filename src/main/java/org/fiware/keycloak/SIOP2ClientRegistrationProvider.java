@@ -86,7 +86,7 @@ public class SIOP2ClientRegistrationProvider extends AbstractClientRegistrationP
 					Response.Status.BAD_REQUEST);
 		}
 		if (!did.startsWith("did:")) {
-			// TODO: future implementations should check the acutal validity of a did, instead of just the format
+			// TODO: future implementations should check the actual validity of a did, instead of just the format
 			throw new ErrorResponseException("invalid_did", "The client did is not a valid did.",
 					Response.Status.BAD_REQUEST);
 		}

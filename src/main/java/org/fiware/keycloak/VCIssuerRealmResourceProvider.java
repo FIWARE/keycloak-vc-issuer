@@ -25,7 +25,6 @@ import org.fiware.keycloak.model.walt.ProofType;
 import org.fiware.keycloak.oidcvc.model.CredentialIssuerVO;
 import org.fiware.keycloak.oidcvc.model.CredentialRequestVO;
 import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
-import org.fiware.keycloak.oidcvc.model.CredentialVO;
 import org.fiware.keycloak.oidcvc.model.CredentialsOfferVO;
 import org.fiware.keycloak.oidcvc.model.DisplayObjectVO;
 import org.fiware.keycloak.oidcvc.model.ErrorResponseVO;
@@ -72,7 +71,6 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.lang.reflect.Type;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -93,7 +91,7 @@ import java.util.stream.Collectors;
 import static org.fiware.keycloak.SIOP2ClientRegistrationProvider.VC_TYPES_PREFIX;
 
 /**
- * Real-Resource to provide functionality for issuing VerfiableCredentials to users, depending on there roles in
+ * Realm-Resource to provide functionality for issuing VerfiableCredentials to users, depending on there roles in
  * registered SIOP-2 clients
  */
 public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
@@ -106,8 +104,10 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	public static final String CREDENTIAL_PATH = "credential";
 	public static final String TYPE_VERIFIABLE_CREDENTIAL = "VerifiableCredential";
 	public static final String GRANT_TYPE_PRE_AUTHORIZED_CODE = "urn:ietf:params:oauth:grant-type:pre-authorized_code";
+	private static final String ACCESS_CONTROL_HEADER = "Access-Control-Allow-Origin";
 
 	private final KeycloakSession session;
+	public static final String SUBJECT_DID = "subjectDid";
 	private final String issuerDid;
 	private final AppAuthManager.BearerTokenAuthenticator bearerTokenAuthenticator;
 	private final WaltIdClient waltIdClient;
@@ -135,11 +135,16 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		// no specific resources to close.
 	}
 
+	/**
+	 * Returns the did used by Keycloak to issue credentials
+	 *
+	 * @return the did
+	 */
 	@GET
 	@Path("/issuer")
 	@Produces(MediaType.TEXT_PLAIN)
 	public Response getIssuerDid() {
-		return Response.ok().entity(issuerDid).header("Access-Control-Allow-Origin", "*").build();
+		return Response.ok().entity(issuerDid).header(ACCESS_CONTROL_HEADER, "*").build();
 	}
 
 	/**
@@ -161,6 +166,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		return getCredentialsFromModels(getClientModelsFromSession());
 	}
 
+	// filter the client models for supported verifable credentials
 	private List<SupportedCredential> getCredentialsFromModels(List<ClientModel> clientModels) {
 		return List.copyOf(clientModels.stream()
 				.map(ClientModel::getAttributes)
@@ -171,10 +177,12 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.collect(Collectors.toSet()));
 	}
 
+	// return the current usermodel
 	private UserModel getUserModel(ErrorResponseException errorResponse) {
 		return getAuthResult(errorResponse).getUser();
 	}
 
+	// return the current usersession model
 	private UserSessionModel getUserSessionModel() {
 		return getAuthResult(new ErrorResponseException(getErrorResponse(ErrorType.INVALID_TOKEN))).getSession();
 	}
@@ -183,6 +191,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		return getAuthResult(new ErrorResponseException(getErrorResponse(ErrorType.INVALID_TOKEN)));
 	}
 
+	// get the auth result from the authentication manager
 	private AuthenticationManager.AuthResult getAuthResult(ErrorResponseException errorResponse) {
 		AuthenticationManager.AuthResult authResult = bearerTokenAuthenticator.authenticate();
 		if (authResult == null) {
@@ -195,12 +204,16 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		return getUserModel(new ErrorResponseException(getErrorResponse(ErrorType.INVALID_TOKEN)));
 	}
 
+	// assert that the given string is the configured issuer did
 	private void assertIssuerDid(String requestedIssuerDid) {
 		if (!requestedIssuerDid.equals(issuerDid)) {
 			throw new ErrorResponseException("not_found", "No such issuer exists.", Response.Status.NOT_FOUND);
 		}
 	}
 
+	/**
+	 * Returns the meta data of the issuer.
+	 */
 	@GET
 	@Path("{issuer-did}/.well-known/openid-credential-issuer")
 	@Produces({ MediaType.APPLICATION_JSON })
@@ -218,7 +231,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 						.authorizationServer(String.format(authorizationEndpointPattern, getIssuer()))
 						.credentialEndpoint(getCredentialEndpoint())
 						.credentialsSupported(getSupportedCredentials(currentContext)))
-				.header("Access-Control-Allow-Origin", "*").build();
+				.header(ACCESS_CONTROL_HEADER, "*").build();
 	}
 
 	private String getRealmResourcePath() {
@@ -242,10 +255,13 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				issuerDid);
 	}
 
+	/**
+	 * Returns the openid-configuration of the issuer.
+	 * OIDC4VCI wallets expect the openid-configuration below the issuers root, thus we provide it here in addition to its standard keycloak path.
+	 */
 	@GET
 	@Path("{issuer-did}/.well-known/openid-configuration")
 	@Produces({ MediaType.APPLICATION_JSON })
-	// OIDC4VCI wallets expect the openid-configuration below the issuer root, thus we provide it here, too.
 	public Response getOIDCConfig(@PathParam("issuer-did") String issuerDidParam) {
 		LOGGER.info("Get OIDC config.");
 		assertIssuerDid(issuerDidParam);
@@ -285,13 +301,16 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 					}
 				});
 		credentialMetadata.setFormats(Map.of(FormatVO.LDP_VC.toString(), ldpVC, FormatVO.JWT_VC.toString(), jwtVC));
-		configAsMap.put("credentials_supported", Map.of("VerifiableCredential", credentialMetadata));
+		configAsMap.put("credentials_supported", Map.of(TYPE_VERIFIABLE_CREDENTIAL, credentialMetadata));
 		return Response.ok()
 				.entity(configAsMap)
-				.header("Access-Control-Allow-Origin", "*")
+				.header(ACCESS_CONTROL_HEADER, "*")
 				.build();
 	}
 
+	/**
+	 * Provides an OIDC4VCI compliant credentials offer
+	 */
 	@GET
 	@Path("{issuer-did}/credential-offer")
 	@Produces({ MediaType.APPLICATION_JSON })
@@ -325,11 +344,14 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		LOGGER.infof("Responding with offer: %s", theOffer);
 		return Response.ok()
 				.entity(theOffer)
-				.header("Access-Control-Allow-Origin", "*")
+				.header(ACCESS_CONTROL_HEADER, "*")
 				.build();
 
 	}
 
+	/**
+	 * Token endpoint, as defined by the standard. Allows to exchange the pre-authorized-code with an access-token
+	 */
 	@POST
 	@Path("{issuer-did}/token")
 	@Consumes(MediaType.APPLICATION_FORM_URLENCODED)
@@ -367,11 +389,11 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		LOGGER.infof("Successfully returned the token: %s.", encryptedToken);
 		return Response.ok().entity(new TokenResponse(encryptedToken, tokenType, expiresIn, null, null))
-				.header("Access-Control-Allow-Origin", "*")
+				.header(ACCESS_CONTROL_HEADER, "*")
 				.build();
 	}
 
-	public String generateAuthorizationCode() {
+	private String generateAuthorizationCode() {
 
 		AuthenticationManager.AuthResult authResult = getAuthResult();
 		UserSessionModel userSessionModel = getUserSessionModel();
@@ -392,11 +414,15 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		return Response.status(Response.Status.BAD_REQUEST).entity(new ErrorResponse(errorType.getValue())).build();
 	}
 
-	// since we cannot know the address of the requesting wallets in advance, we have to accept all origins.
+	/**
+	 * Options endpoint to serve the cors-preflight requests.
+	 *
+	 * Since we cannot know the address of the requesting wallets in advance, we have to accept all origins.
+	 */
 	@OPTIONS
 	@Path("{any: .*}")
 	public Response optionCorsResponse() {
-		return Response.ok().header("Access-Control-Allow-Origin", "*")
+		return Response.ok().header(ACCESS_CONTROL_HEADER, "*")
 				.header("Access-Control-Allow-Methods", "POST,GET,OPTIONS")
 				.header("Access-Control-Allow-Headers", "Content-Type,Authorization")
 				.build();
@@ -422,10 +448,13 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		assertIssuerDid(issuerDidParam);
 		return Response.ok().
 				entity(getCredential(vcType, FormatVO.LDP_VC, token)).
-				header("Access-Control-Allow-Origin", "*").
+				header(ACCESS_CONTROL_HEADER, "*").
 				build();
 	}
 
+	/**
+	 * Requests a credential from the issuer
+	 */
 	@POST
 	@Path("{issuer-did}/" + CREDENTIAL_PATH)
 	@Consumes({ "application/json" })
@@ -490,7 +519,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 						.id(UUID.randomUUID().toString())
 						.issuer(issuerDid)
 						.nbf(clock.instant().getEpochSecond());
-				jwt.setOtherClaims("credential", credentialString);
+				jwt.setOtherClaims(CREDENTIAL_PATH, credentialString);
 				responseVO.setCredential(session.tokens().encodeAndEncrypt(jwt));
 				break;
 			}
@@ -501,7 +530,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		}
 		return Response.ok().entity(responseVO)
-				.header("Access-Control-Allow-Origin", "*").build();
+				.header(ACCESS_CONTROL_HEADER, "*").build();
 	}
 
 	private void validateProof(ProofVO proofVO) {
@@ -657,10 +686,10 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		).orElse(Map.of());
 
 		var vcConfigBuilder = VCConfig.builder();
-		if (additionalClaims.containsKey("subjectDid")) {
-			LOGGER.infof("Set subject did to %s", additionalClaims.get("subjectDid"));
-			vcConfigBuilder.subjectDid(additionalClaims.get("subjectDid"));
-			additionalClaims.remove("subjectDid");
+		if (additionalClaims.containsKey(SUBJECT_DID)) {
+			LOGGER.infof("Set subject did to %s", additionalClaims.get(SUBJECT_DID));
+			vcConfigBuilder.subjectDid(additionalClaims.get(SUBJECT_DID));
+			additionalClaims.remove(SUBJECT_DID);
 		} else {
 			// we have to set something
 			vcConfigBuilder.subjectDid(UUID.randomUUID().toString());

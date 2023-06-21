@@ -1,7 +1,6 @@
 package org.fiware.keycloak.model;
 
 import lombok.Getter;
-import org.hibernate.annotations.Target;
 
 public enum ErrorType {
 

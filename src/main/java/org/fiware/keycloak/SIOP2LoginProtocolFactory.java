@@ -26,7 +26,6 @@ import java.util.Optional;
 @AutoService(LoginProtocolFactory.class)
 public class SIOP2LoginProtocolFactory implements LoginProtocolFactory {
 
-	private static final Logger LOGGER = Logger.getLogger(SIOP2LoginProtocolFactory.class);
 	public static final String PROTOCOL_ID = "SIOP-2";
 
 	@Override public Map<String, ProtocolMapperModel> getBuiltinMappers() {
