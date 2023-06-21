@@ -76,7 +76,7 @@
 
         <!-- test -->
         <version.io.fabric8.maven-plugin>4.4.2</version.io.fabric8.maven-plugin>
-        <version.io.kokuwa.maven.k3s-plugin>0.6.2</version.io.kokuwa.maven.k3s-plugin>
+        <version.io.kokuwa.maven.k3s-plugin>1.0.0</version.io.kokuwa.maven.k3s-plugin>
         <version.org.junit.jupiter>5.9.2</version.org.junit.jupiter>
         <version.org.mockito.mockito-all>1.10.19</version.org.mockito.mockito-all>
         <version.org.mockito.mockito-junit-jupiter>5.0.0</version.org.mockito.mockito-junit-jupiter>
@@ -623,10 +623,9 @@
                             <execution>
                                 <id>prepare-test-cluster</id>
                                 <goals>
-                                    <goal>create</goal>
-                                    <goal>start</goal>
+                                    <goal>run</goal>
                                     <goal>image</goal>
-                                    <goal>kubectl</goal>
+                                    <goal>apply</goal>
                                     <goal>rm</goal>
                                 </goals>
                                 <configuration>
@@ -634,7 +633,6 @@
                                         <dockerImage>keycloak</dockerImage>
                                         <dockerImage>keycloak-vc-issuer</dockerImage>
                                     </dockerImages>
-                                    <streamLogs>true</streamLogs>
                                     <portBindings>
                                         <portBinding>8080:8080</portBinding>
                                         <portBinding>7000:7000</portBinding>
@@ -713,17 +711,15 @@
                             <execution>
                                 <id>prepare-test-cluster</id>
                                 <goals>
-                                    <goal>create</goal>
-                                    <goal>start</goal>
+                                    <goal>run</goal>
                                     <goal>image</goal>
-                                    <goal>kubectl</goal>
+                                    <goal>apply</goal>
                                 </goals>
                                 <configuration>
                                     <dockerImages>
                                         <dockerImage>keycloak</dockerImage>
                                         <dockerImage>keycloak-vc-issuer</dockerImage>
                                     </dockerImages>
-                                    <streamLogs>true</streamLogs>
                                     <portBindings>
                                         <portBinding>8080:8080</portBinding>
                                         <portBinding>7000:7000</portBinding>
