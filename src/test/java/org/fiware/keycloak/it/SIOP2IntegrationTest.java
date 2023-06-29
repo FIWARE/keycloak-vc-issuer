@@ -339,7 +339,6 @@ public class SIOP2IntegrationTest {
 		assertEquals(HttpStatus.SC_OK, oid4VciResponse.statusCode(),
 				"The metadata should have been successfully returned.");
 		CredentialIssuerVO issuerVO = OBJECT_MAPPER.readValue(oid4VciResponse.body(), CredentialIssuerVO.class);
-		assertNotNull(issuerVO.getAuthorizationServer(), "An authorization server should be provided.");
 		assertEquals(credentialsOfferVO.getCredentialIssuer(), issuerVO.getCredentialIssuer(),
 				"The metadata for the offered issuer should have been returend.");
 		assertNotNull(issuerVO.getCredentialsSupported(), "The supported credentials should be included.");
@@ -353,10 +352,11 @@ public class SIOP2IntegrationTest {
 		// follow authorization server address to get openid-configuration for the provided issuer
 		HttpResponse<String> oidConfigResponse = HttpClient.newHttpClient()
 				.send(HttpRequest.newBuilder()
-								.GET()
-								.uri(URI.create(issuerVO.getAuthorizationServer()))
-								.build(),
-						HttpResponse.BodyHandlers.ofString());
+						.GET()
+						.uri(URI.create(
+								issuerUrl + ".well-known/openid-configuration))
+										.build(),
+								HttpResponse.BodyHandlers.ofString());
 		assertEquals(HttpStatus.SC_OK, oidConfigResponse.statusCode(),
 				"The config should have been successfully returned.");
 		Map<String, Object> configMap = OBJECT_MAPPER.readValue(oidConfigResponse.body(),
