@@ -249,7 +249,7 @@ components:
         - format
     ProofType:
       type: string
-      enum: ["jwt", "ld_proof"]
+      enum: [ "jwt", "ld_proof" ]
       example: "jwt"
     Proof:
       type: object
@@ -416,6 +416,11 @@ components:
         - credential_issuer
         - credential_endpoint
         - credentials_supported
+    PreAuthorizedGrant:
+      type: object
+      properties:
+        "urn:ietf:params:oauth:grant-type:pre-authorized_code":
+          $ref: '#/components/schemas/PreAuthorized'
     PreAuthorized:
       type: object
       properties:
@@ -441,13 +446,13 @@ components:
             type: object
             description: Either the id of a credential, offered in the issuer metadata or a supported credential object
         grants:
-          $ref: '#/components/schemas/PreAuthorized'
+          $ref: '#/components/schemas/PreAuthorizedGrant'
       required:
         - credential_issuer
         - credentials
     SignatureAlgorithm:
       type: string
-      enum: ["RS256","ES256","ES256K","EdDSA"]
+      enum: [ "RS256","ES256","ES256K","EdDSA" ]
     SIOPMetadata:
       type: object
       properties:
@@ -466,19 +471,19 @@ components:
           description: A JSON array of strings representing supported response types. MUST be id_token.
           items:
             type: string
-            enum: ["id_token"]
+            enum: [ "id_token" ]
         scopes_supported:
-          description:  A JSON array of strings representing supported scopes. MUST support the openid scope value
+          description: A JSON array of strings representing supported scopes. MUST support the openid scope value
           type: array
           items:
             type: string
-            enum: ["openid"]
+            enum: [ "openid" ]
         subject_types_supported:
           description: A JSON array of strings representing supported subject types. Valid values include pairwise and public
           type: array
           items:
             type: string
-            enum: ["pairwise", "public"]
+            enum: [ "pairwise", "public" ]
         id_token_signing_alg_values_supported:
           description: A JSON array containing a list of the JWS signing algorithms (alg values) supported by the OP for the ID Token to encode the Claims in a JWT [RFC7519]. Valid values include RS256, ES256, ES256K, and EdDSA.
           type: array
@@ -514,7 +519,7 @@ components:
       properties:
         grant_type:
           type: string
-          enum: ["urn:ietf:params:oauth:grant-type:pre-authorized_code"]
+          enum: [ "urn:ietf:params:oauth:grant-type:pre-authorized_code" ]
         code:
           type: string
           description: The pre-authorized code, that should be exchanged with an access_token
@@ -533,7 +538,7 @@ components:
           example: eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJkNi0xekdLVlNGSHUzREF1SHFpdmRaS1loTmN1dzZpUEpxaGRJNTNKMDVBIn0.eyJleHAiOjE2NzcwNjg3NDUsImlhdCI6MTY3NzA2ODQ0NSwiYXV0aF90aW1lIjoxNjc3MDY3NTUyLCJqdGkiOiIxYjBiYTg1NS0yZDJmLTQ1MGYtOGUxMy00ZjBkMWUyYmFiOTYiLCJpc3MiOiJodHRwczovL2tjLW9uZS5iYXR0ZXJ5cGFzcy5maXdhcmUuZGV2L3JlYWxtcy9maXdhcmUtc2VydmVyIiwiYXVkIjoiYWNjb3VudCIsInN1YiI6IjQ4MzBhNzJkLWM4MTAtNDU2Ny1hNThlLWU5ZWU1Mzk0NjM4OSIsInR5cCI6IkJlYXJlciIsImF6cCI6ImFjY291bnQtY29uc29sZSIsInNlc3Npb25fc3RhdGUiOiJjY2JkYmNjMi0wMDhmLTRiOTAtYTc0ZS04NDdjZTNlMGFlODIiLCJyZXNvdXJjZV9hY2Nlc3MiOnsiYWNjb3VudCI6eyJyb2xlcyI6WyJtYW5hZ2UtYWNjb3VudCIsIm1hbmFnZS1hY2NvdW50LWxpbmtzIl19fSwic2NvcGUiOiJvcGVuaWQgZW1haWwgcHJvZmlsZSIsInNpZCI6ImNjYmRiY2MyLTAwOGYtNGI5MC1hNzRlLTg0N2NlM2UwYWU4MiIsImVtYWlsX3ZlcmlmaWVkIjpmYWxzZSwibmFtZSI6IlRlc3QgVXNlciIsInByZWZlcnJlZF91c2VybmFtZSI6ImFkbWluLXVzZXIiLCJnaXZlbl9uYW1lIjoiVGVzdCIsImZhbWlseV9uYW1lIjoiVXNlciIsImVtYWlsIjoiYWRtaW4tdXNlckBmaXdhcmUub3JnIn0.pOS7B833u9zgCRpijbJEV56kg9j7ggLUA2UI38nQZE-30nOWn5xzQB1l2_EGcVJAjWeDJNbTEvhRa5Ik2yl7H6piGF9X37sxhFmJ-f7K-i9ca1rhEinxxGWh14Bi75w2lQhpHFw_U_Ee579i-2it8V7ibmUXVifRc0P9qq9faWhrQdgCtUeTLbsZHLZio_bgLVmlOPVh7DCowiZArbfcH55Fl3cEOfxGYnYCJwnzsqH7CsMP30WaEePxen2SefdSHE9j117eAuXuRbnloGXlkf7qVXtVrHWUGtPtVt16dtqIybxS_cNmgI9EfGtJneXgzKR-GANXHV0ew6V6S_OoOw
         token_type:
           type: string
-          enum: ["bearer"]
+          enum: [ "bearer" ]
         expires_in:
           type: number
           example: 300

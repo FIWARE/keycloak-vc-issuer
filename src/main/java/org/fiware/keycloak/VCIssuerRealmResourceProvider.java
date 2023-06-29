@@ -29,6 +29,7 @@ import org.fiware.keycloak.oidcvc.model.CredentialsOfferVO;
 import org.fiware.keycloak.oidcvc.model.DisplayObjectVO;
 import org.fiware.keycloak.oidcvc.model.ErrorResponseVO;
 import org.fiware.keycloak.oidcvc.model.FormatVO;
+import org.fiware.keycloak.oidcvc.model.PreAuthorizedGrantVO;
 import org.fiware.keycloak.oidcvc.model.PreAuthorizedVO;
 import org.fiware.keycloak.oidcvc.model.ProofTypeVO;
 import org.fiware.keycloak.oidcvc.model.ProofVO;
@@ -339,7 +340,10 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		CredentialsOfferVO theOffer = new CredentialsOfferVO()
 				.credentialIssuer(getIssuer())
 				.credentials(List.of(offeredCredential))
-				.grants(new PreAuthorizedVO().preAuthorizedCode(generateAuthorizationCode()).userPinRequired(false));
+				.grants(new PreAuthorizedGrantVO().
+						urnColonIetfColonParamsColonOauthColonGrantTypeColonPreAuthorizedCode(
+								new PreAuthorizedVO().preAuthorizedCode(generateAuthorizationCode())
+										.userPinRequired(false)));
 		LOGGER.infof("Responding with offer: %s", theOffer);
 		return Response.ok()
 				.entity(theOffer)
@@ -415,7 +419,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	/**
 	 * Options endpoint to serve the cors-preflight requests.
-	 *
+	 * <p>
 	 * Since we cannot know the address of the requesting wallets in advance, we have to accept all origins.
 	 */
 	@OPTIONS
