@@ -194,9 +194,6 @@ public class SIOP2IntegrationTest {
 	public static IssuerMetaData getMetaData(List<SupportedCredential> supportedCredentials, String issuerDid)
 			throws MalformedURLException {
 		return IssuerMetaData.builder()
-				.authorizationServer(new URL(String.format(
-						"http://localhost:8080/realms/test/verifiable-credential/%s/.well-known/openid-configuration",
-						issuerDid)))
 				.credentialEndpoint(
 						new URL(String.format("http://localhost:8080/realms/test/verifiable-credential/%s/credential",
 								issuerDid)))
