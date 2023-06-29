@@ -43,6 +43,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CredentialIssuer'
+  /{issuerDid}/alt/.well-known/openid-credential-issuer:
+    get:
+      tags:
+        - OIDC4VCI
+      parameters:
+        - $ref: '#/components/parameters/IssuerDid'
+      operationId: getAlternativeIssuerMetadata
+      description: "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-issuer-metadata-"
+      summary: Return the issuer metadata
+      responses:
+        '200':
+          description: The credentials issuer metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialIssuerAlt'
 
   /{issuerDid}/credential:
     post:
@@ -355,6 +371,12 @@ components:
             - unsupported_credential_format
             - invalid_or_missing_proof
           example: "invalid_request"
+    SupportedCredentialAlt:
+      type: object
+      properties:
+        format:
+          additionalProperties:
+            $ref:  '#/components/schemas/SupportedCredential'
     SupportedCredential:
       type: object
       properties:
@@ -389,6 +411,33 @@ components:
           $ref: '#/components/schemas/DisplayObject'
       required:
         - format
+    CredentialIssuerAlt:
+      type: object
+      properties:
+        credential_issuer:
+          type: string
+          format: url
+          description: The Credential Issuer's identifier
+          example: https://kc-one.batterypass.fiware.dev/realms/fiware-server/verifiable-credential
+        credential_endpoint:
+          type: string
+          format: url
+          description: URL of the Credential Issuer's Credential Endpoint. This URL MUST use the https scheme and MAY contain port, path and query parameter components.
+          example: https://kc-one.batterypass.fiware.dev/realms/fiware-server/verifiable-credential/credential
+        batch_credential_endpoint:
+          type: string
+          format: url
+          description: URL of the Credential Issuer's Batch Credential Endpoint. This URL MUST use the https scheme and MAY contain port, path and query parameter components. If omitted, the Credential Issuer does not support the Batch Credential Endpoint.
+        credentials_supported:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/SupportedCredentialAlt'
+        display:
+          $ref: '#/components/schemas/DisplayObject'
+      required:
+        - credential_issuer
+        - credential_endpoint
+        - credentials_supported
     CredentialIssuer:
       type: object
       properties:

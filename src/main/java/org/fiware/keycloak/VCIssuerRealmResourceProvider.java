@@ -22,6 +22,7 @@ import org.fiware.keycloak.model.walt.CredentialMetadata;
 import org.fiware.keycloak.model.walt.FormatObject;
 import org.fiware.keycloak.model.walt.IssuerDisplay;
 import org.fiware.keycloak.model.walt.ProofType;
+import org.fiware.keycloak.oidcvc.model.CredentialIssuerAltVO;
 import org.fiware.keycloak.oidcvc.model.CredentialIssuerVO;
 import org.fiware.keycloak.oidcvc.model.CredentialRequestVO;
 import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
@@ -33,6 +34,7 @@ import org.fiware.keycloak.oidcvc.model.PreAuthorizedGrantVO;
 import org.fiware.keycloak.oidcvc.model.PreAuthorizedVO;
 import org.fiware.keycloak.oidcvc.model.ProofTypeVO;
 import org.fiware.keycloak.oidcvc.model.ProofVO;
+import org.fiware.keycloak.oidcvc.model.SupportedCredentialAltVO;
 import org.fiware.keycloak.oidcvc.model.SupportedCredentialVO;
 import org.jboss.logging.Logger;
 import org.keycloak.OAuth2Constants;
@@ -81,6 +83,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -224,13 +227,47 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	public Response getIssuerMetadata(@PathParam("issuer-did") String issuerDidParam) {
 		LOGGER.info("Retrieve issuer meta data");
 		assertIssuerDid(issuerDidParam);
-		
+
 		KeycloakContext currentContext = session.getContext();
 
 		return Response.ok().entity(new CredentialIssuerVO()
 						.credentialIssuer(getIssuer())
 						.credentialEndpoint(getCredentialEndpoint())
 						.credentialsSupported(getSupportedCredentials(currentContext)))
+				.header(ACCESS_CONTROL_HEADER, "*").build();
+	}
+
+	@GET
+	@Path("{issuer-did}/alt/.well-known/openid-credential-issuer")
+	@Produces({ MediaType.APPLICATION_JSON })
+	@ApiOperation(value = "Return the issuer metadata", notes = "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-issuer-metadata-", tags = {})
+	@ApiResponses(value = {
+			@ApiResponse(code = 200, message = "The credentials issuer metadata", response = CredentialIssuerAltVO.class) })
+	public Response getAlternativeIssuerMetadata(@PathParam("issuer-did") String issuerDidParam) {
+		LOGGER.info("Retrieve issuer meta data");
+		assertIssuerDid(issuerDidParam);
+
+		KeycloakContext currentContext = session.getContext();
+		Map<String, SupportedCredentialAltVO> alternativeMetaData = new HashMap<>();
+		getSupportedCredentials(currentContext)
+				.forEach(c ->
+						c.getTypes()
+								.forEach(t -> {
+									if (alternativeMetaData.containsKey(t)) {
+										SupportedCredentialAltVO ca = alternativeMetaData.get(t);
+										ca.putFormatItem(String.valueOf(c.getFormat()), c);
+										alternativeMetaData.put(t, ca);
+									} else {
+										SupportedCredentialAltVO ca = new SupportedCredentialAltVO();
+										ca.putFormatItem(String.valueOf(c.getFormat()), c);
+										alternativeMetaData.put(t, ca);
+									}
+								})
+				);
+		return Response.ok().entity(new CredentialIssuerAltVO()
+						.credentialIssuer(getIssuer())
+						.credentialEndpoint(getCredentialEndpoint())
+						.credentialsSupported(alternativeMetaData))
 				.header(ACCESS_CONTROL_HEADER, "*").build();
 	}
 
@@ -312,7 +349,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	 * Provides an OIDC4VCI compliant credentials offer
 	 */
 	@GET
-	@Path("{issuer-did}/credential-offer")
+	@Path("{issuer-did}/{a:alt/|}credential-offer")
 	@Produces({ MediaType.APPLICATION_JSON })
 	public Response getCredentialOffer(@PathParam("issuer-did") String issuerDidParam,
 			@QueryParam("type") String vcType, @QueryParam("format") FormatVO format) {
@@ -356,7 +393,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	 * Token endpoint, as defined by the standard. Allows to exchange the pre-authorized-code with an access-token
 	 */
 	@POST
-	@Path("{issuer-did}/token")
+	@Path("{issuer-did}/{a:alt/|}token")
 	@Consumes(MediaType.APPLICATION_FORM_URLENCODED)
 	public Response exchangeToken(@PathParam("issuer-did") String issuerDidParam,
 			@FormParam("grant_type") String grantType, @FormParam("code") String code,
@@ -442,7 +479,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	 * @return the vc.
 	 */
 	@GET
-	@Path("{issuer-did}/")
+	@Path("{issuer-did}/{a:alt/|}")
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response issueVerifiableCredential(@PathParam("issuer-did") String issuerDidParam,
 			@QueryParam("type") String vcType, @QueryParam("token") String
@@ -459,7 +496,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	 * Requests a credential from the issuer
 	 */
 	@POST
-	@Path("{issuer-did}/" + CREDENTIAL_PATH)
+	@Path("{issuer-did}/{a:alt/|}" + CREDENTIAL_PATH)
 	@Consumes({ "application/json" })
 	@Produces({ "application/json" })
 	@ApiOperation(value = "Request a credential from the issuer", notes = "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-request", tags = {})

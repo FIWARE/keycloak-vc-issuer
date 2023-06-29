@@ -147,7 +147,7 @@ export class VC extends React.Component<VCProps, VCState> {
   }
 
 
-  private requestVCOffer() {
+  private requestVCOffer(path: String) {
 
  
     const supportedCredential: SupportedCredential = this.getSelectedCredential()
@@ -164,10 +164,10 @@ export class VC extends React.Component<VCProps, VCState> {
       }
     }
     fetch(vcIssue, options)
-      .then(response => this.handleOfferResponse(response))
+      .then(response => this.handleOfferResponse(response, path))
   }
   
-  private handleOfferResponse(response: Response) {
+  private handleOfferResponse(response: Response, path: String) {
     response.json()
       .then((offer: CredentialOffer) => {
         if (response.status !== 200) {
@@ -175,7 +175,7 @@ export class VC extends React.Component<VCProps, VCState> {
           ContentAlert.warning(response.status + ":" + response.statusText);
         } else {
           const credUrl = "openid-initiate-issuance://?issuer="
-          +encodeURIComponent(offer.credential_issuer)
+          +encodeURIComponent(offer.credential_issuer + path)
           +"&credential_type=" + encodeURIComponent("[\"" + this.getSelectedCredential().type +"\"]") 
           +"&format="+this.getSelectedCredential().format
           +"&pre-authorized_code="+offer.grants['pre-authorized_code']
@@ -243,16 +243,23 @@ export class VC extends React.Component<VCProps, VCState> {
             <ActionList>
               <ActionListItem>
                 <Button 
-                  onClick={() => this.requestVCOffer()} 
+                  onClick={() => this.requestVCOffer("")}
                   isDisabled={isDisabled}>
                   Initiate Credential-Issuance(OIDC4CI)
+                </Button>
+              </ActionListItem>
+              <ActionListItem>
+                <Button
+                  onClick={() => this.requestVCOffer("/alt")}
+                  isDisabled={isDisabled}>
+                  Initiate Credential-Issuance(OIDC4CI) - Alternative Meta-Data
                 </Button>
               </ActionListItem>
             </ActionList>
           </ListItem>           
           
           <ListItem>
-          <ActionList>  
+          <ActionList>
           { offerQRVisible &&
               <ActionListItem>
             <QRCodeSVG 
