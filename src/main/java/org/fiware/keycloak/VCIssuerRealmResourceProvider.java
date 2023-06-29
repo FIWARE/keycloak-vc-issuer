@@ -224,8 +224,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	public Response getIssuerMetadata(@PathParam("issuer-did") String issuerDidParam) {
 		LOGGER.info("Retrieve issuer meta data");
 		assertIssuerDid(issuerDidParam);
+		
 		KeycloakContext currentContext = session.getContext();
-		String authorizationEndpointPattern = "%s/.well-known/openid-configuration";
 
 		return Response.ok().entity(new CredentialIssuerVO()
 						.credentialIssuer(getIssuer())
@@ -260,7 +260,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	 * OIDC4VCI wallets expect the openid-configuration below the issuers root, thus we provide it here in addition to its standard keycloak path.
 	 */
 	@GET
-	@Path("{issuer-did}/.well-known/openid-configuration")
+	@Path("{issuer-did}/{a:alt/|}.well-known/openid-configuration")
 	@Produces({ MediaType.APPLICATION_JSON })
 	public Response getOIDCConfig(@PathParam("issuer-did") String issuerDidParam) {
 		LOGGER.info("Get OIDC config.");
