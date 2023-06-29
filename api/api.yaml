@@ -397,9 +397,6 @@ components:
           format: url
           description: The Credential Issuer's identifier
           example: https://kc-one.batterypass.fiware.dev/realms/fiware-server/verifiable-credential
-        authorization_server:
-          type: string
-          description: Identifier of the OAuth 2.0 Authorization Server (as defined in [RFC8414]) the Credential Issuer relies on for authorization. If this element is omitted, the entity providing the Credential Issuer is also acting as the AS, i.e. the Credential Issuer's identifier is used as the OAuth 2.0 Issuer value to obtain the Authorization Server metadata as per [RFC8414].
         credential_endpoint:
           type: string
           format: url

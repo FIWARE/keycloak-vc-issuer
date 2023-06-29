@@ -228,7 +228,6 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		return Response.ok().entity(new CredentialIssuerVO()
 						.credentialIssuer(getIssuer())
-						.authorizationServer(String.format(authorizationEndpointPattern, getIssuer()))
 						.credentialEndpoint(getCredentialEndpoint())
 						.credentialsSupported(getSupportedCredentials(currentContext)))
 				.header(ACCESS_CONTROL_HEADER, "*").build();
