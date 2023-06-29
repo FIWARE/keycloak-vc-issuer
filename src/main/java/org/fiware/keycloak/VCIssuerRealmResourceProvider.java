@@ -259,6 +259,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 										alternativeMetaData.put(t, ca);
 									} else {
 										SupportedCredentialAltVO ca = new SupportedCredentialAltVO();
+										ca.setFormat(new HashMap<>());
 										ca.putFormatItem(String.valueOf(c.getFormat()), c);
 										alternativeMetaData.put(t, ca);
 									}
