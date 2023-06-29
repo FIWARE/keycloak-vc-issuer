@@ -267,6 +267,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				);
 		return Response.ok().entity(new CredentialIssuerAltVO()
 						.credentialIssuer(getIssuer())
+						.grantTypesSupported(List.of("urn:ietf:params:oauth:grant-type:pre-authorized_code"))
 						.credentialEndpoint(getCredentialEndpoint())
 						.credentialsSupported(alternativeMetaData))
 				.header(ACCESS_CONTROL_HEADER, "*").build();

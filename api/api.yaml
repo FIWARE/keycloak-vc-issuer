@@ -414,6 +414,10 @@ components:
     CredentialIssuerAlt:
       type: object
       properties:
+        grant_types_supported:
+          type: array
+          items:
+            type: string
         credential_issuer:
           type: string
           format: url
