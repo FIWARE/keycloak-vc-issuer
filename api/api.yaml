@@ -374,7 +374,7 @@ components:
     SupportedCredentialAlt:
       type: object
       properties:
-        format:
+        formats:
           additionalProperties:
             $ref:  '#/components/schemas/SupportedCredential'
     SupportedCredential:

@@ -255,12 +255,12 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 								.forEach(t -> {
 									if (alternativeMetaData.containsKey(t)) {
 										SupportedCredentialAltVO ca = alternativeMetaData.get(t);
-										ca.putFormatItem(String.valueOf(c.getFormat()), c);
+										ca.putFormatsItem(String.valueOf(c.getFormat()), c);
 										alternativeMetaData.put(t, ca);
 									} else {
 										SupportedCredentialAltVO ca = new SupportedCredentialAltVO();
-										ca.setFormat(new HashMap<>());
-										ca.putFormatItem(String.valueOf(c.getFormat()), c);
+										ca.setFormats(new HashMap<>());
+										ca.putFormatsItem(String.valueOf(c.getFormat()), c);
 										alternativeMetaData.put(t, ca);
 									}
 								})
