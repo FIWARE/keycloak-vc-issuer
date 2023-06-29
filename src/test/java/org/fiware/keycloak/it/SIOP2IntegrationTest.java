@@ -352,11 +352,11 @@ public class SIOP2IntegrationTest {
 		// follow authorization server address to get openid-configuration for the provided issuer
 		HttpResponse<String> oidConfigResponse = HttpClient.newHttpClient()
 				.send(HttpRequest.newBuilder()
-						.GET()
-						.uri(URI.create(
-								issuerUrl + ".well-known/openid-configuration))
-										.build(),
-								HttpResponse.BodyHandlers.ofString());
+								.GET()
+								.uri(URI.create(
+										issuerUrl + ".well-known/openid-configuration"))
+								.build(),
+						HttpResponse.BodyHandlers.ofString());
 		assertEquals(HttpStatus.SC_OK, oidConfigResponse.statusCode(),
 				"The config should have been successfully returned.");
 		Map<String, Object> configMap = OBJECT_MAPPER.readValue(oidConfigResponse.body(),
