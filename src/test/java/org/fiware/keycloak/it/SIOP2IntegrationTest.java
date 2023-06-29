@@ -374,7 +374,9 @@ public class SIOP2IntegrationTest {
 				"The preauthorized grant type should be supported.");
 
 		Map<String, String> tokenRequestFormData = Map.of("grant_type",
-				GRANT_TYPE_PRE_AUTHORIZED_CODE, "code", credentialsOfferVO.getGrants().getPreAuthorizedCode());
+				GRANT_TYPE_PRE_AUTHORIZED_CODE, "code", credentialsOfferVO.getGrants()
+						.getUrnColonIetfColonParamsColonOauthColonGrantTypeColonPreAuthorizedCode()
+						.getPreAuthorizedCode());
 
 		// now get an access token
 		HttpResponse<String> tokenResponse = HttpClient.newHttpClient()
