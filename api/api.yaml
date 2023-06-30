@@ -423,6 +423,11 @@ components:
           format: url
           description: The Credential Issuer's identifier
           example: https://kc-one.batterypass.fiware.dev/realms/fiware-server/verifiable-credential
+        issuer:
+          type: string
+          format: url
+          description: The Credential Issuer's identifier
+          example: https://kc-one.batterypass.fiware.dev/realms/fiware-server/verifiable-credential
         credential_endpoint:
           type: string
           format: url
@@ -432,6 +437,9 @@ components:
           type: string
           format: url
           description: URL of the Credential Issuer's Batch Credential Endpoint. This URL MUST use the https scheme and MAY contain port, path and query parameter components. If omitted, the Credential Issuer does not support the Batch Credential Endpoint.
+        token_endpoint:
+          type: string
+          format: url
         credentials_supported:
           type: object
           additionalProperties:
