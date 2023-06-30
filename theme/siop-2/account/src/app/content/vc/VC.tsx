@@ -178,7 +178,7 @@ export class VC extends React.Component<VCProps, VCState> {
           +encodeURIComponent(offer.credential_issuer + path)
           +"&credential_type=" + encodeURIComponent("[\"" + this.getSelectedCredential().type +"\"]")
           +"&format="+this.getSelectedCredential().format
-          +"&pre-authorized_code= "+ offer.grants['urn:ietf:params:oauth:grant-type:pre-authorized_code']['pre-authorized_code']
+          +"&pre-authorized_code="+ offer.grants['urn:ietf:params:oauth:grant-type:pre-authorized_code']['pre-authorized_code']
           +"&user_pin_required="+offer.grants['urn:ietf:params:oauth:grant-type:pre-authorized_code']['user_pin_required']
           console.log(credUrl)
           this.setState({ ...{
