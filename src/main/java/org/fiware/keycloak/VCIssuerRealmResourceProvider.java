@@ -829,7 +829,12 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		Set<FormatVO> supportedFormats = getFormatsFromString(typesEntry.getValue());
 		return supportedFormats.stream().map(formatVO -> {
 					String id = buildIdFromType(formatVO, type);
-					return new SupportedCredentialVO().id(id).types(List.of(type)).format(formatVO);
+					return new SupportedCredentialVO()
+							.id(id)
+							.types(List.of(type))
+							.format(formatVO)
+							.cryptographicBindingMethodsSupported(List.of("did"))
+							.cryptographicSuitesSupported(List.of("ES256"));
 				}
 		).collect(Collectors.toList());
 	}
