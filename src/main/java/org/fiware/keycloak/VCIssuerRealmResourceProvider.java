@@ -291,12 +291,10 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		return getIssuer() + "/" + CREDENTIAL_PATH;
 	}
 
-
 	private String getTokenEndpoint() {
 
 		return getIssuer() + "/" + TOKEN_PATH;
 	}
-
 
 	private String getIssuer() {
 		return String.format("%s/%s/%s", getRealmResourcePath(),
@@ -408,12 +406,13 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	@Path("{issuer-did}/{a:alt/|}token")
 	@Consumes(MediaType.APPLICATION_FORM_URLENCODED)
 	public Response exchangeToken(@PathParam("issuer-did") String issuerDidParam,
-			@FormParam("grant_type") @QueryParam("grant_type") String grantType, @FormParam("code") @QueryParam("code") String code,
+			@FormParam("grant_type") @QueryParam("grant_type") String grantType,
+			@FormParam("code") @QueryParam("code") String code,
 			@FormParam("pre-authorized_code") @QueryParam("pre-authorized_code") String preauth) {
 		assertIssuerDid(issuerDidParam);
 		LOGGER.infof("Received token request %s - %s - %s.", grantType, code, preauth);
 
-		if (!grantType.equals(GRANT_TYPE_PRE_AUTHORIZED_CODE)) {
+		if (Optional.ofNullable(grantType).map(gt -> !gt.equals(GRANT_TYPE_PRE_AUTHORIZED_CODE)).orElse(preauth == null)) {
 			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_TOKEN));
 		}
 		// some (not fully OIDC4VCI compatible) wallets send the preauthorized code as an alternative parameter
