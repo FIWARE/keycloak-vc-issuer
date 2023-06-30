@@ -3,6 +3,8 @@ package org.fiware.keycloak;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import id.walt.sdjwt.JwtVerificationResult;
+import id.walt.services.jwt.JwtService;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
@@ -216,65 +218,65 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		}
 	}
 
-	//	/**
-	//	 * Returns the meta data of the issuer.
-	//	 */
-	//	@GET
-	//	@Path("{issuer-did}/.well-known/openid-credential-issuer")
-	//	@Produces({ MediaType.APPLICATION_JSON })
-	//	@ApiOperation(value = "Return the issuer metadata", notes = "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-issuer-metadata-", tags = {})
-	//	@ApiResponses(value = {
-	//			@ApiResponse(code = 200, message = "The credentials issuer metadata", response = CredentialIssuerVO.class) })
-	//	public Response getIssuerMetadata(@PathParam("issuer-did") String issuerDidParam) {
-	//		LOGGER.info("Retrieve issuer meta data");
-	//		assertIssuerDid(issuerDidParam);
-	//
-	//		KeycloakContext currentContext = session.getContext();
-	//
-	//		return Response.ok().entity(new CredentialIssuerVO()
-	//						.credentialIssuer(getIssuer())
-	//						.credentialEndpoint(getCredentialEndpoint())
-	//						.credentialsSupported(getSupportedCredentials(currentContext)))
-	//				.header(ACCESS_CONTROL_HEADER, "*").build();
-	//	}
-
+	/**
+	 * Returns the meta data of the issuer.
+	 */
 	@GET
 	@Path("{issuer-did}/.well-known/openid-credential-issuer")
 	@Produces({ MediaType.APPLICATION_JSON })
 	@ApiOperation(value = "Return the issuer metadata", notes = "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-issuer-metadata-", tags = {})
 	@ApiResponses(value = {
-			@ApiResponse(code = 200, message = "The credentials issuer metadata", response = CredentialIssuerAltVO.class) })
-	public Response getAlternativeIssuerMetadata(@PathParam("issuer-did") String issuerDidParam) {
+			@ApiResponse(code = 200, message = "The credentials issuer metadata", response = CredentialIssuerVO.class) })
+	public Response getIssuerMetadata(@PathParam("issuer-did") String issuerDidParam) {
 		LOGGER.info("Retrieve issuer meta data");
 		assertIssuerDid(issuerDidParam);
 
 		KeycloakContext currentContext = session.getContext();
-		Map<String, SupportedCredentialAltVO> alternativeMetaData = new HashMap<>();
-		getSupportedCredentials(currentContext)
-				.forEach(c ->
-						c.getTypes()
-								.forEach(t -> {
-									if (alternativeMetaData.containsKey(t)) {
-										SupportedCredentialAltVO ca = alternativeMetaData.get(t);
-										ca.putFormatsItem(String.valueOf(c.getFormat()), c);
-										alternativeMetaData.put(t, ca);
-									} else {
-										SupportedCredentialAltVO ca = new SupportedCredentialAltVO();
-										ca.setFormats(new HashMap<>());
-										ca.putFormatsItem(String.valueOf(c.getFormat()), c);
-										alternativeMetaData.put(t, ca);
-									}
-								})
-				);
-		return Response.ok().entity(new CredentialIssuerAltVO()
+
+		return Response.ok().entity(new CredentialIssuerVO()
 						.credentialIssuer(getIssuer())
-						.issuer(getIssuer())
-						.tokenEndpoint(getTokenEndpoint())
-						.grantTypesSupported(List.of("urn:ietf:params:oauth:grant-type:pre-authorized_code"))
 						.credentialEndpoint(getCredentialEndpoint())
-						.credentialsSupported(alternativeMetaData))
+						.credentialsSupported(getSupportedCredentials(currentContext)))
 				.header(ACCESS_CONTROL_HEADER, "*").build();
 	}
+
+	//	@GET
+	//	@Path("{issuer-did}/.well-known/openid-credential-issuer")
+	//	@Produces({ MediaType.APPLICATION_JSON })
+	//	@ApiOperation(value = "Return the issuer metadata", notes = "https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-issuer-metadata-", tags = {})
+	//	@ApiResponses(value = {
+	//			@ApiResponse(code = 200, message = "The credentials issuer metadata", response = CredentialIssuerAltVO.class) })
+	//	public Response getAlternativeIssuerMetadata(@PathParam("issuer-did") String issuerDidParam) {
+	//		LOGGER.info("Retrieve issuer meta data");
+	//		assertIssuerDid(issuerDidParam);
+	//
+	//		KeycloakContext currentContext = session.getContext();
+	//		Map<String, SupportedCredentialAltVO> alternativeMetaData = new HashMap<>();
+	//		getSupportedCredentials(currentContext)
+	//				.forEach(c ->
+	//						c.getTypes()
+	//								.forEach(t -> {
+	//									if (alternativeMetaData.containsKey(t)) {
+	//										SupportedCredentialAltVO ca = alternativeMetaData.get(t);
+	//										ca.putFormatsItem(String.valueOf(c.getFormat()), c);
+	//										alternativeMetaData.put(t, ca);
+	//									} else {
+	//										SupportedCredentialAltVO ca = new SupportedCredentialAltVO();
+	//										ca.setFormats(new HashMap<>());
+	//										ca.putFormatsItem(String.valueOf(c.getFormat()), c);
+	//										alternativeMetaData.put(t, ca);
+	//									}
+	//								})
+	//				);
+	//		return Response.ok().entity(new CredentialIssuerAltVO()
+	//						.credentialIssuer(getIssuer())
+	//						.issuer(getIssuer())
+	//						.tokenEndpoint(getTokenEndpoint())
+	//						.grantTypesSupported(List.of("urn:ietf:params:oauth:grant-type:pre-authorized_code"))
+	//						.credentialEndpoint(getCredentialEndpoint())
+	//						.credentialsSupported(alternativeMetaData))
+	//				.header(ACCESS_CONTROL_HEADER, "*").build();
+	//	}
 
 	private String getRealmResourcePath() {
 		KeycloakContext currentContext = session.getContext();
@@ -412,7 +414,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		assertIssuerDid(issuerDidParam);
 		LOGGER.infof("Received token request %s - %s - %s.", grantType, code, preauth);
 
-		if (Optional.ofNullable(grantType).map(gt -> !gt.equals(GRANT_TYPE_PRE_AUTHORIZED_CODE)).orElse(preauth == null)) {
+		if (Optional.ofNullable(grantType).map(gt -> !gt.equals(GRANT_TYPE_PRE_AUTHORIZED_CODE))
+				.orElse(preauth == null)) {
 			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_TOKEN));
 		}
 		// some (not fully OIDC4VCI compatible) wallets send the preauthorized code as an alternative parameter
@@ -589,21 +592,9 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 			LOGGER.warn("We currently only support JWT proofs.");
 			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
 		}
-		TokenVerifier<JsonWebToken> verifier = TokenVerifier.create(proofVO.getJwt(), JsonWebToken.class);
-		try {
-			//TODO: enable when DID verification is implemented
-			//					verifier.verifySignature();
-			JsonWebToken jwt = verifier.getToken();
-			if (!Arrays.asList(jwt.getAudience()).contains(getIssuer())) {
-				LOGGER.warnf("Provided jwt was not intended for the issuer %s. Was: %s", getIssuer(), proofVO.getJwt());
-				throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
-			}
-			if (jwt.getIat() == null) {
-				LOGGER.warnf("Provided jwt does not have the mandatory iat: %s", proofVO.getJwt());
-				throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
-			}
-			// TODO: check nonce in the future, when we actually provide one.
-		} catch (VerificationException e) {
+		var jwtService = JwtService.Companion.getService();
+		JwtVerificationResult verificationResult = jwtService.verify(proofVO.getJwt());
+		if (!verificationResult.getVerified()) {
 			LOGGER.warnf("Signature of the provided jwt-proof was not valid: %s", proofVO.getJwt(), e);
 			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
 		}

@@ -91,6 +91,30 @@
         <spotbugs.reportFolder>${project.build.directory}/site/spotbugs</spotbugs.reportFolder>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>mavenCentral</id>
+            <url>https://repo1.maven.org/maven2/</url>
+        </repository>
+
+        <repository>
+            <id>bintray</id>
+            <url>https://jcenter.bintray.com</url>
+        </repository>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+        <repository>
+            <id>walt-ssikit</id>
+            <url>https://maven.walt.id/repository/waltid-ssi-kit/</url>
+        </repository>
+        <repository>
+            <id>walt</id>
+            <url>https://maven.walt.id/repository/waltid/</url>
+        </repository>
+    </repositories>
+
     <dependencies>
 
         <!-- lazy dev -->
@@ -191,6 +215,29 @@
             <artifactId>keycloak-admin-client</artifactId>
             <version>${version.org.keycloak.keycloak-admin-client}</version>
             <scope>test</scope>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/javax.validation/validation-api -->
+        <dependency>
+            <groupId>javax.validation</groupId>
+            <artifactId>validation-api</artifactId>
+            <version>2.0.1.Final</version>
+        </dependency>
+
+
+        <dependency>
+            <groupId>id.walt</groupId>
+            <artifactId>waltid-ssikit</artifactId>
+            <version>1.2306281832.0</version>
+        </dependency>
+        <dependency>
+            <groupId>id.walt.servicematrix</groupId>
+            <artifactId>WaltID-ServiceMatrix</artifactId>
+            <version>1.1.3</version>
+        </dependency>
+        <dependency>
+            <groupId>id.walt</groupId>
+            <artifactId>waltid-sd-jwt-jvm</artifactId>
+            <version>1.2306191408.0</version>
         </dependency>
     </dependencies>
 
