@@ -408,8 +408,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	@Path("{issuer-did}/{a:alt/|}token")
 	@Consumes(MediaType.APPLICATION_FORM_URLENCODED)
 	public Response exchangeToken(@PathParam("issuer-did") String issuerDidParam,
-			@FormParam("grant_type") String grantType, @FormParam("code") String code,
-			@FormParam("pre-authorized_code") String preauth) {
+			@FormParam("grant_type") @QueryParam("grant_type") String grantType, @FormParam("code") @QueryParam("code") String code,
+			@FormParam("pre-authorized_code") @QueryParam("pre-authorized_code") String preauth) {
 		assertIssuerDid(issuerDidParam);
 		LOGGER.infof("Received token request %s - %s - %s.", grantType, code, preauth);
 
