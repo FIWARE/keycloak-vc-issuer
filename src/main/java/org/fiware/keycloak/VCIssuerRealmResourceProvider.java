@@ -834,7 +834,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 							.types(List.of(type))
 							.format(formatVO)
 							.cryptographicBindingMethodsSupported(List.of("did"))
-							.cryptographicSuitesSupported(List.of("ES256"));
+							.cryptographicSuitesSupported(List.of("Ed25519Signature2018"));
 				}
 		).collect(Collectors.toList());
 	}
