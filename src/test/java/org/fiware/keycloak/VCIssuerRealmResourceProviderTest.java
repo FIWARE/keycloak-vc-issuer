@@ -199,7 +199,7 @@ public class VCIssuerRealmResourceProviderTest {
 		when(keycloakSession.getContext()).thenReturn(context);
 		when(context.getRealm()).thenReturn(realmModel);
 
-		Response metaDataResponse = testProvider.getAlternativeIssuerMetadata(ISSUER_DID);
+		Response metaDataResponse = testProvider.getIssuerMetadata(ISSUER_DID);
 		assertEquals(HttpStatus.SC_OK, metaDataResponse.getStatus(), expectedResult.getMessage());
 		assertEquals(expectedResult.getExpectedResult(),
 				OBJECT_MAPPER.convertValue(metaDataResponse.getEntity(), IssuerMetaData.class),
