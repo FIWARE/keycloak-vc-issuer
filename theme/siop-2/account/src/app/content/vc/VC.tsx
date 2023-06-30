@@ -179,7 +179,6 @@ export class VC extends React.Component<VCProps, VCState> {
           +"&credential_type=" + encodeURIComponent("[\"" + this.getSelectedCredential().type +"\"]") 
           +"&format="+this.getSelectedCredential().format
           +"&pre-authorized_code="+offer.grants['pre-authorized_code']
-          +"&user_pin_required="+offer.grants['user_pin_required']
           console.log(credUrl)
           this.setState({ ...{
             offerUrl: credUrl,
