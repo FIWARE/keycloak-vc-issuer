@@ -106,6 +106,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	public static final String LD_PROOF_TYPE = "LD_PROOF";
 	public static final String CREDENTIAL_PATH = "credential";
+	public static final String TOKEN_PATH = "token";
 	public static final String TYPE_VERIFIABLE_CREDENTIAL = "VerifiableCredential";
 	public static final String GRANT_TYPE_PRE_AUTHORIZED_CODE = "urn:ietf:params:oauth:grant-type:pre-authorized_code";
 	private static final String ACCESS_CONTROL_HEADER = "Access-Control-Allow-Origin";
@@ -267,6 +268,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				);
 		return Response.ok().entity(new CredentialIssuerAltVO()
 						.credentialIssuer(getIssuer())
+						.issuer(getIssuer())
+						.tokenEndpoint(getTokenEndpoint())
 						.grantTypesSupported(List.of("urn:ietf:params:oauth:grant-type:pre-authorized_code"))
 						.credentialEndpoint(getCredentialEndpoint())
 						.credentialsSupported(alternativeMetaData))
@@ -287,6 +290,13 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		return getIssuer() + "/" + CREDENTIAL_PATH;
 	}
+
+
+	private String getTokenEndpoint() {
+
+		return getIssuer() + "/" + TOKEN_PATH;
+	}
+
 
 	private String getIssuer() {
 		return String.format("%s/%s/%s", getRealmResourcePath(),
