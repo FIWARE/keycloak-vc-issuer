@@ -842,6 +842,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		).map(formatVO -> {
 					//		String id = buildIdFromType(formatVO, type);
 					return new SupportedCredentialVO()
+							.format(formatVO)
 							.types(List.of(type))
 							.cryptographicBindingMethodsSupported(List.of("did"))
 							.cryptographicSuitesSupported(List.of("Ed25519Signature2018"));
