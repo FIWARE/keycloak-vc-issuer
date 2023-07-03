@@ -32,7 +32,7 @@ public class SIOP2LoginProtocolFactory implements LoginProtocolFactory {
 		return new HashMap<>();
 	}
 
-	@Override public Object createProtocolEndpoint(RealmModel realm, EventBuilder event) {
+	@Override public Object createProtocolEndpoint(KeycloakSession keycloakSession, EventBuilder eventBuilder) {
 		return null;
 	}
 
