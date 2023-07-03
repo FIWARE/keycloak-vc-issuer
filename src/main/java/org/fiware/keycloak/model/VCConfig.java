@@ -14,7 +14,7 @@ public class VCConfig {
 	private String issuerDid;
 	private String subjectDid;
 	private String proofType;
-	private long expirationDate;
+	private String expirationDate;
 
 }
 
