@@ -629,7 +629,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		}
 
 		VCRequest vcRequest = getVCRequest(vcType, proofType, userModel, clients, roles, optionalMinExpiry);
-
+		LOGGER.debugf("Request is %s.", vcRequest);
 		return waltIdClient.getVCFromWaltId(vcRequest);
 
 	}
