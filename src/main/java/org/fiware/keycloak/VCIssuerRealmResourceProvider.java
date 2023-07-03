@@ -745,7 +745,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 						.plus(Duration.of(minExpiry, ChronoUnit.MINUTES)))
 				.ifPresent(vcConfigBuilder::expirationDate);
 		VCConfig vcConfig = vcConfigBuilder.build();
-
+		LOGGER.debugf("VC config is {}", vcConfig);
 		return VCRequest.builder().templateId(vcType)
 				.config(vcConfig)
 				.credentialData(VCData.builder()
