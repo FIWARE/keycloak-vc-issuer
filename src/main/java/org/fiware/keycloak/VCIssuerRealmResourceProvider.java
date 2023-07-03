@@ -567,12 +567,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				break;
 			}
 			case JWT_VC_JSON: {
-				JsonWebToken jwt = new JsonWebToken()
-						.id(UUID.randomUUID().toString())
-						.issuer(issuerDid)
-						.nbf(clock.instant().getEpochSecond());
-				jwt.setOtherClaims(CREDENTIAL_PATH, credentialString);
-				responseVO.setCredential(session.tokens().encodeAndEncrypt(jwt));
+				responseVO.setCredential(credentialString);
 				break;
 			}
 			default: {
