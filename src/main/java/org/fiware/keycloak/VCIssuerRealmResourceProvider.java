@@ -743,7 +743,6 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.map(minExpiry -> Clock.systemUTC()
 						.instant()
 						.plus(Duration.of(minExpiry, ChronoUnit.MINUTES)))
-				.map(FORMATTER::format)
 				.ifPresent(vcConfigBuilder::expirationDate);
 		VCConfig vcConfig = vcConfigBuilder.build();
 
