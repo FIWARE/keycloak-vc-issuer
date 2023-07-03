@@ -6,7 +6,11 @@ ARG JAR_DIR=target/
 
 # typical context is the build-dir
 ADD ${JAR_DIR}vc-issuer-${PLUGIN_VERSION}.jar /provider/vc-issuer.jar
+# we also need to add 3rd party dependencies
+ADD ${JAR_DIR}/lib/waltid-sd-jwt-jvm-1.2306191408.0.jar /provider/waltid-sd-jwt-jvm-1.2306191408.0.jar
+ADD ${JAR_DIR}/lib/waltid-ssikit-1.2306281832.0.jar /provider/waltid-ssikit-1.2306281832.0.jar
+ADD ${JAR_DIR}/lib/WaltID-ServiceMatrix-1.1.3.jar /provider/WaltID-ServiceMatrix-1.1.3.jar
 RUN mkdir /target
 
 
-CMD ["cp", "/provider/vc-issuer.jar", "/target/vc-issuer.jar"]
+CMD ["cp", "/provider/.", "/target/"]
