@@ -589,7 +589,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 			LOGGER.warn("We currently only support JWT proofs.");
 			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
 		}
-		var jwtService = WaltIdJwtService.Companion.getService();
+		var jwtService = WaltIdJwtService.Companion.defaultImplementation();
 		JwtVerificationResult verificationResult = jwtService.verify(proofVO.getJwt());
 		if (!verificationResult.getVerified()) {
 			LOGGER.warnf("Signature of the provided jwt-proof was not valid: %s", proofVO.getJwt());
