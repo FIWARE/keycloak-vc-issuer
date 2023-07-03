@@ -53,6 +53,7 @@ public class WaltIdClient {
 	public String getVCFromWaltId(VCRequest vcRequest) {
 
 		String jsonRepresentation = asJsonString(vcRequest);
+		LOGGER.debugf("Requesting %s", jsonRepresentation);
 		HttpResponse<String> response = null;
 		try {
 			response = HttpClient
