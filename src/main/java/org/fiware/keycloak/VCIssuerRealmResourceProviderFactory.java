@@ -1,6 +1,7 @@
 package org.fiware.keycloak;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.auto.service.AutoService;
 import org.fiware.keycloak.model.DIDKey;
 import org.jboss.logging.Logger;
@@ -26,6 +27,9 @@ import java.util.ServiceLoader;
 public class VCIssuerRealmResourceProviderFactory implements RealmResourceProviderFactory {
 
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+	static {
+		OBJECT_MAPPER.registerModule(new JavaTimeModule());
+	}
 	private static final Logger LOGGER = Logger.getLogger(VCIssuerRealmResourceProviderFactory.class);
 	public static final String ID = "verifiable-credential";
 
