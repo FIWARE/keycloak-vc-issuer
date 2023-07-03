@@ -734,12 +734,12 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		VCClaims vcClaims = claimsBuilder.build();
 		vcConfigBuilder.issuerDid(issuerDid)
 				.proofType(proofType.toString());
-		optionalMinExpiry
-				.map(minExpiry -> Clock.systemUTC()
-						.instant()
-						.plus(Duration.of(minExpiry, ChronoUnit.MINUTES)))
-				.map(FORMATTER::format)
-				.ifPresent(vcConfigBuilder::expirationDate);
+//		optionalMinExpiry
+//				.map(minExpiry -> Clock.systemUTC()
+//						.instant()
+//						.plus(Duration.of(minExpiry, ChronoUnit.MINUTES)))
+//				.map(FORMATTER::format)
+//				.ifPresent(vcConfigBuilder::expirationDate);
 		VCConfig vcConfig = vcConfigBuilder.build();
 		LOGGER.debugf("VC config is %s", vcConfig);
 		return VCRequest.builder().templateId(vcType)
