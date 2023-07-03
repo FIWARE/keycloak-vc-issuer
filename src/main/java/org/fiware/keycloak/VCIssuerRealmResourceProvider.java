@@ -4,12 +4,15 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import id.walt.sdjwt.JwtVerificationResult;
+import id.walt.servicematrix.ServiceMatrix;
 import id.walt.servicematrix.ServiceRegistry;
+import id.walt.services.jwt.JwtService;
 import id.walt.services.jwt.WaltIdJwtService;
 import id.walt.services.jwt.WaltIdJwtServiceKt;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
+import kotlin.reflect.KClass;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.fiware.keycloak.model.ErrorResponse;
@@ -74,6 +77,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import java.lang.reflect.InvocationTargetException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -127,6 +131,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		this.bearerTokenAuthenticator = authenticator;
 		this.objectMapper = objectMapper;
 		this.clock = clock;
+		new ServiceMatrix("service-matrix.properties");
 	}
 
 	@Override
@@ -456,7 +461,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		String codeId = UUID.randomUUID().toString();
 		String nonce = UUID.randomUUID().toString();
-		OAuth2Code oAuth2Code = new OAuth2Code(codeId, expiration, nonce, null, null, null, null, userSessionModel.getId());
+		OAuth2Code oAuth2Code = new OAuth2Code(codeId, expiration, nonce, null, null, null, null,
+				userSessionModel.getId());
 
 		return OAuth2CodeParser.persistCode(session, clientSessionModel, oAuth2Code);
 	}

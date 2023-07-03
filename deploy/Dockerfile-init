@@ -8,6 +8,7 @@ ARG JAR_DIR=target/
 ADD ${JAR_DIR}/lib/ /provider/
 # typical context is the build-dir
 ADD ${JAR_DIR}vc-issuer-${PLUGIN_VERSION}.jar /provider/vc-issuer.jar
+ADD deploy/service-matrix.properties /provider/service-matrix.properties
 
 RUN mkdir /target
 
