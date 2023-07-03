@@ -131,7 +131,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		this.bearerTokenAuthenticator = authenticator;
 		this.objectMapper = objectMapper;
 		this.clock = clock;
-		new ServiceMatrix("service-matrix.properties");
+		new ServiceMatrix("/sm/service-matrix.properties");
 	}
 
 	@Override
