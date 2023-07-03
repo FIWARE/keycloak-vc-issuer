@@ -229,7 +229,7 @@ public class WaltIdClient {
 		try {
 			return objectMapper.writeValueAsString(javaObject);
 		} catch (JsonProcessingException e) {
-			LOGGER.errorf("Was not able to serialize.", e);
+			LOGGER.errorf("Was not able to serialize. %s", e.getMessage());
 			throw new ErrorResponseException("json_serialization_error", "Was not able to serialize object to json.",
 					Response.Status.INTERNAL_SERVER_ERROR);
 		}
