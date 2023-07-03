@@ -456,7 +456,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		String codeId = UUID.randomUUID().toString();
 		String nonce = UUID.randomUUID().toString();
-		OAuth2Code oAuth2Code = new OAuth2Code(codeId, expiration, nonce, null, null, null, null);
+		OAuth2Code oAuth2Code = new OAuth2Code(codeId, expiration, nonce, null, null, null, null, userSessionModel.getId());
 
 		return OAuth2CodeParser.persistCode(session, clientSessionModel, oAuth2Code);
 	}

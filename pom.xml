@@ -67,7 +67,7 @@
         <version.io.swagger.swagger-annotations>1.6.9</version.io.swagger.swagger-annotations>
 
         <!-- keycloak -->
-        <version.org.keycloak.libs>20.0.3</version.org.keycloak.libs>
+        <version.org.keycloak.libs>21.1.2</version.org.keycloak.libs>
         <!-- version to be used for tests - can be different from the libs -->
         <keycloak.version>20.0.3</keycloak.version>
         <keycloak.image>quay.io/keycloak/keycloak:${keycloak.version}</keycloak.image>
