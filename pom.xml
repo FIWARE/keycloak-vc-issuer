@@ -242,6 +242,12 @@
             <version>1.2306191408.0</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>io.github.microutils</groupId>
+            <artifactId>kotlin-logging</artifactId>
+            <version>3.0.4</version>
+            <scope>compile</scope>
+        </dependency>
     </dependencies>
 
     <build>
