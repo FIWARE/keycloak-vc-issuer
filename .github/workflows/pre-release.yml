@@ -58,16 +58,16 @@ jobs:
       - name: Set the version
         run: |
           mvn versions:set -DnewVersion=${{ needs.generate-version.outputs.version }}
-
+          
       - name: Execute tests
         id: test
         run: |
-          mvn clean install -DskipTests
+          mvn clean test coveralls:jacoco -Dcoveralls.token=${{ secrets.COVERALLS_TOKEN }}
 
-#      - name: Execute Integration-Tests
-#        id: it-test
-#        run: |
-#          mvn clean integration-test -Pintegration-test
+      - name: Execute Integration-Tests
+        id: it-test
+        run: |
+          mvn clean integration-test -Pintegration-test
 
       - name: Build Image
         id: build-image
