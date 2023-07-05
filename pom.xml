@@ -297,6 +297,9 @@
                     <exclude>**/src/**</exclude>
                 </excludes>
             </resource>
+            <resource>
+                <directory>${build.directory}/lib</directory>
+            </resource>
         </resources>
         <plugins>
             <!-- generate sources from openapi spec -->
@@ -429,6 +432,7 @@
                                     <directory>${project.basedir}/deploy</directory>
                                     <includes>
                                         <include>**/Dockerfile-init</include>
+                                        <include>lib/**</include>
                                     </includes>
                                 </resource>
                             </resources>
@@ -448,6 +452,21 @@
                                     <includes>
                                         <include>vc-issuer-${project.version}.jar</include>
                                     </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>copy-libs</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/docker-build/lib</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.build.directory}/lib</directory>
                                 </resource>
                             </resources>
                         </configuration>
