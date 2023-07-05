@@ -12,6 +12,9 @@ import org.jboss.logging.Logger;
 import org.keycloak.services.ErrorResponseException;
 
 import javax.validation.constraints.NotNull;
+import javax.ws.rs.BadRequestException;
+import javax.ws.rs.InternalServerErrorException;
+import javax.ws.rs.ServerErrorException;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.net.URI;
@@ -67,19 +70,16 @@ public class WaltIdClient {
 		} catch (IOException | InterruptedException e) {
 			LOGGER.warn("Was not able to request walt.", e);
 			Thread.currentThread().interrupt();
-			throw new ErrorResponseException(FAILED_VC_REQUEST_ERROR, "Was not able to request a VC at walt-id.",
-					Response.Status.BAD_GATEWAY);
+			throw new ServerErrorException("Was not able to request a VC at walt-id.", Response.Status.BAD_GATEWAY);
 		}
 		if (response == null) {
 			LOGGER.warn("Failed to get a response from walt-id.");
-			throw new ErrorResponseException(FAILED_VC_REQUEST_ERROR, "Was not able to request a VC at walt-id.",
-					Response.Status.INTERNAL_SERVER_ERROR);
+			throw new InternalServerErrorException("Was not able to request a VC at walt-id.");
 		}
 		if (response.statusCode() != Response.Status.OK.getStatusCode()) {
 			LOGGER.warnf("Was not able to retrieve vc from walt-id. Response was %d: %s", response.statusCode(),
 					response.body());
-			throw new ErrorResponseException(FAILED_VC_REQUEST_ERROR, "Was not able to retrieve a VC at walt-id.",
-					Response.Status.BAD_GATEWAY);
+			throw new ServerErrorException("Was not able to retrieve a VC at walt-id.", Response.Status.BAD_GATEWAY);
 		}
 		LOGGER.debugf("Response: %s - %s", response.headers().toString(), response.body());
 		return response.body();
@@ -230,8 +230,7 @@ public class WaltIdClient {
 			return objectMapper.writeValueAsString(javaObject);
 		} catch (JsonProcessingException e) {
 			LOGGER.errorf("Was not able to serialize. %s", e.getMessage());
-			throw new ErrorResponseException("json_serialization_error", "Was not able to serialize object to json.",
-					Response.Status.INTERNAL_SERVER_ERROR);
+			throw new InternalServerErrorException("Was not able to serialize object to json.");
 		}
 	}
 }
