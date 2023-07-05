@@ -60,7 +60,7 @@ jobs:
       - name: Execute tests
         id: it-test
         run: |
-          mvn clean integration-test -Pintegration-test -Dkeycloak.version=${{ matrix.keycloak-version }}
+          mvn clean install integration-test -Pintegration-test -Dkeycloak.version=${{ matrix.keycloak-version }}
 
       - name: Publish success
         if: steps.it-test.outcome == 'success'
