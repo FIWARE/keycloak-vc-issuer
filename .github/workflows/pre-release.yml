@@ -58,7 +58,7 @@ jobs:
       - name: Set the version
         run: |
           mvn versions:set -DnewVersion=${{ needs.generate-version.outputs.version }}
-          
+
       - name: Execute tests
         id: test
         run: |

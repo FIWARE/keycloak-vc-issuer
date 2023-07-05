@@ -741,7 +741,7 @@
                                     <goal>rm</goal>
                                 </goals>
                                 <configuration>
-                                    <timeout>600</timeout>
+                                    <timeout>1200</timeout>
                                     <dockerImages>
                                         <dockerImage>keycloak</dockerImage>
                                         <dockerImage>keycloak-vc-issuer</dockerImage>
