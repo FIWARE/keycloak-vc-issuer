@@ -47,7 +47,7 @@ the Keycloak-APIs with such functionality and provides a [theme](./theme) that e
 issuance of credentials to users.
 
 ### Compatibility
-
+ 
 The plugin is developed with the [20.0.3 libraries](https://github.com/keycloak/keycloak/tree/20.0.3) and tested against
 all Keycloak Minor-Releases >=18.0.0. Please check the [Compatibility-Matrix](./doc/compatibility/compatibility.md) for
 more information. The matrix gets updated every night.
