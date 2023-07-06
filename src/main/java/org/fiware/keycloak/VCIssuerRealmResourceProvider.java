@@ -463,7 +463,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	/**
 	 * Options endpoint to serve the cors-preflight requests.
-	 * <p>
+	 * 
 	 * Since we cannot know the address of the requesting wallets in advance, we have to accept all origins.
 	 */
 	@OPTIONS
