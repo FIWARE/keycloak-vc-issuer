@@ -5,8 +5,6 @@ import com.google.auto.service.AutoService;
 import org.fiware.keycloak.model.DIDKey;
 import org.jboss.logging.Logger;
 import org.keycloak.Config;
-import org.keycloak.cluster.ManagedCacheManagerProvider;
-import org.keycloak.common.util.Time;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.services.managers.AppAuthManager;
@@ -17,7 +15,6 @@ import java.io.File;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.Optional;
-import java.util.ServiceLoader;
 
 /**
  * Factory implementation to provide the VCIssuer functionality as a realm resource.
@@ -26,6 +23,7 @@ import java.util.ServiceLoader;
 public class VCIssuerRealmResourceProviderFactory implements RealmResourceProviderFactory {
 
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
 	private static final Logger LOGGER = Logger.getLogger(VCIssuerRealmResourceProviderFactory.class);
 	public static final String ID = "verifiable-credential";
 

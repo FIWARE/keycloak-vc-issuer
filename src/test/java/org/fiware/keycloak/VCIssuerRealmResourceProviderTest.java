@@ -34,6 +34,7 @@ import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.mockito.ArgumentCaptor;
 
+import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -82,7 +83,7 @@ public class VCIssuerRealmResourceProviderTest {
 		try {
 			testProvider.getTypes(ISSUER_DID);
 			fail("VCs should only be accessible for authorized users.");
-		} catch (ErrorResponseException e) {
+		} catch (WebApplicationException e) {
 			assertEquals(Response.Status.UNAUTHORIZED.getStatusCode(), e.getResponse().getStatus(),
 					"The response should be a 403.");
 		}
@@ -126,7 +127,7 @@ public class VCIssuerRealmResourceProviderTest {
 		try {
 			testProvider.issueVerifiableCredential(ISSUER_DID, "MyVC", null);
 			fail("VCs should only be accessible for authorized users.");
-		} catch (ErrorResponseException e) {
+		} catch (WebApplicationException e) {
 			assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), e.getResponse().getStatus(),
 					"The response should be a 400.");
 			ErrorResponse er = OBJECT_MAPPER.convertValue(e.getResponse().getEntity(), ErrorResponse.class);
@@ -147,7 +148,7 @@ public class VCIssuerRealmResourceProviderTest {
 		try {
 			testProvider.issueVerifiableCredential(ISSUER_DID, "MyVC", "myToken");
 			fail("VCs should only be accessible for authorized users.");
-		} catch (ErrorResponseException e) {
+		} catch (WebApplicationException e) {
 			assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), e.getResponse().getStatus(),
 					"The response should be a 400.");
 			ErrorResponse er = OBJECT_MAPPER.convertValue(e.getResponse().getEntity(), ErrorResponse.class);
@@ -176,7 +177,7 @@ public class VCIssuerRealmResourceProviderTest {
 		try {
 			testProvider.issueVerifiableCredential(ISSUER_DID, "MyNonExistentType", null);
 			fail("Not found types should be a 400");
-		} catch (ErrorResponseException e) {
+		} catch (WebApplicationException e) {
 			assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), e.getResponse().getStatus(),
 					"Not found types should be a 400");
 			ErrorResponse er = OBJECT_MAPPER.convertValue(e.getResponse().getEntity(), ErrorResponse.class);
