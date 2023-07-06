@@ -3,9 +3,20 @@ package org.fiware.keycloak;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import id.walt.custodian.WaltIdCustodian;
+import id.walt.sdjwt.JwtVerificationResult;
+import id.walt.servicematrix.BaseService;
+import id.walt.servicematrix.ServiceRegistry;
+import id.walt.servicematrix.utils.ReflectionUtils;
+import id.walt.services.crypto.SunCryptoService;
+import id.walt.services.jwt.WaltIdJwtService;
+import id.walt.services.key.WaltIdKeyService;
+import id.walt.services.vc.WaltIdJsonLdCredentialService;
+import id.walt.services.vc.WaltIdJwtCredentialService;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
+import kotlin.reflect.KClass;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.fiware.keycloak.model.ErrorResponse;
@@ -29,14 +40,13 @@ import org.fiware.keycloak.oidcvc.model.CredentialsOfferVO;
 import org.fiware.keycloak.oidcvc.model.DisplayObjectVO;
 import org.fiware.keycloak.oidcvc.model.ErrorResponseVO;
 import org.fiware.keycloak.oidcvc.model.FormatVO;
+import org.fiware.keycloak.oidcvc.model.PreAuthorizedGrantVO;
 import org.fiware.keycloak.oidcvc.model.PreAuthorizedVO;
 import org.fiware.keycloak.oidcvc.model.ProofTypeVO;
 import org.fiware.keycloak.oidcvc.model.ProofVO;
 import org.fiware.keycloak.oidcvc.model.SupportedCredentialVO;
 import org.jboss.logging.Logger;
 import org.keycloak.OAuth2Constants;
-import org.keycloak.TokenVerifier;
-import org.keycloak.common.VerificationException;
 import org.keycloak.common.util.Time;
 import org.keycloak.events.EventBuilder;
 import org.keycloak.models.AuthenticatedClientSessionModel;
@@ -52,7 +62,6 @@ import org.keycloak.protocol.oidc.utils.OAuth2Code;
 import org.keycloak.protocol.oidc.utils.OAuth2CodeParser;
 import org.keycloak.representations.AccessToken;
 import org.keycloak.representations.JsonWebToken;
-import org.keycloak.services.ErrorResponseException;
 import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.resource.RealmResourceProvider;
@@ -60,15 +69,19 @@ import org.keycloak.services.util.DefaultClientSessionContext;
 import org.keycloak.urls.UrlType;
 
 import javax.validation.constraints.NotNull;
+import javax.ws.rs.BadRequestException;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.FormParam;
 import javax.ws.rs.GET;
+import javax.ws.rs.NotAuthorizedException;
+import javax.ws.rs.NotFoundException;
 import javax.ws.rs.OPTIONS;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
+import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.time.Clock;
@@ -102,6 +115,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	public static final String LD_PROOF_TYPE = "LD_PROOF";
 	public static final String CREDENTIAL_PATH = "credential";
+	public static final String TOKEN_PATH = "token";
 	public static final String TYPE_VERIFIABLE_CREDENTIAL = "VerifiableCredential";
 	public static final String GRANT_TYPE_PRE_AUTHORIZED_CODE = "urn:ietf:params:oauth:grant-type:pre-authorized_code";
 	private static final String ACCESS_CONTROL_HEADER = "Access-Control-Allow-Origin";
@@ -123,6 +137,29 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		this.bearerTokenAuthenticator = authenticator;
 		this.objectMapper = objectMapper;
 		this.clock = clock;
+		registerServices();
+	}
+
+	// register services used by the waltid ssikit
+	private void registerServices() {
+		ServiceRegistry.INSTANCE.registerService(WaltIdJsonLdCredentialService.Companion.getService(),
+				(KClass<? extends BaseService>) ReflectionUtils.INSTANCE.getKClassByName(
+						"id.walt.services.vc.JsonLdCredentialService"));
+		ServiceRegistry.INSTANCE.registerService(WaltIdJwtCredentialService.Companion.getService(),
+				(KClass<? extends BaseService>) ReflectionUtils.INSTANCE.getKClassByName(
+						"id.walt.services.vc.JwtCredentialService"));
+		ServiceRegistry.INSTANCE.registerService(SunCryptoService.Companion.getService(),
+				(KClass<? extends BaseService>) ReflectionUtils.INSTANCE.getKClassByName(
+						"id.walt.services.crypto.CryptoService"));
+		ServiceRegistry.INSTANCE.registerService(WaltIdKeyService.Companion.getService(),
+				(KClass<? extends BaseService>) ReflectionUtils.INSTANCE.getKClassByName(
+						"id.walt.services.key.KeyService"));
+		ServiceRegistry.INSTANCE.registerService(WaltIdJwtService.Companion.getService(),
+				(KClass<? extends BaseService>) ReflectionUtils.INSTANCE.getKClassByName(
+						"id.walt.services.jwt.JwtService"));
+		ServiceRegistry.INSTANCE.registerService(WaltIdCustodian.Companion.getService(),
+				(KClass<? extends BaseService>) ReflectionUtils.INSTANCE.getKClassByName(
+						"id.walt.custodian.Custodian"));
 	}
 
 	@Override
@@ -159,8 +196,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	public List<SupportedCredential> getTypes(@PathParam("issuer-did") String issuerDidParam) {
 		assertIssuerDid(issuerDidParam);
 		UserModel userModel = getUserModel(
-				new ErrorResponseException("unauthorized", "Types is only available to authorized users.",
-						Response.Status.UNAUTHORIZED));
+				new NotAuthorizedException("Types is only available to authorized users."));
+
 		LOGGER.debugf("User is {}", userModel.getId());
 
 		return getCredentialsFromModels(getClientModelsFromSession());
@@ -178,21 +215,21 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	// return the current usermodel
-	private UserModel getUserModel(ErrorResponseException errorResponse) {
+	private UserModel getUserModel(WebApplicationException errorResponse) {
 		return getAuthResult(errorResponse).getUser();
 	}
 
 	// return the current usersession model
 	private UserSessionModel getUserSessionModel() {
-		return getAuthResult(new ErrorResponseException(getErrorResponse(ErrorType.INVALID_TOKEN))).getSession();
+		return getAuthResult(new BadRequestException(getErrorResponse(ErrorType.INVALID_TOKEN))).getSession();
 	}
 
 	private AuthenticationManager.AuthResult getAuthResult() {
-		return getAuthResult(new ErrorResponseException(getErrorResponse(ErrorType.INVALID_TOKEN)));
+		return getAuthResult(new BadRequestException(getErrorResponse(ErrorType.INVALID_TOKEN)));
 	}
 
 	// get the auth result from the authentication manager
-	private AuthenticationManager.AuthResult getAuthResult(ErrorResponseException errorResponse) {
+	private AuthenticationManager.AuthResult getAuthResult(WebApplicationException errorResponse) {
 		AuthenticationManager.AuthResult authResult = bearerTokenAuthenticator.authenticate();
 		if (authResult == null) {
 			throw errorResponse;
@@ -201,13 +238,13 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	private UserModel getUserModel() {
-		return getUserModel(new ErrorResponseException(getErrorResponse(ErrorType.INVALID_TOKEN)));
+		return getUserModel(new BadRequestException(getErrorResponse(ErrorType.INVALID_TOKEN)));
 	}
 
 	// assert that the given string is the configured issuer did
 	private void assertIssuerDid(String requestedIssuerDid) {
 		if (!requestedIssuerDid.equals(issuerDid)) {
-			throw new ErrorResponseException("not_found", "No such issuer exists.", Response.Status.NOT_FOUND);
+			throw new NotFoundException("No such issuer exists.");
 		}
 	}
 
@@ -223,12 +260,11 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	public Response getIssuerMetadata(@PathParam("issuer-did") String issuerDidParam) {
 		LOGGER.info("Retrieve issuer meta data");
 		assertIssuerDid(issuerDidParam);
+
 		KeycloakContext currentContext = session.getContext();
-		String authorizationEndpointPattern = "%s/.well-known/openid-configuration";
 
 		return Response.ok().entity(new CredentialIssuerVO()
 						.credentialIssuer(getIssuer())
-						.authorizationServer(String.format(authorizationEndpointPattern, getIssuer()))
 						.credentialEndpoint(getCredentialEndpoint())
 						.credentialsSupported(getSupportedCredentials(currentContext)))
 				.header(ACCESS_CONTROL_HEADER, "*").build();
@@ -247,6 +283,11 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	private String getCredentialEndpoint() {
 
 		return getIssuer() + "/" + CREDENTIAL_PATH;
+	}
+
+	private String getTokenEndpoint() {
+
+		return getIssuer() + "/" + TOKEN_PATH;
 	}
 
 	private String getIssuer() {
@@ -340,7 +381,10 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		CredentialsOfferVO theOffer = new CredentialsOfferVO()
 				.credentialIssuer(getIssuer())
 				.credentials(List.of(offeredCredential))
-				.grants(new PreAuthorizedVO().preAuthorizedCode(generateAuthorizationCode()).userPinRequired(false));
+				.grants(new PreAuthorizedGrantVO().
+						urnColonIetfColonParamsColonOauthColonGrantTypeColonPreAuthorizedCode(
+								new PreAuthorizedVO().preAuthorizedCode(generateAuthorizationCode())
+										.userPinRequired(false)));
 		LOGGER.infof("Responding with offer: %s", theOffer);
 		return Response.ok()
 				.entity(theOffer)
@@ -356,13 +400,15 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	@Path("{issuer-did}/token")
 	@Consumes(MediaType.APPLICATION_FORM_URLENCODED)
 	public Response exchangeToken(@PathParam("issuer-did") String issuerDidParam,
-			@FormParam("grant_type") String grantType, @FormParam("code") String code,
+			@FormParam("grant_type") String grantType,
+			@FormParam("code") String code,
 			@FormParam("pre-authorized_code") String preauth) {
 		assertIssuerDid(issuerDidParam);
 		LOGGER.infof("Received token request %s - %s - %s.", grantType, code, preauth);
 
-		if (!grantType.equals(GRANT_TYPE_PRE_AUTHORIZED_CODE)) {
-			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_TOKEN));
+		if (Optional.ofNullable(grantType).map(gt -> !gt.equals(GRANT_TYPE_PRE_AUTHORIZED_CODE))
+				.orElse(preauth == null)) {
+			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_TOKEN));
 		}
 		// some (not fully OIDC4VCI compatible) wallets send the preauthorized code as an alternative parameter
 		String codeToUse = Optional.ofNullable(code).orElse(preauth);
@@ -373,7 +419,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				session.getContext().getRealm(),
 				eventBuilder);
 		if (result.isExpiredCode() || result.isIllegalCode()) {
-			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_TOKEN));
+			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_TOKEN));
 		}
 		AccessToken accessToken = new TokenManager().createClientAccessToken(session,
 				result.getClientSession().getRealm(),
@@ -405,7 +451,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		String codeId = UUID.randomUUID().toString();
 		String nonce = UUID.randomUUID().toString();
-		OAuth2Code oAuth2Code = new OAuth2Code(codeId, expiration, nonce, null, null, null, null);
+		OAuth2Code oAuth2Code = new OAuth2Code(codeId, expiration, nonce, null, null, null, null,
+				userSessionModel.getId());
 
 		return OAuth2CodeParser.persistCode(session, clientSessionModel, oAuth2Code);
 	}
@@ -416,7 +463,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	/**
 	 * Options endpoint to serve the cors-preflight requests.
-	 *
+	 * 
 	 * Since we cannot know the address of the requesting wallets in advance, we have to accept all origins.
 	 */
 	@OPTIONS
@@ -484,7 +531,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		if (types.size() != 1) {
 			LOGGER.infof("Credential request contained multiple types. Req: %s", credentialRequestVO);
-			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_REQUEST));
+			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_REQUEST));
 		}
 		if (credentialRequestVO.getProof() != null) {
 			validateProof(credentialRequestVO.getProof());
@@ -510,22 +557,17 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 					responseVO.setCredential(credentialObject);
 				} catch (JsonProcessingException e) {
 					LOGGER.warnf("Was not able to format credential %s.", credentialString, e);
-					throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
+					throw new BadRequestException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
 				}
 				break;
 			}
 			case JWT_VC_JSON: {
-				JsonWebToken jwt = new JsonWebToken()
-						.id(UUID.randomUUID().toString())
-						.issuer(issuerDid)
-						.nbf(clock.instant().getEpochSecond());
-				jwt.setOtherClaims(CREDENTIAL_PATH, credentialString);
-				responseVO.setCredential(session.tokens().encodeAndEncrypt(jwt));
+				responseVO.setCredential(credentialString);
 				break;
 			}
 			default: {
 				LOGGER.infof("Credential with unsupported format %s was requested.", requestedFormat.toString());
-				throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
+				throw new BadRequestException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
 			}
 
 		}
@@ -536,25 +578,13 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	private void validateProof(ProofVO proofVO) {
 		if (proofVO.getProofType() != ProofTypeVO.JWT) {
 			LOGGER.warn("We currently only support JWT proofs.");
-			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
+			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
 		}
-		TokenVerifier<JsonWebToken> verifier = TokenVerifier.create(proofVO.getJwt(), JsonWebToken.class);
-		try {
-			//TODO: enable when DID verification is implemented
-			//					verifier.verifySignature();
-			JsonWebToken jwt = verifier.getToken();
-			if (!Arrays.asList(jwt.getAudience()).contains(getIssuer())) {
-				LOGGER.warnf("Provided jwt was not intended for the issuer %s. Was: %s", getIssuer(), proofVO.getJwt());
-				throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
-			}
-			if (jwt.getIat() == null) {
-				LOGGER.warnf("Provided jwt does not have the mandatory iat: %s", proofVO.getJwt());
-				throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
-			}
-			// TODO: check nonce in the future, when we actually provide one.
-		} catch (VerificationException e) {
-			LOGGER.warnf("Signature of the provided jwt-proof was not valid: %s", proofVO.getJwt(), e);
-			throw new ErrorResponseException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
+		var jwtService = WaltIdJwtService.Companion.getService();
+		JwtVerificationResult verificationResult = jwtService.verify(proofVO.getJwt());
+		if (!verificationResult.getVerified()) {
+			LOGGER.warnf("Signature of the provided jwt-proof was not valid: %s", proofVO.getJwt());
+			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
 		}
 	}
 
@@ -589,7 +619,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		}
 
 		VCRequest vcRequest = getVCRequest(vcType, proofType, userModel, clients, roles, optionalMinExpiry);
-
+		LOGGER.debugf("Request is %s.", vcRequest);
 		return waltIdClient.getVCFromWaltId(vcRequest);
 
 	}
@@ -604,9 +634,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		String formatString = format.toString();
 		Optional.ofNullable(vcType).filter(type -> !type.isEmpty()).orElseThrow(() -> {
 			LOGGER.info("No VC type was provided.");
-			return new ErrorResponseException("no_type_provided",
-					"No VerifiableCredential-Type was provided in the request.",
-					Response.Status.BAD_REQUEST);
+			return new BadRequestException("No VerifiableCredential-Type was provided in the request.");
 		});
 
 		String prefixedType = String.format("%s%s", VC_TYPES_PREFIX, vcType);
@@ -621,7 +649,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		if (vcClients.isEmpty()) {
 			LOGGER.infof("No SIOP-2-Client supporting type %s registered.", vcType);
-			throw new ErrorResponseException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
+			throw new BadRequestException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
 		}
 		return vcClients;
 	}
@@ -699,14 +727,15 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		VCClaims vcClaims = claimsBuilder.build();
 		vcConfigBuilder.issuerDid(issuerDid)
 				.proofType(proofType.toString());
-		optionalMinExpiry
-				.map(minExpiry -> Clock.systemUTC()
-						.instant()
-						.plus(Duration.of(minExpiry, ChronoUnit.MINUTES)))
-				.map(FORMATTER::format)
-				.ifPresent(vcConfigBuilder::expirationDate);
+		//TODO: reintroduce when walt api is fixed
+		//		optionalMinExpiry
+		//				.map(minExpiry -> Clock.systemUTC()
+		//						.instant()
+		//						.plus(Duration.of(minExpiry, ChronoUnit.MINUTES)))
+		//				.map(FORMATTER::format)
+		//				.ifPresent(vcConfigBuilder::expirationDate);
 		VCConfig vcConfig = vcConfigBuilder.build();
-
+		LOGGER.debugf("VC config is %s", vcConfig);
 		return VCRequest.builder().templateId(vcType)
 				.config(vcConfig)
 				.credentialData(VCData.builder()
@@ -787,7 +816,12 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		Set<FormatVO> supportedFormats = getFormatsFromString(typesEntry.getValue());
 		return supportedFormats.stream().map(formatVO -> {
 					String id = buildIdFromType(formatVO, type);
-					return new SupportedCredentialVO().id(id).types(List.of(type)).format(formatVO);
+					return new SupportedCredentialVO()
+							.id(id)
+							.format(formatVO)
+							.types(List.of(type))
+							.cryptographicBindingMethodsSupported(List.of("did"))
+							.cryptographicSuitesSupported(List.of("Ed25519Signature2018"));
 				}
 		).collect(Collectors.toList());
 	}

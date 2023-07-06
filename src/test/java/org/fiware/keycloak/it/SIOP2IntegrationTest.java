@@ -2,6 +2,7 @@ package org.fiware.keycloak.it;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.ws.rs.core.Response;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +20,6 @@ import org.fiware.keycloak.model.SupportedCredential;
 import org.fiware.keycloak.model.TokenResponse;
 import org.fiware.keycloak.oidcvc.model.CredentialIssuerVO;
 import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
-import org.fiware.keycloak.oidcvc.model.CredentialVO;
 import org.fiware.keycloak.oidcvc.model.CredentialsOfferVO;
 import org.fiware.keycloak.oidcvc.model.FormatVO;
 import org.junit.jupiter.api.AfterEach;
@@ -39,7 +39,6 @@ import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 
 import javax.ws.rs.ClientErrorException;
-import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -194,9 +193,6 @@ public class SIOP2IntegrationTest {
 	public static IssuerMetaData getMetaData(List<SupportedCredential> supportedCredentials, String issuerDid)
 			throws MalformedURLException {
 		return IssuerMetaData.builder()
-				.authorizationServer(new URL(String.format(
-						"http://localhost:8080/realms/test/verifiable-credential/%s/.well-known/openid-configuration",
-						issuerDid)))
 				.credentialEndpoint(
 						new URL(String.format("http://localhost:8080/realms/test/verifiable-credential/%s/credential",
 								issuerDid)))
@@ -339,7 +335,6 @@ public class SIOP2IntegrationTest {
 		assertEquals(HttpStatus.SC_OK, oid4VciResponse.statusCode(),
 				"The metadata should have been successfully returned.");
 		CredentialIssuerVO issuerVO = OBJECT_MAPPER.readValue(oid4VciResponse.body(), CredentialIssuerVO.class);
-		assertNotNull(issuerVO.getAuthorizationServer(), "An authorization server should be provided.");
 		assertEquals(credentialsOfferVO.getCredentialIssuer(), issuerVO.getCredentialIssuer(),
 				"The metadata for the offered issuer should have been returend.");
 		assertNotNull(issuerVO.getCredentialsSupported(), "The supported credentials should be included.");
@@ -354,7 +349,8 @@ public class SIOP2IntegrationTest {
 		HttpResponse<String> oidConfigResponse = HttpClient.newHttpClient()
 				.send(HttpRequest.newBuilder()
 								.GET()
-								.uri(URI.create(issuerVO.getAuthorizationServer()))
+								.uri(URI.create(
+										issuerUrl + ".well-known/openid-configuration"))
 								.build(),
 						HttpResponse.BodyHandlers.ofString());
 		assertEquals(HttpStatus.SC_OK, oidConfigResponse.statusCode(),
@@ -377,7 +373,9 @@ public class SIOP2IntegrationTest {
 				"The preauthorized grant type should be supported.");
 
 		Map<String, String> tokenRequestFormData = Map.of("grant_type",
-				GRANT_TYPE_PRE_AUTHORIZED_CODE, "code", credentialsOfferVO.getGrants().getPreAuthorizedCode());
+				GRANT_TYPE_PRE_AUTHORIZED_CODE, "code", credentialsOfferVO.getGrants()
+						.getUrnColonIetfColonParamsColonOauthColonGrantTypeColonPreAuthorizedCode()
+						.getPreAuthorizedCode());
 
 		// now get an access token
 		HttpResponse<String> tokenResponse = HttpClient.newHttpClient()
