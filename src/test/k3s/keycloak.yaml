@@ -80,8 +80,12 @@ spec:
               name: providers
             - mountPath: /opt/keys
               name: keyfile
+            - mountPath: /data
+              name: data
       volumes:
         - name: providers
+          emptyDir: {}
+        - name: data
           emptyDir: {}
         - name: keyfile
           configMap:
