@@ -350,7 +350,7 @@ public class SIOP2IntegrationTest {
 				.send(HttpRequest.newBuilder()
 								.GET()
 								.uri(URI.create(
-										issuerUrl + ".well-known/openid-configuration"))
+										issuerUrl + "/.well-known/openid-configuration"))
 								.build(),
 						HttpResponse.BodyHandlers.ofString());
 		assertEquals(HttpStatus.SC_OK, oidConfigResponse.statusCode(),

@@ -26,9 +26,18 @@ kind: ConfigMap
 metadata:
   name: waltid-cm
 data:
+  walt.yaml: |
+    hikariDataSource:
+      autoCommit: false
+      dataSource:
+        fullColumnNames: false
+        journalMode: WAL
+      jdbcUrl: jdbc:sqlite:data/walt.db
+      maximumPoolSize: 5
   signatory.conf: |
     proofConfig {
       issuerDid="To-be-decided"
+      issuerVerificationMethod="todo"
       proofType="LD_PROOF"
       domain="TEST"
       nonce="todo"
@@ -82,7 +91,7 @@ spec:
     spec:
       containers:
         - name: waltid
-          image: quay.io/fiware/waltid:1.14.0-SNAPSHOT
+          image: waltid/ssikit:1.2306281817.jwt-sign-rsa
           imagePullPolicy: IfNotPresent
           args:
             - serve
@@ -109,6 +118,9 @@ spec:
             - mountPath: /app/service-matrix.properties
               name: sm-volume
               subPath: service-matrix.properties
+            - mountPath: /app/walt.yaml
+              name: config-volume
+              subPath: walt.yaml
       volumes:
         - name: data-volume
           emptyDir:
