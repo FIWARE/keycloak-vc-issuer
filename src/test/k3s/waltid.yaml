@@ -42,7 +42,7 @@ data:
       domain="TEST"
       nonce="todo"
     }
-    templatesFolder: "/templates"
+    templatesFolder: "/vc-templates-runtime"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -59,6 +59,7 @@ data:
       "credentialSubject": {
        "familyName": "Happy",
        "firstName": "User",
+       "email": "test@test.test",
        "id": "did:ebsi:2AEMAqXWKYMu1JHPAgGcga4dxu7ThgfgN95VyJBJGZbSJUtp",
        "roles": [{
          "names": ["P.Info.gold"],
@@ -91,7 +92,7 @@ spec:
     spec:
       containers:
         - name: waltid
-          image: waltid/ssikit:1.2306281817.jwt-sign-rsa
+          image: quay.io/pulledtim/waltid-ssikit:morelogs
           imagePullPolicy: IfNotPresent
           args:
             - serve
@@ -111,7 +112,7 @@ spec:
           volumeMounts:
             - mountPath: /app/data
               name: data-volume
-            - mountPath: /templates
+            - mountPath: /vc-templates-runtime
               name: templates-volume
             - mountPath: /config
               name: config-volume
@@ -121,6 +122,9 @@ spec:
             - mountPath: /app/walt.yaml
               name: config-volume
               subPath: walt.yaml
+            - mountPath: /app/simplelogger.properties
+              name: config-volume
+              subPath: simplelogger.properties
       volumes:
         - name: data-volume
           emptyDir:

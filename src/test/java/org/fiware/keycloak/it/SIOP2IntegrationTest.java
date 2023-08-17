@@ -74,6 +74,7 @@ public class SIOP2IntegrationTest {
 
 	private static final String KEYCLOAK_ADDRESS = "http://localhost:8080";
 	private static final String WALT_ID_CORE_ADDRESS = "http://localhost:7000";
+	private static final String WALT_ID_SIGN_ADDRESS = "http://localhost:7001";
 
 	private static final String TEST_CLIENT_ID_ONE = "did:key:z6Mkv4Lh9zBTPLoFhLHHMFJA7YAeVw5HFYZV8rkdfY9fNtm3";
 	private static final String TEST_CLIENT_ID_TWO = "did:key:z6Mkp7DVYuruxmKxsy2Rb3kMnfHgZZpbWYnY9rodvVfky7uj";
@@ -103,6 +104,18 @@ public class SIOP2IntegrationTest {
 							.build(), HttpResponse.BodyHandlers.ofString());
 			if (response.statusCode() == 200) {
 				issuerDid = (String) OBJECT_MAPPER.readValue(response.body(), List.class).get(0);
+				return true;
+			}
+			return false;
+		});
+
+		Awaitility.await().atMost(Duration.of(2, ChronoUnit.MINUTES)).until(() -> {
+			HttpResponse<String> response = HttpClient.newHttpClient()
+					.send(HttpRequest.newBuilder()
+							.GET()
+							.uri(URI.create(String.format("%s/v1/templates/BatteryPassAuthCredential", WALT_ID_SIGN_ADDRESS)))
+							.build(), HttpResponse.BodyHandlers.ofString());
+			if (response.statusCode() == 200) {
 				return true;
 			}
 			return false;

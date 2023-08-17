@@ -615,11 +615,11 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		ProofType proofType = ProofType.JWT;
 		if (format == FormatVO.LDP_VC) {
-			proofType = ProofType.LD_PROOF;
 		}
+		proofType = ProofType.LD_PROOF;
 
 		VCRequest vcRequest = getVCRequest(vcType, proofType, userModel, clients, roles, optionalMinExpiry);
-		LOGGER.debugf("Request is %s.", vcRequest);
+		LOGGER.infof("Request is %s.", vcRequest);
 		return waltIdClient.getVCFromWaltId(vcRequest);
 
 	}
