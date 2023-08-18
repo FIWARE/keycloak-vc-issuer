@@ -122,9 +122,6 @@ spec:
             - mountPath: /app/walt.yaml
               name: config-volume
               subPath: walt.yaml
-            - mountPath: /app/simplelogger.properties
-              name: config-volume
-              subPath: simplelogger.properties
       volumes:
         - name: data-volume
           emptyDir:
