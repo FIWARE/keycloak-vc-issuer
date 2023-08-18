@@ -615,8 +615,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 		ProofType proofType = ProofType.JWT;
 		if (format == FormatVO.LDP_VC) {
+			proofType = ProofType.LD_PROOF;
 		}
-		proofType = ProofType.LD_PROOF;
 
 		VCRequest vcRequest = getVCRequest(vcType, proofType, userModel, clients, roles, optionalMinExpiry);
 		LOGGER.infof("Request is %s.", vcRequest);
@@ -691,6 +691,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		// only include non-null & non-empty claims
 		var claimsBuilder = VCClaims.builder();
 
+		LOGGER.infof("Will set roles %s", roles);
 		List<String> claims = getClaimsToSet(vcType, clients);
 		LOGGER.infof("Will set %s", claims);
 		if (claims.contains("email")) {
