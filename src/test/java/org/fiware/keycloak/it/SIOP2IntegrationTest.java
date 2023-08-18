@@ -855,6 +855,7 @@ public class SIOP2IntegrationTest {
 			} else {
 				attributes.put(typeKey, st.getFormat().toString());
 			}
+			attributes.put(String.format("%s_claims",st.getType()),"email,firstName,familyName,roles");
 		});
 
 		clientRepresentation.setAttributes(attributes);

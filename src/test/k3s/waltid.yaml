@@ -92,7 +92,7 @@ spec:
     spec:
       containers:
         - name: waltid
-          image: quay.io/pulledtim/waltid-ssikit:morelogs
+          image: waltid/ssikit:1.2306281817.jwt-sign-rsa
           imagePullPolicy: IfNotPresent
           args:
             - serve
