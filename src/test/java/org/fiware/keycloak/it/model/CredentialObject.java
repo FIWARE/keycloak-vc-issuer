@@ -1,15 +1,13 @@
 package org.fiware.keycloak.it.model;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.fiware.keycloak.oidcvc.model.FormatVO;
 
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
 @EqualsAndHashCode
+@ToString
 public class CredentialObject {
 
 	public String type;

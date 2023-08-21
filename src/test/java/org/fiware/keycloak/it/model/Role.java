@@ -1,9 +1,6 @@
 package org.fiware.keycloak.it.model;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.util.List;
 import java.util.Set;
@@ -12,6 +9,7 @@ import java.util.Set;
 @NoArgsConstructor
 @Builder
 @EqualsAndHashCode
+@ToString
 public class Role {
 
 	public Set<String> names;

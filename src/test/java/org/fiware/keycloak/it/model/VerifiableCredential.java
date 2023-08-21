@@ -1,11 +1,7 @@
 package org.fiware.keycloak.it.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.util.List;
 import java.util.Set;
@@ -14,6 +10,7 @@ import java.util.Set;
 @NoArgsConstructor
 @Builder
 @Getter
+@ToString
 @EqualsAndHashCode
 public class VerifiableCredential {
 	public Set<String> type;

@@ -26,14 +26,23 @@ kind: ConfigMap
 metadata:
   name: waltid-cm
 data:
+  walt.yaml: |
+    hikariDataSource:
+      autoCommit: false
+      dataSource:
+        fullColumnNames: false
+        journalMode: WAL
+      jdbcUrl: jdbc:sqlite:data/walt.db
+      maximumPoolSize: 5
   signatory.conf: |
     proofConfig {
       issuerDid="To-be-decided"
+      issuerVerificationMethod="todo"
       proofType="LD_PROOF"
       domain="TEST"
       nonce="todo"
     }
-    templatesFolder: "/templates"
+    templatesFolder: "/vc-templates-runtime"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -50,6 +59,7 @@ data:
       "credentialSubject": {
        "familyName": "Happy",
        "firstName": "User",
+       "email": "test@test.test",
        "id": "did:ebsi:2AEMAqXWKYMu1JHPAgGcga4dxu7ThgfgN95VyJBJGZbSJUtp",
        "roles": [{
          "names": ["P.Info.gold"],
@@ -82,7 +92,7 @@ spec:
     spec:
       containers:
         - name: waltid
-          image: quay.io/fiware/waltid:1.14.0-SNAPSHOT
+          image: waltid/ssikit:1.2306281817.jwt-sign-rsa
           imagePullPolicy: IfNotPresent
           args:
             - serve
@@ -102,13 +112,16 @@ spec:
           volumeMounts:
             - mountPath: /app/data
               name: data-volume
-            - mountPath: /templates
+            - mountPath: /vc-templates-runtime
               name: templates-volume
             - mountPath: /config
               name: config-volume
             - mountPath: /app/service-matrix.properties
               name: sm-volume
               subPath: service-matrix.properties
+            - mountPath: /app/walt.yaml
+              name: config-volume
+              subPath: walt.yaml
       volumes:
         - name: data-volume
           emptyDir:
