@@ -9,7 +9,7 @@ jobs:
 
     steps:
       - id: keycloak-version
-        uses: pulledtim/get-releases-by-semver@0.0.3
+        uses: pulledtim/get-releases-by-semver@0.0.4
         with:
           include: "MINOR"
           # we already know that everything below is incompatible
