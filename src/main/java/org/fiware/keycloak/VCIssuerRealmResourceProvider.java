@@ -33,6 +33,7 @@ import org.fiware.keycloak.model.walt.CredentialMetadata;
 import org.fiware.keycloak.model.walt.FormatObject;
 import org.fiware.keycloak.model.walt.IssuerDisplay;
 import org.fiware.keycloak.model.walt.ProofType;
+import org.fiware.keycloak.model.walt.CredentialOfferURI;
 import org.fiware.keycloak.oidcvc.model.CredentialIssuerVO;
 import org.fiware.keycloak.oidcvc.model.CredentialRequestVO;
 import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
@@ -84,6 +85,10 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -353,9 +358,9 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	 * Provides an OIDC4VCI compliant credentials offer
 	 */
 	@GET
-	@Path("{issuer-did}/credential-offer")
+	@Path("{issuer-did}/credential-offer-uri")
 	@Produces({ MediaType.APPLICATION_JSON })
-	public Response getCredentialOffer(@PathParam("issuer-did") String issuerDidParam,
+	public Response getCredentialOfferURI(@PathParam("issuer-did") String issuerDidParam,
 			@QueryParam("type") String vcType, @QueryParam("format") FormatVO format) {
 
 		LOGGER.infof("Get an offer for %s - %s", vcType, format);
@@ -378,13 +383,82 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.exp(now.plus(Duration.of(30, ChronoUnit.SECONDS)).getEpochSecond());
 		token.setOtherClaims("offeredCredential", new SupportedCredential(vcType, format));
 
+		String nonce = generateAuthorizationCode();
+
+		AuthenticationManager.AuthResult authResult = getAuthResult();
+		UserSessionModel userSessionModel = getUserSessionModel();
+
+		AuthenticatedClientSessionModel clientSession = userSessionModel.
+				getAuthenticatedClientSessionByClient(
+						authResult.getClient().getId());
+		try {
+			clientSession.setNote(nonce, objectMapper.writeValueAsString(offeredCredential));
+		} catch (JsonProcessingException e) {
+			// TODO handle
+		}
+
+		CredentialOfferURI credentialOfferURI = new CredentialOfferURI(getIssuer(), nonce);
+
+		LOGGER.infof("Responding with nonce: %s", nonce);
+		return Response.ok()
+				.entity(credentialOfferURI)
+				.header(ACCESS_CONTROL_HEADER, "*")
+				.build();
+
+	}
+
+	/**
+	 * Provides an OIDC4VCI compliant credentials offer 2
+	 */
+	@GET
+	@Path("{issuer-did}/credential-offer")
+	@Produces({ MediaType.APPLICATION_JSON })
+	public Response getCredentialOffer(@PathParam("issuer-did") String issuerDidParam,
+									   @QueryParam("credential_offer_uri") String encodedCredentialOfferURI) {
+		String nonce = null;
+		try {
+			URI decodedCredentialOfferURI = new URI(URLDecoder.decode(encodedCredentialOfferURI, StandardCharsets.UTF_8));
+			String[] splitPath = decodedCredentialOfferURI.getPath().split("/");
+			if (splitPath.length < 2) {
+				throw new URISyntaxException(encodedCredentialOfferURI, "Provided URI has wrong format");
+			}
+			nonce = splitPath[splitPath.length - 1];
+		} catch (URISyntaxException e) {
+			// TODO handle
+		}
+		LOGGER.infof("Get an offer for nonce %s", nonce);
+		assertIssuerDid(issuerDidParam);
+
+		EventBuilder eventBuilder = new EventBuilder(session.getContext().getRealm(), session,
+				session.getContext().getConnection());
+		OAuth2CodeParser.ParseResult result = OAuth2CodeParser.parseCode(session, nonce,
+				session.getContext().getRealm(),
+				eventBuilder);
+
+		if (result.isExpiredCode() || result.isIllegalCode()) {
+			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_TOKEN));
+		}
+
+		SupportedCredential offeredCredential;
+		try {
+			offeredCredential = objectMapper.readValue(result.getClientSession().getNote(nonce),
+					SupportedCredential.class);
+			LOGGER.infof("Creating an offer for %s - %s", offeredCredential.getType(),
+					offeredCredential.getFormat());
+			result.getClientSession().removeNote(nonce);
+		} catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+
+        String preAuthorizedCode = generateAuthorizationCodeForClientSession(result.getClientSession());
 		CredentialsOfferVO theOffer = new CredentialsOfferVO()
 				.credentialIssuer(getIssuer())
 				.credentials(List.of(offeredCredential))
 				.grants(new PreAuthorizedGrantVO().
 						urnColonIetfColonParamsColonOauthColonGrantTypeColonPreAuthorizedCode(
-								new PreAuthorizedVO().preAuthorizedCode(generateAuthorizationCode())
+								new PreAuthorizedVO().preAuthorizedCode(preAuthorizedCode)
 										.userPinRequired(false)));
+
 		LOGGER.infof("Responding with offer: %s", theOffer);
 		return Response.ok()
 				.entity(theOffer)
@@ -440,19 +514,20 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	private String generateAuthorizationCode() {
-
 		AuthenticationManager.AuthResult authResult = getAuthResult();
 		UserSessionModel userSessionModel = getUserSessionModel();
-
 		AuthenticatedClientSessionModel clientSessionModel = userSessionModel.
-				getAuthenticatedClientSessionByClient(
-						authResult.getClient().getId());
-		int expiration = Time.currentTime() + getUserSessionModel().getRealm().getAccessCodeLifespan();
+				getAuthenticatedClientSessionByClient(authResult.getClient().getId());
+		return generateAuthorizationCodeForClientSession(clientSessionModel);
+	}
+
+	private String generateAuthorizationCodeForClientSession(AuthenticatedClientSessionModel clientSessionModel) {
+		int expiration = Time.currentTime() + clientSessionModel.getUserSession().getRealm().getAccessCodeLifespan();
 
 		String codeId = UUID.randomUUID().toString();
 		String nonce = UUID.randomUUID().toString();
 		OAuth2Code oAuth2Code = new OAuth2Code(codeId, expiration, nonce, null, null, null, null,
-				userSessionModel.getId());
+				clientSessionModel.getUserSession().getId());
 
 		return OAuth2CodeParser.persistCode(session, clientSessionModel, oAuth2Code);
 	}
