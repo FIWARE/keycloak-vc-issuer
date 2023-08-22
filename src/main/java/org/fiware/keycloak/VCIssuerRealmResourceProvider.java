@@ -394,7 +394,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		try {
 			clientSession.setNote(nonce, objectMapper.writeValueAsString(offeredCredential));
 		} catch (JsonProcessingException e) {
-			// TODO handle
+			LOGGER.infof("Could not convert POJO to JSON: %s", e.getMessage());
+			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_REQUEST));
 		}
 
 		CredentialOfferURI credentialOfferURI = new CredentialOfferURI(getIssuer(), nonce);
@@ -415,29 +416,23 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	@Produces({ MediaType.APPLICATION_JSON })
 	public Response getCredentialOffer(@PathParam("issuer-did") String issuerDidParam,
 									   @QueryParam("credential_offer_uri") String encodedCredentialOfferURI) {
-		String nonce = null;
+		String nonce;
 		try {
 			URI decodedCredentialOfferURI = new URI(URLDecoder.decode(encodedCredentialOfferURI, StandardCharsets.UTF_8));
 			String[] splitPath = decodedCredentialOfferURI.getPath().split("/");
 			if (splitPath.length < 2) {
-				throw new URISyntaxException(encodedCredentialOfferURI, "Provided URI has wrong format");
+				throw new URISyntaxException(decodedCredentialOfferURI.toString(), "Provided URI has wrong format");
 			}
 			nonce = splitPath[splitPath.length - 1];
 		} catch (URISyntaxException e) {
-			// TODO handle
+			LOGGER.infof("URI '%s' has wrong format", e.getInput());
+			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_REQUEST));
 		}
+
 		LOGGER.infof("Get an offer for nonce %s", nonce);
 		assertIssuerDid(issuerDidParam);
 
-		EventBuilder eventBuilder = new EventBuilder(session.getContext().getRealm(), session,
-				session.getContext().getConnection());
-		OAuth2CodeParser.ParseResult result = OAuth2CodeParser.parseCode(session, nonce,
-				session.getContext().getRealm(),
-				eventBuilder);
-
-		if (result.isExpiredCode() || result.isIllegalCode()) {
-			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_TOKEN));
-		}
+		OAuth2CodeParser.ParseResult result = parseAuthorizationCode(nonce);
 
 		SupportedCredential offeredCredential;
 		try {
@@ -447,8 +442,9 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 					offeredCredential.getFormat());
 			result.getClientSession().removeNote(nonce);
 		} catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
+			LOGGER.infof("Could not convert JSON to POJO: %s", e.getMessage());
+			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_REQUEST));
+		}
 
         String preAuthorizedCode = generateAuthorizationCodeForClientSession(result.getClientSession());
 		CredentialsOfferVO theOffer = new CredentialsOfferVO()
@@ -464,7 +460,6 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.entity(theOffer)
 				.header(ACCESS_CONTROL_HEADER, "*")
 				.build();
-
 	}
 
 	/**
@@ -487,14 +482,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		// some (not fully OIDC4VCI compatible) wallets send the preauthorized code as an alternative parameter
 		String codeToUse = Optional.ofNullable(code).orElse(preauth);
 
-		EventBuilder eventBuilder = new EventBuilder(session.getContext().getRealm(), session,
-				session.getContext().getConnection());
-		OAuth2CodeParser.ParseResult result = OAuth2CodeParser.parseCode(session, codeToUse,
-				session.getContext().getRealm(),
-				eventBuilder);
-		if (result.isExpiredCode() || result.isIllegalCode()) {
-			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_TOKEN));
-		}
+		OAuth2CodeParser.ParseResult result = parseAuthorizationCode(codeToUse);
 		AccessToken accessToken = new TokenManager().createClientAccessToken(session,
 				result.getClientSession().getRealm(),
 				result.getClientSession().getClient(),
@@ -511,6 +499,18 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		return Response.ok().entity(new TokenResponse(encryptedToken, tokenType, expiresIn, null, null))
 				.header(ACCESS_CONTROL_HEADER, "*")
 				.build();
+	}
+
+	private OAuth2CodeParser.ParseResult parseAuthorizationCode(String codeToUse) throws BadRequestException {
+		EventBuilder eventBuilder = new EventBuilder(session.getContext().getRealm(), session,
+				session.getContext().getConnection());
+		OAuth2CodeParser.ParseResult result = OAuth2CodeParser.parseCode(session, codeToUse,
+				session.getContext().getRealm(),
+				eventBuilder);
+		if (result.isExpiredCode() || result.isIllegalCode()) {
+			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_TOKEN));
+		}
+		return result;
 	}
 
 	private String generateAuthorizationCode() {
