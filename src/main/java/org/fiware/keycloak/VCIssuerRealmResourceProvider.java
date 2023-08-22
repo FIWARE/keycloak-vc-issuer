@@ -88,9 +88,6 @@ import javax.ws.rs.core.Response;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -105,18 +102,15 @@ import java.util.stream.Collectors;
 import static org.fiware.keycloak.SIOP2ClientRegistrationProvider.VC_TYPES_PREFIX;
 
 /**
- * Realm-Resource to provide functionality for issuing VerfiableCredentials to users, depending on there roles in
+ * Realm-Resource to provide functionality for issuing VerifiableCredentials to users, depending on their roles in
  * registered SIOP-2 clients
  */
 public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	private static final Logger LOGGER = Logger.getLogger(VCIssuerRealmResourceProvider.class);
-	private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_DATE_TIME
-			.withZone(ZoneId.of(ZoneOffset.UTC.getId()));
 
 	public static final String LD_PROOF_TYPE = "LD_PROOF";
 	public static final String CREDENTIAL_PATH = "credential";
-	public static final String TOKEN_PATH = "token";
 	public static final String TYPE_VERIFIABLE_CREDENTIAL = "VerifiableCredential";
 	public static final String GRANT_TYPE_PRE_AUTHORIZED_CODE = "urn:ietf:params:oauth:grant-type:pre-authorized_code";
 	private static final String ACCESS_CONTROL_HEADER = "Access-Control-Allow-Origin";
@@ -284,11 +278,6 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	private String getCredentialEndpoint() {
 
 		return getIssuer() + "/" + CREDENTIAL_PATH;
-	}
-
-	private String getTokenEndpoint() {
-
-		return getIssuer() + "/" + TOKEN_PATH;
 	}
 
 	private String getIssuer() {
@@ -521,7 +510,6 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	/**
 	 * Options endpoint to serve the cors-preflight requests.
-	 * 
 	 * Since we cannot know the address of the requesting wallets in advance, we have to accept all origins.
 	 */
 	@OPTIONS
@@ -576,8 +564,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		List<String> types = new ArrayList<>(Objects.requireNonNull(Optional.ofNullable(credentialRequestVO.getTypes())
 				.orElseGet(() -> {
 					try {
-						return objectMapper.readValue(credentialRequestVO.getType(), new TypeReference<List<String>>() {
-						});
+						return objectMapper.readValue(credentialRequestVO.getType(), new TypeReference<>() {
+                        });
 					} catch (JsonProcessingException e) {
 						LOGGER.warnf("Was not able to read the type parameter: %s", credentialRequestVO.getType(), e);
 						return null;
