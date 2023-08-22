@@ -85,10 +85,6 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -412,23 +408,10 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	 * Provides an OIDC4VCI compliant credentials offer 2
 	 */
 	@GET
-	@Path("{issuer-did}/credential-offer")
+	@Path("{issuer-did}/credential-offer/{nonce}")
 	@Produces({ MediaType.APPLICATION_JSON })
 	public Response getCredentialOffer(@PathParam("issuer-did") String issuerDidParam,
-									   @QueryParam("credential_offer_uri") String encodedCredentialOfferURI) {
-		String nonce;
-		try {
-			URI decodedCredentialOfferURI = new URI(URLDecoder.decode(encodedCredentialOfferURI, StandardCharsets.UTF_8));
-			String[] splitPath = decodedCredentialOfferURI.getPath().split("/");
-			if (splitPath.length < 2) {
-				throw new URISyntaxException(decodedCredentialOfferURI.toString(), "Provided URI has wrong format");
-			}
-			nonce = splitPath[splitPath.length - 1];
-		} catch (URISyntaxException e) {
-			LOGGER.infof("URI '%s' has wrong format", e.getInput());
-			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_REQUEST));
-		}
-
+									   @PathParam("nonce") String nonce) {
 		LOGGER.infof("Get an offer for nonce %s", nonce);
 		assertIssuerDid(issuerDidParam);
 
