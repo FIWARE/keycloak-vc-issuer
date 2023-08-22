@@ -28,7 +28,7 @@ import {
     ListItem,
     SelectOptionObject
 } from '@patternfly/react-core';
-import { QRCodeSVG, QRCodeCanvas } from './QRCode';
+import { QRCodeSVG } from './QRCode';
 
  
 import { ContentPage } from "../ContentPage"
@@ -36,17 +36,6 @@ import { ContentAlert } from "../ContentAlert"
 import { AccountServiceContext } from "../../account-service/AccountServiceContext"
 
 interface VCProps {
-}
-
-interface PreAuthorized {
-  'pre-authorized_code': string,
-  'user_pin_required': boolean
-}
-
-interface CredentialOffer {
-  credential_issuer: string,
-  credentials: SupportedCredential[],
-  grants: PreAuthorized
 }
 
 interface CredentialOfferURI {
@@ -172,7 +161,7 @@ export class VC extends React.Component<VCProps, VCState> {
       .then(response => this.handleOfferResponse(response, path))
   }
   
-  private handleOfferResponse(response: Response, path: String) {
+  private handleOfferResponse(response: Response, _: String) {
     response.json()
       .then((offerURI: CredentialOfferURI) => {
         if (response.status !== 200) {
@@ -191,25 +180,9 @@ export class VC extends React.Component<VCProps, VCState> {
       })    
   }
 
-  private handleResponse(response: Response) {
-    response.text()
-    .then(textData => {
-      if (response.status !== 200) {
-        console.log("Did not receive a vc.");
-        ContentAlert.warning(textData);
-      } else {
-        this.setState({ ...{
-          credential: textData,
-          vcQRVisible: true,
-          offerQRVisible: false,
-          urlQRVisible: false}});
-      }
-    })      
-  }
-
   public render(): React.ReactNode {
         
-  const { isOpen, selected, dropdownItems, isDisabled, credential, vcQRVisible, urlQRVisible, vcUrl, offerQRVisible, offerUrl} = this.state;
+  const { isOpen, selected, dropdownItems, isDisabled, offerQRVisible, offerUrl} = this.state;
 
   return (
     <ContentPage title='Issue VCs' introMessage='Request a VC of the selected type or generate the request for importing it into your wallet.'>
@@ -279,4 +252,4 @@ export class VC extends React.Component<VCProps, VCState> {
     </ContentPage>
     );
   }
-};
+}
