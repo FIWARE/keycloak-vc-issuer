@@ -1,14 +1,12 @@
 package org.fiware.keycloak.it.model;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
 @EqualsAndHashCode
+@ToString
 public class JWSProof {
 
 	public String type;

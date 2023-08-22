@@ -665,7 +665,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		}
 
 		VCRequest vcRequest = getVCRequest(vcType, proofType, userModel, clients, roles, optionalMinExpiry);
-		LOGGER.debugf("Request is %s.", vcRequest);
+		LOGGER.infof("Request is %s.", vcRequest);
 		return waltIdClient.getVCFromWaltId(vcRequest);
 
 	}
@@ -737,6 +737,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		// only include non-null & non-empty claims
 		var claimsBuilder = VCClaims.builder();
 
+		LOGGER.infof("Will set roles %s", roles);
 		List<String> claims = getClaimsToSet(vcType, clients);
 		LOGGER.infof("Will set %s", claims);
 		if (claims.contains("email")) {
