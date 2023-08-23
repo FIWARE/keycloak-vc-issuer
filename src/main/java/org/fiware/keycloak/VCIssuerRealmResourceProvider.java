@@ -379,7 +379,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		try {
 			clientSession.setNote(nonce, objectMapper.writeValueAsString(offeredCredential));
 		} catch (JsonProcessingException e) {
-			LOGGER.infof("Could not convert POJO to JSON: %s", e.getMessage());
+			LOGGER.errorf("Could not convert POJO to JSON: %s", e.getMessage());
 			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_REQUEST));
 		}
 
@@ -401,7 +401,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	@Produces({ MediaType.APPLICATION_JSON })
 	public Response getCredentialOffer(@PathParam("issuer-did") String issuerDidParam,
 									   @PathParam("nonce") String nonce) {
-		LOGGER.infof("Get an offer for nonce %s", nonce);
+			LOGGER.infof("Get an offer from issuer %s for nonce %s", issuerDidParam, nonce);
 		assertIssuerDid(issuerDidParam);
 
 		OAuth2CodeParser.ParseResult result = parseAuthorizationCode(nonce);
