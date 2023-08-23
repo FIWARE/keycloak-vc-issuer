@@ -71,8 +71,9 @@ and any other standard-conformant Wallet-implementation. As of now, it supports 
     - to initiate standard conformant issuance, an endpoint to
       retrieve [Credential Offer](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-offer)
       is provided
-    - the endpoint is available at ```/realms/{realm-id}/verifiable-credential/{issuer-did}/credential-offer``` and
-      accepts the type and format to be offered
+    - the endpoint is available at ```/realms/{realm-id}/verifiable-credential/{issuer-did}/credential-offer/{nonce}```. Nonce should be
+      retrieved from the endpoint ```/realms/{realm-id}/verifiable-credential/{issuer-did}/credential-offer-uri```, which accepts the type
+      and format of the credential
     - see [api-spec](./api/api.yaml) for more
 - [6. Token Endpoint](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-token-endpoint)
     - supports token exchange through the pre-authorized flow
@@ -329,7 +330,7 @@ Get a VC:
 
 ![get-vc](doc/vc.png)
 
-The displayed QR provides a a URI-formatted, OIDC4VCI compatible credential-offer, that can be scanned and used by
+The displayed QR provides a URI-formatted reference to the OIDC4VCI compatible credential-offer, that can be scanned and used by
 compliant wallets. For demonstrational purposes, the [demo-wallet.fiware.dev](https://demo-wallet.fiware.dev) can be
 used. It's [browser based wallet](https://github.com/FIWARE/VCWallet), intended to be used in demo-scenarios, not
 suitable for real-world use-cases.
