@@ -10,7 +10,8 @@ import java.util.Set;
 
 @Builder
 @Data
-@JsonInclude(JsonInclude.Include.NON_NULL)
+// Include null values so that entries in the waltId templating are overridden
+@JsonInclude(JsonInclude.Include.ALWAYS)
 public class VCClaims {
 	private String firstName;
 	private String familyName;
