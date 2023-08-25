@@ -85,9 +85,8 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.time.Clock;
-import java.time.Duration;
-import java.time.Instant;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -108,6 +107,8 @@ import static org.fiware.keycloak.SIOP2ClientRegistrationProvider.VC_TYPES_PREFI
 public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	private static final Logger LOGGER = Logger.getLogger(VCIssuerRealmResourceProvider.class);
+	private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_DATE_TIME
+			.withZone(ZoneId.of(ZoneOffset.UTC.getId()));
 
 	public static final String LD_PROOF_TYPE = "LD_PROOF";
 	public static final String CREDENTIAL_PATH = "credential";
@@ -774,13 +775,14 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		VCClaims vcClaims = claimsBuilder.build();
 		vcConfigBuilder.issuerDid(issuerDid)
 				.proofType(proofType.toString());
-		//TODO: reintroduce when walt api is fixed
-		//		optionalMinExpiry
-		//				.map(minExpiry -> Clock.systemUTC()
-		//						.instant()
-		//						.plus(Duration.of(minExpiry, ChronoUnit.MINUTES)))
-		//				.map(FORMATTER::format)
-		//				.ifPresent(vcConfigBuilder::expirationDate);
+
+		optionalMinExpiry
+				.map(minExpiry -> Clock.systemUTC()
+						.instant()
+						.plus(Duration.of(minExpiry, ChronoUnit.MINUTES)))
+				.map(FORMATTER::format)
+				.ifPresent(vcConfigBuilder::expirationDate);
+
 		VCConfig vcConfig = vcConfigBuilder.build();
 		LOGGER.debugf("VC config is %s", vcConfig);
 		return VCRequest.builder().templateId(vcType)
