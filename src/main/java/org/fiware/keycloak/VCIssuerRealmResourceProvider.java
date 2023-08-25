@@ -340,7 +340,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	/**
-	 * Provides an OIDC4VCI compliant credentials offer
+	 * Provides URI to the OIDC4VCI compliant credentials offer
 	 */
 	@GET
 	@Path("{issuer-did}/credential-offer-uri")
@@ -394,7 +394,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	/**
-	 * Provides an OIDC4VCI compliant credentials offer 2
+	 * Provides an OIDC4VCI compliant credentials offer
 	 */
 	@GET
 	@Path("{issuer-did}/credential-offer/{nonce}")
