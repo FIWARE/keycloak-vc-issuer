@@ -414,7 +414,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 					offeredCredential.getFormat());
 			result.getClientSession().removeNote(nonce);
 		} catch (JsonProcessingException e) {
-			LOGGER.infof("Could not convert JSON to POJO: %s", e.getMessage());
+			LOGGER.errorf("Could not convert JSON to POJO: %s", e);
 			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_REQUEST));
 		}
 
