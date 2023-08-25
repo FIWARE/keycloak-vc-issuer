@@ -154,7 +154,7 @@ paths:
                     - type
                     - format
 
-  /{issuerDid}/credential-offer:
+  /{issuerDid}/credential-offer-uri:
     get:
       tags:
         - IssuerPlugin
@@ -163,11 +163,34 @@ paths:
         - $ref: '#/components/parameters/IssuerDid'
         - $ref: '#/components/parameters/VcType'
         - $ref: '#/components/parameters/VcFormat'
-      description: Endpoint to retrieve an OIDC4VCI compliant offer, that can f.e. be used in QR-Code presented to a compliant wallet.
+      description: Endpoint to retrieve a nonce for an OIDC4VCI compliant offer, that can f.e. be used in QR-Code presented to a compliant wallet.
+      operationId: getCredentialOfferURI
+      responses:
+        '200':
+          description: Issuer and nonce of credential offer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialOfferURI'
+        '400':
+          description: When the Credential Request is invalid or unauthorized, the Credential Issuer responds the error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /{issuerDid}/credential-offer/{nonce}:
+    get:
+      tags:
+        - IssuerPlugin
+        - OIDC4VCI
+      parameters:
+        - $ref: '#/components/parameters/CredentialOfferNonce'
+      description: Endpoint to retrieve an OIDC4VCI compliant offer
       operationId: getCredentialOffer
       responses:
         '200':
-          description: A valid credential offer. It will provide the pre-authorized flow, wich is currently the only one supported by the plugin
+          description: A valid credential offer. It will provide the pre-authorized flow, which is currently the only one supported by the plugin
           content:
             application/json:
               schema:
@@ -178,7 +201,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
   /{issuerDid}/:
     get:
       tags:
@@ -236,6 +258,14 @@ components:
       schema:
         type: string
         example: eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJkNi0xekdLVlNGSHUzREF1SHFpdmRaS1loTmN1dzZpUEpxaGRJNTNKMDVBIn0.eyJleHAiOjE2NzcwNjg3NDUsImlhdCI6MTY3NzA2ODQ0NSwiYXV0aF90aW1lIjoxNjc3MDY3NTUyLCJqdGkiOiIxYjBiYTg1NS0yZDJmLTQ1MGYtOGUxMy00ZjBkMWUyYmFiOTYiLCJpc3MiOiJodHRwczovL2tjLW9uZS5iYXR0ZXJ5cGFzcy5maXdhcmUuZGV2L3JlYWxtcy9maXdhcmUtc2VydmVyIiwiYXVkIjoiYWNjb3VudCIsInN1YiI6IjQ4MzBhNzJkLWM4MTAtNDU2Ny1hNThlLWU5ZWU1Mzk0NjM4OSIsInR5cCI6IkJlYXJlciIsImF6cCI6ImFjY291bnQtY29uc29sZSIsInNlc3Npb25fc3RhdGUiOiJjY2JkYmNjMi0wMDhmLTRiOTAtYTc0ZS04NDdjZTNlMGFlODIiLCJyZXNvdXJjZV9hY2Nlc3MiOnsiYWNjb3VudCI6eyJyb2xlcyI6WyJtYW5hZ2UtYWNjb3VudCIsIm1hbmFnZS1hY2NvdW50LWxpbmtzIl19fSwic2NvcGUiOiJvcGVuaWQgZW1haWwgcHJvZmlsZSIsInNpZCI6ImNjYmRiY2MyLTAwOGYtNGI5MC1hNzRlLTg0N2NlM2UwYWU4MiIsImVtYWlsX3ZlcmlmaWVkIjpmYWxzZSwibmFtZSI6IlRlc3QgVXNlciIsInByZWZlcnJlZF91c2VybmFtZSI6ImFkbWluLXVzZXIiLCJnaXZlbl9uYW1lIjoiVGVzdCIsImZhbWlseV9uYW1lIjoiVXNlciIsImVtYWlsIjoiYWRtaW4tdXNlckBmaXdhcmUub3JnIn0.pOS7B833u9zgCRpijbJEV56kg9j7ggLUA2UI38nQZE-30nOWn5xzQB1l2_EGcVJAjWeDJNbTEvhRa5Ik2yl7H6piGF9X37sxhFmJ-f7K-i9ca1rhEinxxGWh14Bi75w2lQhpHFw_U_Ee579i-2it8V7ibmUXVifRc0P9qq9faWhrQdgCtUeTLbsZHLZio_bgLVmlOPVh7DCowiZArbfcH55Fl3cEOfxGYnYCJwnzsqH7CsMP30WaEePxen2SefdSHE9j117eAuXuRbnloGXlkf7qVXtVrHWUGtPtVt16dtqIybxS_cNmgI9EfGtJneXgzKR-GANXHV0ew6V6S_OoOw
+    CredentialOfferNonce:
+      description: Credential offer nonce
+      name: nonce
+      in: path
+      required: true
+      schema:
+        type: string
+        example: 5j349k3e3n23j
   schemas:
     Format:
       type: string
@@ -613,3 +643,15 @@ components:
         - access_token
         - token_type
         - expires_in
+    CredentialOfferURI:
+      type: object
+      properties:
+        issuer:
+          type: string
+          format: url
+          description: The Credential Issuer's identifier
+          example: https://kc-one.batterypass.fiware.dev/realms/fiware-server/verifiable-credential
+        nonce:
+          type: string
+          description: Nonce of credential offer
+          example: 5j349k3e3n23j

@@ -28,7 +28,7 @@ import {
     ListItem,
     SelectOptionObject
 } from '@patternfly/react-core';
-import { QRCodeSVG, QRCodeCanvas } from './QRCode';
+import { QRCodeSVG } from './QRCode';
 
  
 import { ContentPage } from "../ContentPage"
@@ -38,15 +38,9 @@ import { AccountServiceContext } from "../../account-service/AccountServiceConte
 interface VCProps {
 }
 
-interface PreAuthorized {
-  'pre-authorized_code': string,
-  'user_pin_required': boolean
-}
-
-interface CredentialOffer {
-  credential_issuer: string,
-  credentials: SupportedCredential[],
-  grants: PreAuthorized
+interface CredentialOfferURI {
+  issuer: string;
+  nonce: string;
 }
 
 interface SupportedCredential {
@@ -154,7 +148,7 @@ export class VC extends React.Component<VCProps, VCState> {
 
     const accountURL = new URL(this.context.accountUrl)
     const keycloakContext = this.context.kcSvc.keycloakAuth;
-    const vcIssue = accountURL.protocol + "//" + accountURL.host + "/realms/" + keycloakContext.realm + "/verifiable-credential/" +  this.state.issuerDid + "/credential-offer?type="+ supportedCredential.type+"&format="+supportedCredential.format;
+    const vcIssue = accountURL.protocol + "//" + accountURL.host + "/realms/" + keycloakContext.realm + "/verifiable-credential/" +  this.state.issuerDid + "/credential-offer-uri?type="+ supportedCredential.type+"&format="+supportedCredential.format;
     const token = keycloakContext.token
 
     var options = {  
@@ -167,19 +161,15 @@ export class VC extends React.Component<VCProps, VCState> {
       .then(response => this.handleOfferResponse(response, path))
   }
   
-  private handleOfferResponse(response: Response, path: String) {
+  private handleOfferResponse(response: Response, _: String) {
     response.json()
-      .then((offer: CredentialOffer) => {
+      .then((offerURI: CredentialOfferURI) => {
         if (response.status !== 200) {
           console.log("Did not receive an offer.");
           ContentAlert.warning(response.status + ":" + response.statusText);
         } else {
-          const credUrl = "openid-initiate-issuance://?issuer="
-          +encodeURIComponent(offer.credential_issuer + path)
-          +"&credential_type=" + encodeURIComponent("[\"" + this.getSelectedCredential().type +"\"]")
-          +"&format="+this.getSelectedCredential().format
-          +"&pre-authorized_code="+ offer.grants['urn:ietf:params:oauth:grant-type:pre-authorized_code']['pre-authorized_code']
-          +"&user_pin_required="+offer.grants['urn:ietf:params:oauth:grant-type:pre-authorized_code']['user_pin_required']
+          const credUrl = offerURI.issuer + "/credential-offer?credential_offer_uri="
+              + encodeURIComponent(offerURI.issuer + "/credential-offer/" + offerURI.nonce)
           console.log(credUrl)
           this.setState({ ...{
             offerUrl: credUrl,
@@ -190,25 +180,9 @@ export class VC extends React.Component<VCProps, VCState> {
       })    
   }
 
-  private handleResponse(response: Response) {
-    response.text()
-    .then(textData => {
-      if (response.status !== 200) {
-        console.log("Did not receive a vc.");
-        ContentAlert.warning(textData);
-      } else {
-        this.setState({ ...{
-          credential: textData,
-          vcQRVisible: true,
-          offerQRVisible: false,
-          urlQRVisible: false}});
-      }
-    })      
-  }
-
   public render(): React.ReactNode {
         
-  const { isOpen, selected, dropdownItems, isDisabled, credential, vcQRVisible, urlQRVisible, vcUrl, offerQRVisible, offerUrl} = this.state;
+  const { isOpen, selected, dropdownItems, isDisabled, offerQRVisible, offerUrl} = this.state;
 
   return (
     <ContentPage title='Issue VCs' introMessage='Request a VC of the selected type or generate the request for importing it into your wallet.'>
@@ -278,4 +252,4 @@ export class VC extends React.Component<VCProps, VCState> {
     </ContentPage>
     );
   }
-};
+}

@@ -33,6 +33,7 @@ import org.fiware.keycloak.model.walt.CredentialMetadata;
 import org.fiware.keycloak.model.walt.FormatObject;
 import org.fiware.keycloak.model.walt.IssuerDisplay;
 import org.fiware.keycloak.model.walt.ProofType;
+import org.fiware.keycloak.model.walt.CredentialOfferURI;
 import org.fiware.keycloak.oidcvc.model.CredentialIssuerVO;
 import org.fiware.keycloak.oidcvc.model.CredentialRequestVO;
 import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
@@ -87,9 +88,6 @@ import javax.ws.rs.core.Response;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -104,18 +102,15 @@ import java.util.stream.Collectors;
 import static org.fiware.keycloak.SIOP2ClientRegistrationProvider.VC_TYPES_PREFIX;
 
 /**
- * Realm-Resource to provide functionality for issuing VerfiableCredentials to users, depending on there roles in
+ * Realm-Resource to provide functionality for issuing VerifiableCredentials to users, depending on their roles in
  * registered SIOP-2 clients
  */
 public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	private static final Logger LOGGER = Logger.getLogger(VCIssuerRealmResourceProvider.class);
-	private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_DATE_TIME
-			.withZone(ZoneId.of(ZoneOffset.UTC.getId()));
 
 	public static final String LD_PROOF_TYPE = "LD_PROOF";
 	public static final String CREDENTIAL_PATH = "credential";
-	public static final String TOKEN_PATH = "token";
 	public static final String TYPE_VERIFIABLE_CREDENTIAL = "VerifiableCredential";
 	public static final String GRANT_TYPE_PRE_AUTHORIZED_CODE = "urn:ietf:params:oauth:grant-type:pre-authorized_code";
 	private static final String ACCESS_CONTROL_HEADER = "Access-Control-Allow-Origin";
@@ -285,11 +280,6 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		return getIssuer() + "/" + CREDENTIAL_PATH;
 	}
 
-	private String getTokenEndpoint() {
-
-		return getIssuer() + "/" + TOKEN_PATH;
-	}
-
 	private String getIssuer() {
 		return String.format("%s/%s/%s", getRealmResourcePath(),
 				VCIssuerRealmResourceProviderFactory.ID,
@@ -350,12 +340,12 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	/**
-	 * Provides an OIDC4VCI compliant credentials offer
+	 * Provides URI to the OIDC4VCI compliant credentials offer
 	 */
 	@GET
-	@Path("{issuer-did}/credential-offer")
+	@Path("{issuer-did}/credential-offer-uri")
 	@Produces({ MediaType.APPLICATION_JSON })
-	public Response getCredentialOffer(@PathParam("issuer-did") String issuerDidParam,
+	public Response getCredentialOfferURI(@PathParam("issuer-did") String issuerDidParam,
 			@QueryParam("type") String vcType, @QueryParam("format") FormatVO format) {
 
 		LOGGER.infof("Get an offer for %s - %s", vcType, format);
@@ -378,19 +368,70 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.exp(now.plus(Duration.of(30, ChronoUnit.SECONDS)).getEpochSecond());
 		token.setOtherClaims("offeredCredential", new SupportedCredential(vcType, format));
 
+		String nonce = generateAuthorizationCode();
+
+		AuthenticationManager.AuthResult authResult = getAuthResult();
+		UserSessionModel userSessionModel = getUserSessionModel();
+
+		AuthenticatedClientSessionModel clientSession = userSessionModel.
+				getAuthenticatedClientSessionByClient(
+						authResult.getClient().getId());
+		try {
+			clientSession.setNote(nonce, objectMapper.writeValueAsString(offeredCredential));
+		} catch (JsonProcessingException e) {
+			LOGGER.errorf("Could not convert POJO to JSON: %s", e.getMessage());
+			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_REQUEST));
+		}
+
+		CredentialOfferURI credentialOfferURI = new CredentialOfferURI(getIssuer(), nonce);
+
+		LOGGER.infof("Responding with nonce: %s", nonce);
+		return Response.ok()
+				.entity(credentialOfferURI)
+				.header(ACCESS_CONTROL_HEADER, "*")
+				.build();
+
+	}
+
+	/**
+	 * Provides an OIDC4VCI compliant credentials offer
+	 */
+	@GET
+	@Path("{issuer-did}/credential-offer/{nonce}")
+	@Produces({ MediaType.APPLICATION_JSON })
+	public Response getCredentialOffer(@PathParam("issuer-did") String issuerDidParam,
+									   @PathParam("nonce") String nonce) {
+			LOGGER.infof("Get an offer from issuer %s for nonce %s", issuerDidParam, nonce);
+		assertIssuerDid(issuerDidParam);
+
+		OAuth2CodeParser.ParseResult result = parseAuthorizationCode(nonce);
+
+		SupportedCredential offeredCredential;
+		try {
+			offeredCredential = objectMapper.readValue(result.getClientSession().getNote(nonce),
+					SupportedCredential.class);
+			LOGGER.infof("Creating an offer for %s - %s", offeredCredential.getType(),
+					offeredCredential.getFormat());
+			result.getClientSession().removeNote(nonce);
+		} catch (JsonProcessingException e) {
+			LOGGER.errorf("Could not convert JSON to POJO: %s", e);
+			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_REQUEST));
+		}
+
+        String preAuthorizedCode = generateAuthorizationCodeForClientSession(result.getClientSession());
 		CredentialsOfferVO theOffer = new CredentialsOfferVO()
 				.credentialIssuer(getIssuer())
 				.credentials(List.of(offeredCredential))
 				.grants(new PreAuthorizedGrantVO().
 						urnColonIetfColonParamsColonOauthColonGrantTypeColonPreAuthorizedCode(
-								new PreAuthorizedVO().preAuthorizedCode(generateAuthorizationCode())
+								new PreAuthorizedVO().preAuthorizedCode(preAuthorizedCode)
 										.userPinRequired(false)));
+
 		LOGGER.infof("Responding with offer: %s", theOffer);
 		return Response.ok()
 				.entity(theOffer)
 				.header(ACCESS_CONTROL_HEADER, "*")
 				.build();
-
 	}
 
 	/**
@@ -413,14 +454,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		// some (not fully OIDC4VCI compatible) wallets send the preauthorized code as an alternative parameter
 		String codeToUse = Optional.ofNullable(code).orElse(preauth);
 
-		EventBuilder eventBuilder = new EventBuilder(session.getContext().getRealm(), session,
-				session.getContext().getConnection());
-		OAuth2CodeParser.ParseResult result = OAuth2CodeParser.parseCode(session, codeToUse,
-				session.getContext().getRealm(),
-				eventBuilder);
-		if (result.isExpiredCode() || result.isIllegalCode()) {
-			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_TOKEN));
-		}
+		OAuth2CodeParser.ParseResult result = parseAuthorizationCode(codeToUse);
 		AccessToken accessToken = new TokenManager().createClientAccessToken(session,
 				result.getClientSession().getRealm(),
 				result.getClientSession().getClient(),
@@ -439,20 +473,33 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.build();
 	}
 
-	private String generateAuthorizationCode() {
+	private OAuth2CodeParser.ParseResult parseAuthorizationCode(String codeToUse) throws BadRequestException {
+		EventBuilder eventBuilder = new EventBuilder(session.getContext().getRealm(), session,
+				session.getContext().getConnection());
+		OAuth2CodeParser.ParseResult result = OAuth2CodeParser.parseCode(session, codeToUse,
+				session.getContext().getRealm(),
+				eventBuilder);
+		if (result.isExpiredCode() || result.isIllegalCode()) {
+			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_TOKEN));
+		}
+		return result;
+	}
 
+	private String generateAuthorizationCode() {
 		AuthenticationManager.AuthResult authResult = getAuthResult();
 		UserSessionModel userSessionModel = getUserSessionModel();
-
 		AuthenticatedClientSessionModel clientSessionModel = userSessionModel.
-				getAuthenticatedClientSessionByClient(
-						authResult.getClient().getId());
-		int expiration = Time.currentTime() + getUserSessionModel().getRealm().getAccessCodeLifespan();
+				getAuthenticatedClientSessionByClient(authResult.getClient().getId());
+		return generateAuthorizationCodeForClientSession(clientSessionModel);
+	}
+
+	private String generateAuthorizationCodeForClientSession(AuthenticatedClientSessionModel clientSessionModel) {
+		int expiration = Time.currentTime() + clientSessionModel.getUserSession().getRealm().getAccessCodeLifespan();
 
 		String codeId = UUID.randomUUID().toString();
 		String nonce = UUID.randomUUID().toString();
 		OAuth2Code oAuth2Code = new OAuth2Code(codeId, expiration, nonce, null, null, null, null,
-				userSessionModel.getId());
+				clientSessionModel.getUserSession().getId());
 
 		return OAuth2CodeParser.persistCode(session, clientSessionModel, oAuth2Code);
 	}
@@ -463,7 +510,6 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	/**
 	 * Options endpoint to serve the cors-preflight requests.
-	 * 
 	 * Since we cannot know the address of the requesting wallets in advance, we have to accept all origins.
 	 */
 	@OPTIONS
@@ -518,8 +564,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		List<String> types = new ArrayList<>(Objects.requireNonNull(Optional.ofNullable(credentialRequestVO.getTypes())
 				.orElseGet(() -> {
 					try {
-						return objectMapper.readValue(credentialRequestVO.getType(), new TypeReference<List<String>>() {
-						});
+						return objectMapper.readValue(credentialRequestVO.getType(), new TypeReference<>() {
+                        });
 					} catch (JsonProcessingException e) {
 						LOGGER.warnf("Was not able to read the type parameter: %s", credentialRequestVO.getType(), e);
 						return null;
