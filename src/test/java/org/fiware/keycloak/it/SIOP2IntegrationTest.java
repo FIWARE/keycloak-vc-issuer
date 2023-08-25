@@ -18,6 +18,7 @@ import org.fiware.keycloak.it.model.SupportedCredentialMetadata;
 import org.fiware.keycloak.it.model.VerifiableCredential;
 import org.fiware.keycloak.model.SupportedCredential;
 import org.fiware.keycloak.model.TokenResponse;
+import org.fiware.keycloak.model.walt.CredentialOfferURI;
 import org.fiware.keycloak.oidcvc.model.CredentialIssuerVO;
 import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
 import org.fiware.keycloak.oidcvc.model.CredentialsOfferVO;
@@ -313,17 +314,33 @@ public class SIOP2IntegrationTest {
 				c -> addClientRoles(testUser.getUsername(), getClientRolesMap(c.getId(), c.getRoles())));
 		String userToken = getUserTokenForAccounts(testUser.getUsername());
 
-		// get credentials offer
+		// get credentials offer URI
 		HttpResponse<String> response = HttpClient.newHttpClient()
 				.send(HttpRequest.newBuilder()
 								.GET()
 								.uri(URI.create(
 										String.format(
-												"%s/realms/%s/verifiable-credential/%s/credential-offer?type=%s&format=%s",
+												"%s/realms/%s/verifiable-credential/%s/credential-offer-uri?type=%s&format=%s",
 												KEYCLOAK_ADDRESS,
 												TEST_REALM, KEYCLOAK_ISSUER_DID, credentialType, FormatVO.LDP_VC)))
 								.header("Authorization", String.format("Bearer %s", userToken)).build(),
 						HttpResponse.BodyHandlers.ofString());
+		assertEquals(HttpStatus.SC_OK, response.statusCode(), "The offer URI should have been successfully returned.");
+
+		CredentialOfferURI credentialOfferURI = OBJECT_MAPPER.readValue(response.body(), CredentialOfferURI.class);
+		assertNotNull(credentialOfferURI.getIssuer(), "An issuer should be provided as part of the offer URI.");
+		assertNotNull(credentialOfferURI.getNonce(), "A nonce should be provided as part of the offer URI.");
+
+		// get credentials offer
+		response = HttpClient.newHttpClient()
+				.send(HttpRequest.newBuilder()
+								.GET()
+								.uri(URI.create(
+										String.format("%s/credential-offer/%s",
+												credentialOfferURI.getIssuer(), credentialOfferURI.getNonce())))
+								.build(),
+						HttpResponse.BodyHandlers.ofString());
+
 		assertEquals(HttpStatus.SC_OK, response.statusCode(), "The offer should have been successfully returned.");
 		CredentialsOfferVO credentialsOfferVO = OBJECT_MAPPER.readValue(response.body(), CredentialsOfferVO.class);
 		assertNotNull(credentialsOfferVO.getCredentialIssuer(), "An issuer should provided as part of the offer.");
