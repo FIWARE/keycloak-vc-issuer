@@ -258,5 +258,30 @@
     "Keycloak": "21.1.2",
     "FIWARE/Keycloak-VC-Issuer": "0.6.0",
     "compatible": true
+  },
+  {
+    "Keycloak": "18.0.2",
+    "FIWARE/Keycloak-VC-Issuer": "0.8.0",
+    "compatible": true
+  },
+  {
+    "Keycloak": "19.0.3",
+    "FIWARE/Keycloak-VC-Issuer": "0.8.0",
+    "compatible": true
+  },
+  {
+    "Keycloak": "20.0.5",
+    "FIWARE/Keycloak-VC-Issuer": "0.8.0",
+    "compatible": true
+  },
+  {
+    "Keycloak": "21.0.2",
+    "FIWARE/Keycloak-VC-Issuer": "0.8.0",
+    "compatible": true
+  },
+  {
+    "Keycloak": "21.1.2",
+    "FIWARE/Keycloak-VC-Issuer": "0.8.0",
+    "compatible": true
   }
 ]
