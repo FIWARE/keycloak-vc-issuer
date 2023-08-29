@@ -776,13 +776,13 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		vcConfigBuilder.issuerDid(issuerDid)
 				.proofType(proofType.toString());
 
-		optionalMinExpiry
-				.map(minExpiry -> Clock.systemUTC()
-						.instant()
-						.plus(Duration.of(minExpiry, ChronoUnit.MINUTES))
-						.truncatedTo(ChronoUnit.MILLIS))
-				.map(FORMATTER::format)
-				.ifPresent(vcConfigBuilder::expirationDate);
+		// TODO: reintroduce when walt api is fixed
+		//		optionalMinExpiry
+		//				.map(minExpiry -> Clock.systemUTC()
+		//						.instant()
+		//						.plus(Duration.of(minExpiry, ChronoUnit.MINUTES)))
+		//				.map(FORMATTER::format)
+		//				.ifPresent(vcConfigBuilder::expirationDate);
 
 		VCConfig vcConfig = vcConfigBuilder.build();
 		LOGGER.debugf("VC config is %s", vcConfig);
