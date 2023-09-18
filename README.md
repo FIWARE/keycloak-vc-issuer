@@ -7,8 +7,8 @@ the [OIDC4VCI-Protocol](https://openid.net/specs/openid-4-verifiable-credential-
 to compliant wallets.
 
 [![FIWARE Security](https://nexus.lab.fiware.org/repository/raw/public/badges/chapters/security.svg)](https://www.fiware.org/developers/catalogue/)
-[![License badge](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Container Repository on Quay](https://img.shields.io/badge/quay.io-VCIssuer-green "Container Repository on Quay")](https://quay.io/repository/fiware/keycloak-vc-issuer)
+[![License badge](https://img.shields.io/github/license/fiware/keycloak-vc-issuer.svg)](https://opensource.org/licenses/Apache-2.0)<br>
+[![Container Repository on Quay](https://img.shields.io/badge/quay.io-fiware%2Fkeycloak--vc--issuer-grey?logo=red%20hat&labelColor=EE0000 "Container Repository on Quay")](https://quay.io/repository/fiware/keycloak-vc-issuer)
 [![Integration-Test](https://github.com/FIWARE/keycloak-vc-issuer/actions/workflows/integration-test.yml/badge.svg)](https://github.com/FIWARE/keycloak-vc-issuer/actions/workflows/integration-test.yml)
 [![Unit-Test](https://github.com/FIWARE/keycloak-vc-issuer/actions/workflows/test.yml/badge.svg)](https://github.com/FIWARE/keycloak-vc-issuer/actions/workflows/test.yml)
 
