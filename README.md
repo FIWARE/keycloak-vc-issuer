@@ -335,6 +335,13 @@ compliant wallets. For demonstrational purposes, the [demo-wallet.fiware.dev](ht
 used. It's [browser based wallet](https://github.com/FIWARE/VCWallet), intended to be used in demo-scenarios, not
 suitable for real-world use-cases.
 
+### The Cross-Device Flow
+
+The example shows a "Cross-Device Flow", as described by  [OIDC4VCI](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-offer-cross-devi). 
+See the following diagramm for the detailed flow: 
+
+![cross-device-flow](doc/cross-device-flow.svg)
+
 ## Testing
 
 ### Unit-Testing
