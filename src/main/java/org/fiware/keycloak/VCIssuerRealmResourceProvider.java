@@ -3,20 +3,9 @@ package org.fiware.keycloak;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import id.walt.custodian.WaltIdCustodian;
-import id.walt.sdjwt.JwtVerificationResult;
-import id.walt.servicematrix.BaseService;
-import id.walt.servicematrix.ServiceRegistry;
-import id.walt.servicematrix.utils.ReflectionUtils;
-import id.walt.services.crypto.SunCryptoService;
-import id.walt.services.jwt.WaltIdJwtService;
-import id.walt.services.key.WaltIdKeyService;
-import id.walt.services.vc.WaltIdJsonLdCredentialService;
-import id.walt.services.vc.WaltIdJwtCredentialService;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
-import kotlin.reflect.KClass;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.fiware.keycloak.model.ErrorResponse;
@@ -30,10 +19,10 @@ import org.fiware.keycloak.model.VCData;
 import org.fiware.keycloak.model.VCRequest;
 import org.fiware.keycloak.model.walt.CredentialDisplay;
 import org.fiware.keycloak.model.walt.CredentialMetadata;
+import org.fiware.keycloak.model.walt.CredentialOfferURI;
 import org.fiware.keycloak.model.walt.FormatObject;
 import org.fiware.keycloak.model.walt.IssuerDisplay;
 import org.fiware.keycloak.model.walt.ProofType;
-import org.fiware.keycloak.model.walt.CredentialOfferURI;
 import org.fiware.keycloak.oidcvc.model.CredentialIssuerVO;
 import org.fiware.keycloak.oidcvc.model.CredentialRequestVO;
 import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
@@ -85,7 +74,11 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.time.*;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -133,29 +126,6 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		this.bearerTokenAuthenticator = authenticator;
 		this.objectMapper = objectMapper;
 		this.clock = clock;
-		registerServices();
-	}
-
-	// register services used by the waltid ssikit
-	private void registerServices() {
-		ServiceRegistry.INSTANCE.registerService(WaltIdJsonLdCredentialService.Companion.getService(),
-				(KClass<? extends BaseService>) ReflectionUtils.INSTANCE.getKClassByName(
-						"id.walt.services.vc.JsonLdCredentialService"));
-		ServiceRegistry.INSTANCE.registerService(WaltIdJwtCredentialService.Companion.getService(),
-				(KClass<? extends BaseService>) ReflectionUtils.INSTANCE.getKClassByName(
-						"id.walt.services.vc.JwtCredentialService"));
-		ServiceRegistry.INSTANCE.registerService(SunCryptoService.Companion.getService(),
-				(KClass<? extends BaseService>) ReflectionUtils.INSTANCE.getKClassByName(
-						"id.walt.services.crypto.CryptoService"));
-		ServiceRegistry.INSTANCE.registerService(WaltIdKeyService.Companion.getService(),
-				(KClass<? extends BaseService>) ReflectionUtils.INSTANCE.getKClassByName(
-						"id.walt.services.key.KeyService"));
-		ServiceRegistry.INSTANCE.registerService(WaltIdJwtService.Companion.getService(),
-				(KClass<? extends BaseService>) ReflectionUtils.INSTANCE.getKClassByName(
-						"id.walt.services.jwt.JwtService"));
-		ServiceRegistry.INSTANCE.registerService(WaltIdCustodian.Companion.getService(),
-				(KClass<? extends BaseService>) ReflectionUtils.INSTANCE.getKClassByName(
-						"id.walt.custodian.Custodian"));
 	}
 
 	@Override
@@ -401,8 +371,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	@Path("{issuer-did}/credential-offer/{nonce}")
 	@Produces({ MediaType.APPLICATION_JSON })
 	public Response getCredentialOffer(@PathParam("issuer-did") String issuerDidParam,
-									   @PathParam("nonce") String nonce) {
-			LOGGER.infof("Get an offer from issuer %s for nonce %s", issuerDidParam, nonce);
+			@PathParam("nonce") String nonce) {
+		LOGGER.infof("Get an offer from issuer %s for nonce %s", issuerDidParam, nonce);
 		assertIssuerDid(issuerDidParam);
 
 		OAuth2CodeParser.ParseResult result = parseAuthorizationCode(nonce);
@@ -419,7 +389,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_REQUEST));
 		}
 
-        String preAuthorizedCode = generateAuthorizationCodeForClientSession(result.getClientSession());
+		String preAuthorizedCode = generateAuthorizationCodeForClientSession(result.getClientSession());
 		CredentialsOfferVO theOffer = new CredentialsOfferVO()
 				.credentialIssuer(getIssuer())
 				.credentials(List.of(offeredCredential))
@@ -566,7 +536,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.orElseGet(() -> {
 					try {
 						return objectMapper.readValue(credentialRequestVO.getType(), new TypeReference<>() {
-                        });
+						});
 					} catch (JsonProcessingException e) {
 						LOGGER.warnf("Was not able to read the type parameter: %s", credentialRequestVO.getType(), e);
 						return null;
@@ -622,20 +592,16 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.header(ACCESS_CONTROL_HEADER, "*").build();
 	}
 
-	private void validateProof(ProofVO proofVO) {
+	protected void validateProof(ProofVO proofVO) {
 		if (proofVO.getProofType() != ProofTypeVO.JWT) {
 			LOGGER.warn("We currently only support JWT proofs.");
 			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
 		}
-		var jwtService = WaltIdJwtService.Companion.getService();
-		JwtVerificationResult verificationResult = jwtService.verify(proofVO.getJwt());
-		if (!verificationResult.getVerified()) {
-			LOGGER.warnf("Signature of the provided jwt-proof was not valid: %s", proofVO.getJwt());
-			throw new BadRequestException(getErrorResponse(ErrorType.INVALID_OR_MISSING_PROOF));
-		}
+		//TODO: validate proof
 	}
 
-	private String getCredential(String vcType, FormatVO format, String token) {
+	protected String getCredential(String vcType, FormatVO format, String token) {
+
 		UserModel userModel = getUserFromSession(Optional.ofNullable(token));
 
 		List<ClientModel> clients = getClientsOfType(vcType, format);

@@ -16,6 +16,8 @@ import org.fiware.keycloak.model.VCData;
 import org.fiware.keycloak.model.VCRequest;
 import org.fiware.keycloak.oidcvc.model.CredentialVO;
 import org.fiware.keycloak.oidcvc.model.FormatVO;
+import org.fiware.keycloak.oidcvc.model.ProofTypeVO;
+import org.fiware.keycloak.oidcvc.model.ProofVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -47,6 +49,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.fiware.keycloak.VCIssuerRealmResourceProvider.LD_PROOF_TYPE;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Matchers.any;
@@ -75,6 +78,13 @@ public class VCIssuerRealmResourceProviderTest {
 		this.testProvider = new VCIssuerRealmResourceProvider(keycloakSession, ISSUER_DID, waltIdClient,
 				bearerTokenAuthenticator, new ObjectMapper(), Clock.systemUTC());
 	}
+
+
+	@Test
+	public void testSSIKit() {
+		testProvider.getCredential("", FormatVO.JWT_VC_JSON, "");
+	}
+
 
 	@Test
 	public void testGetTypesUnauthorized() {
