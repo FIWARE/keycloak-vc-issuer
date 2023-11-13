@@ -30,11 +30,7 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 	private static final Logger LOGGER = Logger.getLogger(VCIssuerRealmResourceProviderFactory.class);
 	public static final String ID = "verifiable-credential";
 
-	private static final String ISSUER_DID_ENV_VAR = "VCISSUER_ISSUER_DID";
-	private static final String ISSUER_DID_KEY_FILE_ENV_VAR = "VCISSUER_ISSUER_KEY_FILE";
-
 	private final Clock clock = Clock.systemUTC();
-	private String issuerDid;
 
 	@Override
 	public RealmResourceProvider create(KeycloakSession keycloakSession) {
@@ -54,26 +50,7 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 
 	@Override
 	public void init(Config.Scope config) {
-		var paths = List.of("security-v1.jsonld", "security-v2.jsonld", "security-v3-unstable.jsonld",
-				"security-bbs-v1.jsonld",
-				"suites-secp256k1-2019.jsonld", "suites-ed25519-2018.jsonld", "suites-ed25519-2020.jsonld",
-				"suites-x25519-2019.jsonld", "suites-jws-2020.jsonld");
-		for (String path : paths) {
-			try {
-				JsonDocument.of(MediaType.JSON_LD,
-						Objects.requireNonNull(LDSecurityContexts.class.getResourceAsStream(path)));
-			} catch (JsonLdError e) {
-				LOGGER.warnf("Failed to load %s", path);
-				LOGGER.error("Failed", e);
-				//throw new RuntimeException(e);
-			}
-		}
 
-		LOGGER.warnf("Stream %s", LDSecurityContexts.class.getResource("suites-jws-2020.jsonld"));
-		LOGGER.warnf("Stream %s", LDSecurityContexts.class.getResourceAsStream("suites-jws-2020.jsonld"));
-
-		config.getPropertyNames().stream()
-				.forEach(pn -> LOGGER.warnf("%s : %s ", pn, config.get(pn)));
 	}
 
 	@Override
