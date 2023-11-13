@@ -1,5 +1,6 @@
 package org.fiware.keycloak.it.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
 
 import java.util.Set;
@@ -8,8 +9,10 @@ import java.util.Set;
 @NoArgsConstructor
 @Builder
 @Getter
+@Setter
 @EqualsAndHashCode
 @ToString
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class CredentialSubject {
 
 	public String id;

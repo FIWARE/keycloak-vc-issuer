@@ -7,7 +7,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpStatus;
-import org.awaitility.Awaitility;
 import org.fiware.keycloak.ExpectedResult;
 import org.fiware.keycloak.SIOP2LoginProtocolFactory;
 import org.fiware.keycloak.it.model.CredentialObject;
@@ -18,7 +17,7 @@ import org.fiware.keycloak.it.model.SupportedCredentialMetadata;
 import org.fiware.keycloak.it.model.VerifiableCredential;
 import org.fiware.keycloak.model.SupportedCredential;
 import org.fiware.keycloak.model.TokenResponse;
-import org.fiware.keycloak.model.walt.CredentialOfferURI;
+import org.fiware.keycloak.model.CredentialOfferURI;
 import org.fiware.keycloak.oidcvc.model.CredentialIssuerVO;
 import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
 import org.fiware.keycloak.oidcvc.model.CredentialsOfferVO;
@@ -49,8 +48,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,8 +71,6 @@ public class SIOP2IntegrationTest {
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
 	private static final String KEYCLOAK_ADDRESS = "http://localhost:8080";
-	private static final String WALT_ID_CORE_ADDRESS = "http://localhost:7000";
-	private static final String WALT_ID_SIGN_ADDRESS = "http://localhost:7001";
 
 	private static final String TEST_CLIENT_ID_ONE = "did:key:z6Mkv4Lh9zBTPLoFhLHHMFJA7YAeVw5HFYZV8rkdfY9fNtm3";
 	private static final String TEST_CLIENT_ID_TWO = "did:key:z6Mkp7DVYuruxmKxsy2Rb3kMnfHgZZpbWYnY9rodvVfky7uj";
@@ -97,31 +92,6 @@ public class SIOP2IntegrationTest {
 
 	@BeforeEach
 	public void waitForInit() throws Exception {
-		Awaitility.await().atMost(Duration.of(2, ChronoUnit.MINUTES)).until(() -> {
-			HttpResponse<String> response = HttpClient.newHttpClient()
-					.send(HttpRequest.newBuilder()
-							.GET()
-							.uri(URI.create(String.format("%s/v1/did", WALT_ID_CORE_ADDRESS)))
-							.build(), HttpResponse.BodyHandlers.ofString());
-			if (response.statusCode() == 200) {
-				issuerDid = (String) OBJECT_MAPPER.readValue(response.body(), List.class).get(0);
-				return true;
-			}
-			return false;
-		});
-
-		Awaitility.await().atMost(Duration.of(2, ChronoUnit.MINUTES)).until(() -> {
-			HttpResponse<String> response = HttpClient.newHttpClient()
-					.send(HttpRequest.newBuilder()
-							.GET()
-							.uri(URI.create(String.format("%s/v1/templates/BatteryPassAuthCredential", WALT_ID_SIGN_ADDRESS)))
-							.build(), HttpResponse.BodyHandlers.ofString());
-			if (response.statusCode() == 200) {
-				return true;
-			}
-			return false;
-		});
-
 		// create the test realm
 		createTestRealm();
 		// required to access realm api without a frontend
@@ -133,12 +103,6 @@ public class SIOP2IntegrationTest {
 	public void cleanUp() {
 		// always start clean
 		deleteTestRealm();
-	}
-
-	@DisplayName("The provided key and did should have been successfully imported")
-	@Test
-	public void testImportSuccess() {
-		assertEquals(KEYCLOAK_ISSUER_DID, issuerDid, "The preconfigured did should have been imported.");
 	}
 
 	@DisplayName("Retrieve issuer metadata.")
@@ -510,14 +474,11 @@ public class SIOP2IntegrationTest {
 			requestedUser.getEmail().ifPresentOrElse(
 					email -> assertEquals(email, credentialSubject.getEmail(), expectedResult.getMessage()),
 					() -> assertNull(credentialSubject.getEmail(), expectedResult.getMessage()));
-			assertEquals(issuerDid, receivedVC.getIssuer(), expectedResult.getMessage());
+			assertEquals(KEYCLOAK_ISSUER_DID, receivedVC.getIssuer(), expectedResult.getMessage());
 			assertTrue(receivedVC.getType().contains(credentialToRequest), expectedResult.getMessage());
 		} else {
-			try {
-				OBJECT_MAPPER.readValue(response.body(), VerifiableCredential.class);
+			if (response.statusCode() != 400) {
 				fail(expectedResult.getMessage());
-			} catch (Exception e) {
-				// we want this to fail.
 			}
 		}
 	}
@@ -837,6 +798,7 @@ public class SIOP2IntegrationTest {
 		realmRepresentation.setRealm(TEST_REALM);
 		realmRepresentation.setEnabled(true);
 		realmRepresentation.setDefaultRole(defaultRole);
+		realmRepresentation.setAttributes(Map.of("issuerDid", KEYCLOAK_ISSUER_DID, "keyPath", "/opt/key.tls"));
 		try {
 			getAdminKeycloak()
 					.realms().create(realmRepresentation);
@@ -872,7 +834,7 @@ public class SIOP2IntegrationTest {
 			} else {
 				attributes.put(typeKey, st.getFormat().toString());
 			}
-			attributes.put(String.format("%s_claims",st.getType()),"email,firstName,familyName,roles");
+			attributes.put(String.format("%s_claims", st.getType()), "email,firstName,familyName,roles");
 		});
 
 		clientRepresentation.setAttributes(attributes);

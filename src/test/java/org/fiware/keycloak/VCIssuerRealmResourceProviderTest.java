@@ -1,28 +1,31 @@
 package org.fiware.keycloak;
 
+import com.danubetech.verifiablecredentials.VerifiableCredential;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.nimbusds.jwt.JWT;
+import com.nimbusds.jwt.JWTParser;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpStatus;
 import org.fiware.keycloak.it.SIOP2IntegrationTest;
 import org.fiware.keycloak.it.model.IssuerMetaData;
+import org.fiware.keycloak.it.model.Role;
 import org.fiware.keycloak.model.ErrorResponse;
 import org.fiware.keycloak.model.ErrorType;
-import org.fiware.keycloak.model.Role;
 import org.fiware.keycloak.model.SupportedCredential;
-import org.fiware.keycloak.model.VCClaims;
-import org.fiware.keycloak.model.VCConfig;
-import org.fiware.keycloak.model.VCData;
-import org.fiware.keycloak.model.VCRequest;
 import org.fiware.keycloak.oidcvc.model.CredentialVO;
 import org.fiware.keycloak.oidcvc.model.FormatVO;
-import org.fiware.keycloak.oidcvc.model.ProofTypeVO;
-import org.fiware.keycloak.oidcvc.model.ProofVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.keycloak.TokenVerifier;
+import org.keycloak.common.VerificationException;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.ClientProvider;
 import org.keycloak.models.KeycloakContext;
@@ -31,26 +34,31 @@ import org.keycloak.models.KeycloakUriInfo;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserModel;
-import org.keycloak.services.ErrorResponseException;
+import org.keycloak.representations.JsonWebToken;
 import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.managers.AuthenticationManager;
-import org.mockito.ArgumentCaptor;
 
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.fiware.keycloak.VCIssuerRealmResourceProvider.LD_PROOF_TYPE;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -61,30 +69,27 @@ public class VCIssuerRealmResourceProviderTest {
 
 	private static final String ISSUER_DID = "did:key:test";
 
-	private final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-	private CredentialVO TEST_VC = new CredentialVO();
+	private final ObjectMapper OBJECT_MAPPER = JsonMapper.builder()
+			.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+			.configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true).build();
 
 	private KeycloakSession keycloakSession;
 	private AppAuthManager.BearerTokenAuthenticator bearerTokenAuthenticator;
-	private WaltIdClient waltIdClient;
 
 	private VCIssuerRealmResourceProvider testProvider;
 
+	private Clock fixedClock = Clock.fixed(Instant.parse("2022-11-10T17:11:09.00Z"),
+			ZoneId.of("Europe/Paris"));
+
 	@BeforeEach
 	public void setUp() throws NoSuchFieldException {
+		URL url = getClass().getClassLoader().getResource("key.tls");
+
 		this.keycloakSession = mock(KeycloakSession.class);
 		this.bearerTokenAuthenticator = mock(AppAuthManager.BearerTokenAuthenticator.class);
-		this.waltIdClient = mock(WaltIdClient.class);
-		this.testProvider = new VCIssuerRealmResourceProvider(keycloakSession, ISSUER_DID, waltIdClient,
-				bearerTokenAuthenticator, new ObjectMapper(), Clock.systemUTC());
+		this.testProvider = new VCIssuerRealmResourceProvider(keycloakSession, ISSUER_DID, url.getPath(),
+				bearerTokenAuthenticator, new ObjectMapper(), fixedClock);
 	}
-
-
-	@Test
-	public void testSSIKit() {
-		testProvider.getCredential("", FormatVO.JWT_VC_JSON, "");
-	}
-
 
 	@Test
 	public void testGetTypesUnauthorized() {
@@ -284,9 +289,10 @@ public class VCIssuerRealmResourceProviderTest {
 
 	@ParameterizedTest
 	@MethodSource("provideUserAndClients")
-	public void testGetVC(UserModel userModel, Stream<ClientModel> clientModelStream,
+	public void testGetCredential(UserModel userModel, Stream<ClientModel> clientModelStream,
 			Map<ClientModel, Stream<RoleModel>> roleModelStreamMap,
-			ExpectedResult<VCRequest> expectedResult) throws JsonProcessingException {
+			ExpectedResult<Map> expectedResult, FormatVO requestedFormat)
+			throws JsonProcessingException, VerificationException {
 		AuthenticationManager.AuthResult authResult = mock(AuthenticationManager.AuthResult.class);
 		KeycloakContext context = mock(KeycloakContext.class);
 		RealmModel realmModel = mock(RealmModel.class);
@@ -301,17 +307,108 @@ public class VCIssuerRealmResourceProviderTest {
 
 		when(userModel.getClientRoleMappingsStream(any())).thenAnswer(i -> roleModelStreamMap.get(i.getArguments()[0]));
 
-		ArgumentCaptor<VCRequest> argument = ArgumentCaptor.forClass(VCRequest.class);
+		Object credential = testProvider.getCredential("MyType", requestedFormat, null);
+		switch (requestedFormat) {
+			case LDP_VC -> {
+				Map verifiableCredential = OBJECT_MAPPER.convertValue(credential, Map.class);
+				verifyLDCredential(expectedResult, verifiableCredential);
+			}
+			case JWT_VC_JSON_LD, JWT_VC, JWT_VC_JSON -> verifyJWTCredential(expectedResult, (String) credential);
+		}
+	}
 
-		when(waltIdClient.getVCFromWaltId(argument.capture())).thenReturn(OBJECT_MAPPER.writeValueAsString(TEST_VC));
-		assertEquals(TEST_VC,
-				OBJECT_MAPPER.readValue(
-						(String) testProvider.issueVerifiableCredential(ISSUER_DID, "MyType", null).getEntity(),
-						CredentialVO.class),
-				"The requested VC should be returned.");
-		// randomly generated
-		expectedResult.getExpectedResult().getConfig().setSubjectDid(argument.getValue().getConfig().getSubjectDid());
-		assertEquals(expectedResult.getExpectedResult(), argument.getValue(), expectedResult.getMessage());
+	private void verifyJWTCredential(ExpectedResult<Map> expectedResult, String actualResult)
+			throws VerificationException, JsonProcessingException {
+		TokenVerifier<JsonWebToken> verifier = TokenVerifier.create(actualResult, JsonWebToken.class);
+		JsonWebToken theJWT = verifier.getToken();
+		assertEquals(ISSUER_DID, theJWT.getIssuer(), "The issuer should be properly set.");
+		assertNotNull(theJWT.getSubject(), "A subject should be set.");
+		assertNotNull(theJWT.getId(), "The jwt should have an id.");
+
+		Map theVC = (Map) theJWT.getOtherClaims().get("vc");
+		assertNotNull(theVC, "The vc should be part of the jwt.");
+		List credentialType = (List) theVC.get("type");
+		assertEquals(2, credentialType.size(), "Both types should be included.");
+		assertTrue(credentialType.contains("MyType") && credentialType.contains("VerifiableCredential"),
+				"The correct types should be included.");
+
+		Map retrievedSubject = (Map) theVC.get("credentialSubject");
+		Map expectedCredentialSubject = new HashMap(expectedResult.getExpectedResult());
+
+		verifySubject(expectedResult, expectedCredentialSubject, retrievedSubject);
+
+	}
+
+	@ParameterizedTest
+	@MethodSource("provideUserAndClientsLDP")
+	public void testGetVC(UserModel userModel, Stream<ClientModel> clientModelStream,
+			Map<ClientModel, Stream<RoleModel>> roleModelStreamMap,
+			ExpectedResult<Map> expectedResult) throws JsonProcessingException {
+		AuthenticationManager.AuthResult authResult = mock(AuthenticationManager.AuthResult.class);
+		KeycloakContext context = mock(KeycloakContext.class);
+		RealmModel realmModel = mock(RealmModel.class);
+		ClientProvider clientProvider = mock(ClientProvider.class);
+
+		when(bearerTokenAuthenticator.authenticate()).thenReturn(authResult);
+		when(authResult.getUser()).thenReturn(userModel);
+		when(keycloakSession.getContext()).thenReturn(context);
+		when(context.getRealm()).thenReturn(realmModel);
+		when(keycloakSession.clients()).thenReturn(clientProvider);
+		when(clientProvider.getClientsStream(any())).thenReturn(clientModelStream);
+
+		when(userModel.getClientRoleMappingsStream(any())).thenAnswer(i -> roleModelStreamMap.get(i.getArguments()[0]));
+
+		Map credentialVO = OBJECT_MAPPER.convertValue(
+				testProvider.issueVerifiableCredential(ISSUER_DID, "MyType", null).getEntity(),
+				Map.class);
+
+		verifyLDCredential(expectedResult, credentialVO);
+	}
+
+	private void verifyLDCredential(ExpectedResult<Map> expectedResult, Map credentialVO)
+			throws JsonProcessingException {
+		assertEquals("2022-11-10T17:11:09Z", credentialVO.get("issuanceDate"),
+				"The issuance data should be correctly set.");
+		assertNotNull(credentialVO.get("@context"), "The context should be set on an ld-credential.");
+		assertNotNull(credentialVO.get("proof"), "The proof should be included.");
+		assertNotNull(credentialVO.get("id"), "The credential should have an id.");
+		List credentialType = (List) credentialVO.get("type");
+		assertEquals(2, credentialType.size(), "Both types should be included.");
+		assertTrue(credentialType.contains("MyType") && credentialType.contains("VerifiableCredential"),
+				"The correct types should be included.");
+
+		assertEquals(ISSUER_DID, credentialVO.get("issuer"), "The correct issuer should be set.");
+
+		Map expectedCredentialSubject = new HashMap(expectedResult.getExpectedResult());
+		Map retrievedSubject = (Map) credentialVO.get("credentialSubject");
+		assertNotNull(retrievedSubject.get("id"), "The id should have been set.");
+		// remove the id, since its randomly generated.
+		retrievedSubject.remove("id");
+
+		verifySubject(expectedResult, expectedCredentialSubject, retrievedSubject);
+	}
+
+	private void verifySubject(ExpectedResult<Map> expectedResult, Map expectedCredentialSubject, Map retrievedSubject)
+			throws JsonProcessingException {
+		verifyRoles(expectedResult.getMessage(), expectedCredentialSubject, retrievedSubject);
+		// roles are checked, can be removed to not interfer with next checks.
+		expectedCredentialSubject.remove("roles");
+		retrievedSubject.remove("roles");
+
+		String expectedJson = OBJECT_MAPPER.writeValueAsString(expectedCredentialSubject);
+		String retrievedJson = OBJECT_MAPPER.writeValueAsString(retrievedSubject);
+		// we compare the json, to prevent order issues.
+		assertEquals(expectedJson, retrievedJson, expectedResult.getMessage());
+	}
+
+	private void verifyRoles(String message, Map expectedCredentialSubject, Map retrievedSubject) {
+		Set<Role> retrievedRoles = OBJECT_MAPPER.convertValue(retrievedSubject.get("roles"),
+				new TypeReference<Set<Role>>() {
+				});
+		Set<Role> expectedRoles = OBJECT_MAPPER.convertValue(expectedCredentialSubject.get("roles"),
+				new TypeReference<Set<Role>>() {
+				});
+		assertEquals(expectedRoles, retrievedRoles, message);
 	}
 
 	private static Arguments getArguments(UserModel um, Map<ClientModel, List<RoleModel>> clients,
@@ -328,6 +425,171 @@ public class VCIssuerRealmResourceProviderTest {
 	}
 
 	private static Stream<Arguments> provideUserAndClients() {
+		return Stream.concat(provideUserAndClientsLDP().map(a -> {
+					var argObjects = new ArrayList<>(Arrays.asList(a.get()));
+					argObjects.add(FormatVO.LDP_VC);
+					return Arguments.of(argObjects.toArray());
+				}),
+				provideUserAndClientsJWT().map(a -> {
+					var argObjects = new ArrayList<>(Arrays.asList(a.get()));
+					argObjects.add(FormatVO.JWT_VC);
+					return Arguments.of(argObjects.toArray());
+				}));
+	}
+
+	private static Stream<Arguments> provideUserAndClientsJWT() {
+		return Stream.of(
+				getArguments(getUserModel("e@mail.org", "Happy", "User"),
+						Map.of(getSiopClient("did:key:1",
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
+										List.of("MyRole")),
+								List.of(getRoleModel("MyRole"))),
+						new ExpectedResult<>(
+								Map.of("email", "e@mail.org", "familyName", "User", "firstName", "Happy", "roles",
+										Set.of(new Role(Set.of("MyRole"), "did:key:1"))),
+								"A valid Credential should have been returned.")
+				),
+				getArguments(getUserModel("e@mail.org", null, "User"),
+						Map.of(getSiopClient("did:key:1",
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
+										List.of("MyRole")),
+								List.of(getRoleModel("MyRole"))),
+						new ExpectedResult<>(
+								Map.of("email", "e@mail.org", "familyName", "User", "roles",
+										Set.of(new Role(Set.of("MyRole"), "did:key:1"))),
+								"A valid Credential should have been returned.")
+				),
+				getArguments(
+						getUserModel("e@mail.org", null, null),
+						Map.of(getSiopClient("did:key:1",
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
+										List.of("MyRole")),
+								List.of(getRoleModel("MyRole"))),
+						new ExpectedResult<>(
+								Map.of("email", "e@mail.org", "roles",
+										Set.of(new Role(Set.of("MyRole"), "did:key:1"))),
+								"A valid Credential should have been returned.")
+				),
+				getArguments(
+						getUserModel(null, null, null),
+						Map.of(getSiopClient("did:key:1",
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
+										List.of("MyRole")),
+								List.of(getRoleModel("MyRole"))),
+						new ExpectedResult<>(
+								Map.of("roles",
+										Set.of(new Role(Set.of("MyRole"), "did:key:1"))),
+								"A valid Credential should have been returned.")
+				),
+				getArguments(
+						getUserModel(null, null, null),
+						Map.of(getSiopClient("did:key:1",
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
+										List.of("MyRole", "MySecondRole")),
+								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole"))),
+						new ExpectedResult<>(
+								Map.of("roles",
+										Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"))),
+								"Multiple roles should be included")
+				),
+				getArguments(
+						getUserModel(null, null, null),
+						Map.of(getSiopClient("did:key:1",
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
+										List.of("MyRole", "MySecondRole")),
+								List.of(getRoleModel("MyRole"))),
+						new ExpectedResult<>(
+								Map.of("roles",
+										Set.of(new Role(Set.of("MyRole"), "did:key:1"))),
+								"Only assigned roles should be included.")
+				),
+				getArguments(
+						getUserModel(null, null, null),
+						Map.of(getSiopClient("did:key:1",
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
+										List.of("MyRole", "MySecondRole")),
+								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
+								getSiopClient("did:key:2",
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
+										List.of("AnotherRole")),
+								List.of(getRoleModel("AnotherRole"))),
+						new ExpectedResult<>(
+								Map.of("roles",
+										Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"),
+												new Role(Set.of("AnotherRole"), "did:key:2"))),
+								"The request should contain roles from both clients")
+				),
+				getArguments(
+						getUserModel(null, null, null),
+						Map.of(getSiopClient("did:key:1",
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
+												"MyType_claims", "email,firstName,familyName,roles"),
+										List.of("MyRole", "MySecondRole")),
+								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
+								getSiopClient("did:key:2",
+										Map.of("vctypes_AnotherType", FormatVO.JWT_VC.toString(),
+												"AnotherType_claims", "email,firstName,familyName,roles"),
+										List.of("AnotherRole")),
+								List.of(getRoleModel("AnotherRole"))),
+						new ExpectedResult<>(
+								Map.of("roles",
+										Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"))),
+								"Only roles for supported clients should be included.")
+				),
+				getArguments(
+						getUserModel(null, null, null),
+						Map.of(getSiopClient("did:key:1",
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
+												"vc_additional", "claim",
+												"MyType_claims", "email,firstName,familyName,roles,additional,more"),
+										List.of("MyRole", "MySecondRole")),
+								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
+								getSiopClient("did:key:2",
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
+												"vc_more", "claims",
+												"MyType_claims",
+												"email,firstName,familyName,roles,additional,more"),
+										List.of("AnotherRole")),
+								List.of(getRoleModel("AnotherRole"))),
+						new ExpectedResult<>(
+								Map.of("roles",
+										Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"),
+												new Role(Set.of("AnotherRole"), "did:key:2")),
+										"additional", "claim", "more", "claims"),
+								"Additional claims should be included.")
+				),
+				getArguments(
+						getUserModel(null, null, null),
+						Map.of(getSiopClient("did:key:1",
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
+												"vc_additional", "claim",
+												"MyType_claims", "email,firstName,familyName,roles,additional"),
+										List.of("MyRole", "MySecondRole")),
+								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
+								getSiopClient("did:key:2",
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
+												"vc_additional", "claim",
+												"MyType_claims", "email,firstName,familyName,roles,additional"),
+										List.of("AnotherRole")),
+								List.of(getRoleModel("AnotherRole"))),
+						new ExpectedResult<>(
+								Map.of("additional", "claim", "roles",
+										Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"),
+												new Role(Set.of("AnotherRole"), "did:key:2"))),
+								"Additional claims should be included.")
+				)
+		);
+	}
+
+	private static Stream<Arguments> provideUserAndClientsLDP() {
 		return Stream.of(
 				getArguments(getUserModel("e@mail.org", "Happy", "User"),
 						Map.of(getSiopClient("did:key:1",
@@ -336,9 +598,9 @@ public class VCIssuerRealmResourceProviderTest {
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
-								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")), "e@mail.org", "Happy",
-										"User",
-										Map.of()), "A valid VCRequest should have been sent to Walt-ID")
+								Map.of("email", "e@mail.org", "familyName", "User", "firstName", "Happy", "roles",
+										Set.of(new Role(Set.of("MyRole"), "did:key:1"))),
+								"A valid Credential should have been returned.")
 				),
 				getArguments(getUserModel("e@mail.org", null, "User"),
 						Map.of(getSiopClient("did:key:1",
@@ -347,10 +609,9 @@ public class VCIssuerRealmResourceProviderTest {
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
-								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")), "e@mail.org",
-										null,
-										"User",
-										Map.of()), "A valid VCRequest should have been sent to Walt-ID")
+								Map.of("email", "e@mail.org", "familyName", "User", "roles",
+										Set.of(new Role(Set.of("MyRole"), "did:key:1"))),
+								"A valid Credential should have been returned.")
 				),
 				getArguments(
 						getUserModel("e@mail.org", null, null),
@@ -360,10 +621,9 @@ public class VCIssuerRealmResourceProviderTest {
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
-								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")), "e@mail.org",
-										null,
-										null,
-										Map.of()), "A valid VCRequest should have been sent to Walt-ID")
+								Map.of("email", "e@mail.org", "roles",
+										Set.of(new Role(Set.of("MyRole"), "did:key:1"))),
+								"A valid Credential should have been returned.")
 				),
 				getArguments(
 						getUserModel(null, null, null),
@@ -373,9 +633,9 @@ public class VCIssuerRealmResourceProviderTest {
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
-								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")), null, null,
-										null,
-										Map.of()), "A valid VCRequest should have been sent to Walt-ID")
+								Map.of("roles",
+										Set.of(new Role(Set.of("MyRole"), "did:key:1"))),
+								"A valid Credential should have been returned.")
 				),
 				getArguments(
 						getUserModel(null, null, null),
@@ -385,11 +645,9 @@ public class VCIssuerRealmResourceProviderTest {
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole"))),
 						new ExpectedResult<>(
-								getVCRequest(Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1")),
-										null,
-										null,
-										null,
-										Map.of()), "Multiple roles should be included")
+								Map.of("roles",
+										Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"))),
+								"Multiple roles should be included")
 				),
 				getArguments(
 						getUserModel(null, null, null),
@@ -399,11 +657,9 @@ public class VCIssuerRealmResourceProviderTest {
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
-								getVCRequest(Set.of(new Role(Set.of("MyRole"), "did:key:1")),
-										null,
-										null,
-										null,
-										Map.of()), "Only assigned roles should be included.")
+								Map.of("roles",
+										Set.of(new Role(Set.of("MyRole"), "did:key:1"))),
+								"Only assigned roles should be included.")
 				),
 				getArguments(
 						getUserModel(null, null, null),
@@ -418,12 +674,10 @@ public class VCIssuerRealmResourceProviderTest {
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult<>(
-								getVCRequest(Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"),
-												new Role(Set.of("AnotherRole"), "did:key:2")),
-										null,
-										null,
-										null,
-										Map.of()), "The request should contain roles from both clients")
+								Map.of("roles",
+										Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"),
+												new Role(Set.of("AnotherRole"), "did:key:2"))),
+								"The request should contain roles from both clients")
 				),
 				getArguments(
 						getUserModel(null, null, null),
@@ -438,11 +692,9 @@ public class VCIssuerRealmResourceProviderTest {
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult<>(
-								getVCRequest(Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1")),
-										null,
-										null,
-										null,
-										Map.of()), "Only roles for supported clients should be included.")
+								Map.of("roles",
+										Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"))),
+								"Only roles for supported clients should be included.")
 				),
 				getArguments(
 						getUserModel(null, null, null),
@@ -455,15 +707,15 @@ public class VCIssuerRealmResourceProviderTest {
 								getSiopClient("did:key:2",
 										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
 												"vc_more", "claims",
-												"MyType_claims", "email,firstName,familyName,roles,additional,more"),
+												"MyType_claims",
+												"email,firstName,familyName,roles,additional,more"),
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult<>(
-								getVCRequest(Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"),
-												new Role(Set.of("AnotherRole"), "did:key:2")), null,
-										null,
-										null,
-										Map.of("additional", "claim", "more", "claims")),
+								Map.of("roles",
+										Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"),
+												new Role(Set.of("AnotherRole"), "did:key:2")),
+										"additional", "claim", "more", "claims"),
 								"Additional claims should be included.")
 				),
 				getArguments(
@@ -481,35 +733,12 @@ public class VCIssuerRealmResourceProviderTest {
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult<>(
-								getVCRequest(Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"),
-												new Role(Set.of("AnotherRole"), "did:key:2")), null,
-										null,
-										null,
-										Map.of("additional", "claim")),
+								Map.of("additional", "claim", "roles",
+										Set.of(new Role(Set.of("MyRole", "MySecondRole"), "did:key:1"),
+												new Role(Set.of("AnotherRole"), "did:key:2"))),
 								"Additional claims should be included.")
 				)
 		);
-	}
-
-	private static VCRequest getVCRequest(Set<Role> roles, String email, String firstName, String lastName,
-			Map<String, String> additionalClaims) {
-		return VCRequest.builder()
-				.templateId("MyType")
-				.config(VCConfig.builder()
-						.issuerDid(ISSUER_DID)
-						.proofType(LD_PROOF_TYPE)
-						.build())
-				.credentialData(VCData.builder()
-						.credentialSubject(
-								VCClaims.builder()
-										.roles(roles)
-										.email(email)
-										.firstName(firstName)
-										.familyName(lastName)
-										.additionalClaims(additionalClaims)
-										.build()
-						).build())
-				.build();
 	}
 
 	private static Stream<Arguments> provideTypesAndClients() {

@@ -26,12 +26,10 @@ public abstract class SigningService<T> implements VCSigningService<T> {
 
 	private static final Logger LOGGER = Logger.getLogger(SigningService.class);
 
-	protected final AlgorithmType algorithmType;
 	protected final KeyPair signingKey;
 
-	protected SigningService(String keyPath, AlgorithmType algorithmType) {
+	protected SigningService(String keyPath) {
 
-		this.algorithmType = algorithmType;
 		this.signingKey = parsePem(loadPrivateKeyString(keyPath));
 	}
 

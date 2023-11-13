@@ -1,5 +1,6 @@
 package org.fiware.keycloak.it.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 
@@ -12,6 +13,7 @@ import java.util.Set;
 @Getter
 @ToString
 @EqualsAndHashCode
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class VerifiableCredential {
 	public Set<String> type;
 	@JsonProperty("@context")

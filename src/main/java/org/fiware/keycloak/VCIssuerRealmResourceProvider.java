@@ -1,33 +1,28 @@
 package org.fiware.keycloak;
 
+import com.danubetech.verifiablecredentials.CredentialSubject;
+import com.danubetech.verifiablecredentials.VerifiableCredential;
+import com.danubetech.verifiablecredentials.jsonld.VerifiableCredentialContexts;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import foundation.identity.jsonld.JsonLDObject;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.fiware.keycloak.model.CredentialOfferURI;
 import org.fiware.keycloak.model.ErrorResponse;
 import org.fiware.keycloak.model.ErrorType;
 import org.fiware.keycloak.model.Role;
 import org.fiware.keycloak.model.SupportedCredential;
 import org.fiware.keycloak.model.TokenResponse;
-import org.fiware.keycloak.model.VCClaims;
-import org.fiware.keycloak.model.VCConfig;
-import org.fiware.keycloak.model.VCData;
-import org.fiware.keycloak.model.VCRequest;
-import org.fiware.keycloak.model.walt.CredentialDisplay;
-import org.fiware.keycloak.model.walt.CredentialMetadata;
-import org.fiware.keycloak.model.walt.CredentialOfferURI;
 import org.fiware.keycloak.model.walt.FormatObject;
-import org.fiware.keycloak.model.walt.IssuerDisplay;
-import org.fiware.keycloak.model.walt.ProofType;
 import org.fiware.keycloak.oidcvc.model.CredentialIssuerVO;
 import org.fiware.keycloak.oidcvc.model.CredentialRequestVO;
 import org.fiware.keycloak.oidcvc.model.CredentialResponseVO;
 import org.fiware.keycloak.oidcvc.model.CredentialsOfferVO;
-import org.fiware.keycloak.oidcvc.model.DisplayObjectVO;
 import org.fiware.keycloak.oidcvc.model.ErrorResponseVO;
 import org.fiware.keycloak.oidcvc.model.FormatVO;
 import org.fiware.keycloak.oidcvc.model.PreAuthorizedGrantVO;
@@ -36,6 +31,7 @@ import org.fiware.keycloak.oidcvc.model.ProofTypeVO;
 import org.fiware.keycloak.oidcvc.model.ProofVO;
 import org.fiware.keycloak.oidcvc.model.SupportedCredentialVO;
 import org.jboss.logging.Logger;
+import org.json.JSONObject;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.common.util.Time;
 import org.keycloak.events.EventBuilder;
@@ -74,6 +70,7 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -83,6 +80,8 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -92,6 +91,10 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.fiware.keycloak.SIOP2ClientRegistrationProvider.VC_TYPES_PREFIX;
+import static org.fiware.keycloak.oidcvc.model.FormatVO.JWT_VC;
+import static org.fiware.keycloak.oidcvc.model.FormatVO.JWT_VC_JSON;
+import static org.fiware.keycloak.oidcvc.model.FormatVO.JWT_VC_JSON_LD;
+import static org.fiware.keycloak.oidcvc.model.FormatVO.LDP_VC;
 
 /**
  * Realm-Resource to provide functionality for issuing VerifiableCredentials to users, depending on their roles in
@@ -111,21 +114,36 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 
 	private final KeycloakSession session;
 	public static final String SUBJECT_DID = "subjectDid";
-	private final String issuerDid;
 	private final AppAuthManager.BearerTokenAuthenticator bearerTokenAuthenticator;
-	private final WaltIdClient waltIdClient;
 	private final ObjectMapper objectMapper;
 	private final Clock clock;
 
-	public VCIssuerRealmResourceProvider(KeycloakSession session, String issuerDid, WaltIdClient waltIdClient,
+	private final String issuerDid;
+
+	private final Map<FormatVO, VCSigningService> signingServiceMap = new HashMap<>();
+
+	public VCIssuerRealmResourceProvider(KeycloakSession session,
+			String issuerDid,
+			String keyPath,
 			AppAuthManager.BearerTokenAuthenticator authenticator,
 			ObjectMapper objectMapper, Clock clock) {
 		this.session = session;
-		this.issuerDid = issuerDid;
-		this.waltIdClient = waltIdClient;
 		this.bearerTokenAuthenticator = authenticator;
 		this.objectMapper = objectMapper;
 		this.clock = clock;
+		this.issuerDid = issuerDid;
+		try {
+			var jwtSigningService = new JWTSigningService(keyPath);
+			signingServiceMap.put(JWT_VC, jwtSigningService);
+		} catch (SigningServiceException e) {
+			LOGGER.warn("Was not able to initialize JWT SigningService, jwt credentials are not supported.", e);
+		}
+		try {
+			var ldSigningService = new LDSigningService(keyPath, clock);
+			signingServiceMap.put(FormatVO.LDP_VC, ldSigningService);
+		} catch (SigningServiceException e) {
+			LOGGER.warn("Was not able to initialize LD SigningService, ld credentials are not supported.", e);
+		}
 	}
 
 	@Override
@@ -282,15 +300,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		configAsMap.put("grant_types_supported", supportedGrantTypes);
 		configAsMap.put("token_endpoint", getIssuer() + "/token");
 		configAsMap.put("credential_endpoint", getCredentialEndpoint());
-		IssuerDisplay issuerDisplay = new IssuerDisplay();
-		issuerDisplay.display.add(
-				new DisplayObjectVO()
-						.name(String.format("Keycloak-Credentials Issuer - %s", issuerDid))
-						.locale("en_US"));
-		configAsMap.put("credential_issuer", issuerDisplay);
 
-		CredentialMetadata credentialMetadata = new CredentialMetadata();
-		credentialMetadata.setDisplay(List.of(new CredentialDisplay("Verifiable Credential")));
 		FormatObject ldpVC = new FormatObject(new ArrayList<>());
 		FormatObject jwtVC = new FormatObject(new ArrayList<>());
 
@@ -302,8 +312,6 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 						jwtVC.getTypes().add(supportedCredential.getType());
 					}
 				});
-		credentialMetadata.setFormats(Map.of(FormatVO.LDP_VC.toString(), ldpVC, FormatVO.JWT_VC.toString(), jwtVC));
-		configAsMap.put("credentials_supported", Map.of(TYPE_VERIFIABLE_CREDENTIAL, credentialMetadata));
 		return Response.ok()
 				.entity(configAsMap)
 				.header(ACCESS_CONTROL_HEADER, "*")
@@ -322,7 +330,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		LOGGER.infof("Get an offer for %s - %s", vcType, format);
 		assertIssuerDid(issuerDidParam);
 		// workaround to support implementations not differentiating json & json-ld
-		if (format == FormatVO.JWT_VC) {
+		if (format == JWT_VC) {
 			// validate that the user is able to get the offered credentials
 			getClientsOfType(vcType, FormatVO.JWT_VC_JSON);
 		} else {
@@ -555,7 +563,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		}
 		FormatVO requestedFormat = credentialRequestVO.getFormat();
 		// workaround to support implementations not differentiating json & json-ld
-		if (requestedFormat == FormatVO.JWT_VC) {
+		if (requestedFormat == JWT_VC) {
 			requestedFormat = FormatVO.JWT_VC_JSON;
 		}
 
@@ -565,28 +573,11 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		// keep the originally requested here.
 		responseVO.format(credentialRequestVO.getFormat());
 
-		String credentialString = getCredential(vcType, credentialRequestVO.getFormat(), null);
+		Object theCredential = getCredential(vcType, credentialRequestVO.getFormat(), null);
 		switch (requestedFormat) {
-			case LDP_VC: {
-				try {
-					// formats the string to an object and to valid json
-					Object credentialObject = objectMapper.readValue(credentialString, Object.class);
-					responseVO.setCredential(credentialObject);
-				} catch (JsonProcessingException e) {
-					LOGGER.warnf("Was not able to format credential %s.", credentialString, e);
-					throw new BadRequestException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
-				}
-				break;
-			}
-			case JWT_VC_JSON: {
-				responseVO.setCredential(credentialString);
-				break;
-			}
-			default: {
-				LOGGER.infof("Credential with unsupported format %s was requested.", requestedFormat.toString());
-				throw new BadRequestException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
-			}
-
+			case LDP_VC -> responseVO.setCredential(theCredential);
+			case JWT_VC_JSON -> responseVO.setCredential(theCredential);
+			default -> throw new BadRequestException(getErrorResponse(ErrorType.UNSUPPORTED_CREDENTIAL_TYPE));
 		}
 		return Response.ok().entity(responseVO)
 				.header(ACCESS_CONTROL_HEADER, "*").build();
@@ -600,7 +591,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		//TODO: validate proof
 	}
 
-	protected String getCredential(String vcType, FormatVO format, String token) {
+	protected Object getCredential(String vcType, FormatVO format, String token) {
 
 		UserModel userModel = getUserFromSession(Optional.ofNullable(token));
 
@@ -626,37 +617,41 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.filter(role -> !role.getNames().isEmpty())
 				.collect(Collectors.toSet());
 
-		ProofType proofType = ProofType.JWT;
-		if (format == FormatVO.LDP_VC) {
-			proofType = ProofType.LD_PROOF;
-		}
+		var credentialToSign = getVCToSign(vcType, format, userModel, clients, roles, optionalMinExpiry);
 
-		VCRequest vcRequest = getVCRequest(vcType, proofType, userModel, clients, roles, optionalMinExpiry);
-		LOGGER.infof("Request is %s.", vcRequest);
-		return waltIdClient.getVCFromWaltId(vcRequest);
-
+		return switch (format) {
+			case LDP_VC -> signingServiceMap.get(FormatVO.LDP_VC).signCredential(credentialToSign);
+			case JWT_VC, JWT_VC_JSON_LD, JWT_VC_JSON -> signingServiceMap.get(JWT_VC)
+					.signCredential(credentialToSign);
+			default -> throw new IllegalArgumentException(
+					String.format("Requested format %s is not supported.", format));
+		};
 	}
 
 	@NotNull
 	private List<ClientModel> getClientsOfType(String vcType, FormatVO format) {
 		LOGGER.debugf("Retrieve all clients of type %s, supporting format %s", vcType, format.toString());
-		if (format == FormatVO.JWT_VC) {
-			// backward compat
-			format = FormatVO.JWT_VC_JSON;
-		}
-		String formatString = format.toString();
+
+		List<String> formatStrings = switch (format) {
+			case LDP_VC -> List.of(LDP_VC.toString());
+			case JWT_VC, JWT_VC_JSON -> List.of(JWT_VC.toString(), JWT_VC_JSON.toString());
+			case JWT_VC_JSON_LD -> List.of(JWT_VC.toString(), JWT_VC_JSON_LD.toString());
+
+		};
+
 		Optional.ofNullable(vcType).filter(type -> !type.isEmpty()).orElseThrow(() -> {
 			LOGGER.info("No VC type was provided.");
 			return new BadRequestException("No VerifiableCredential-Type was provided in the request.");
 		});
 
 		String prefixedType = String.format("%s%s", VC_TYPES_PREFIX, vcType);
-		LOGGER.infof("Looking for client supporting %s with format %s", prefixedType, formatString);
+		LOGGER.infof("Looking for client supporting %s with format %s", prefixedType, formatStrings);
 		List<ClientModel> vcClients = getClientModelsFromSession().stream()
 				.filter(clientModel -> Optional.ofNullable(clientModel.getAttributes())
 						.filter(attributes -> attributes.containsKey(prefixedType))
-						.filter(attributes -> Arrays.asList(attributes.get(prefixedType).split(","))
-								.contains(formatString))
+						.filter(attributes -> formatStrings.stream()
+								.anyMatch(formatString -> Arrays.asList(attributes.get(prefixedType).split(","))
+										.contains(formatString)))
 						.isPresent())
 				.collect(Collectors.toList());
 
@@ -697,67 +692,95 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		return new Role(roleNames, crm.getClientId());
 	}
 
+	private Map toMap(Object o) {
+		return objectMapper.convertValue(o, Map.class);
+	}
+
+	private JsonLDObject toJsonLDObject(Object o) {
+		try {
+			return JsonLDObject.fromJson(objectMapper.writeValueAsString(o));
+		} catch (JsonProcessingException e) {
+			LOGGER.warnf("Was not able to convert %s to a JsonLDObject.", o, e);
+			throw new VCIssuerException(String.format("Was not able to convert %s to a JsonLDObject.", o), e);
+		}
+	}
+
+	private JSONObject toJsonObject(Object o) {
+		try {
+			return new JSONObject(objectMapper.writeValueAsString(o));
+		} catch (JsonProcessingException e) {
+			LOGGER.warnf("Was not able to convert %s to a JSONObject.", o, e);
+			throw new VCIssuerException(String.format("Was not able to convert %s to a JSONObject.", o), e);
+		}
+	}
+
 	@NotNull
-	private VCRequest getVCRequest(String vcType, ProofType proofType, UserModel userModel, List<ClientModel> clients,
+	private VerifiableCredential getVCToSign(String vcType, FormatVO format, UserModel userModel,
+			List<ClientModel> clients,
 			Set<Role> roles,
 			Optional<Long> optionalMinExpiry) {
-		// only include non-null & non-empty claims
-		var claimsBuilder = VCClaims.builder();
+
+		var subjectBuilder = CredentialSubject.builder();
+
+		Map<String, Object> subjectClaims = new HashMap<>();
 
 		LOGGER.infof("Will set roles %s", roles);
 		List<String> claims = getClaimsToSet(vcType, clients);
 		LOGGER.infof("Will set %s", claims);
 		if (claims.contains("email")) {
-			Optional.ofNullable(userModel.getEmail()).filter(email -> !email.isEmpty()).ifPresent(claimsBuilder::email);
+			Optional.ofNullable(userModel.getEmail()).filter(email -> !email.isEmpty())
+					.ifPresent(email -> subjectClaims.put("email", email));
 		}
 		if (claims.contains("firstName")) {
 			Optional.ofNullable(userModel.getFirstName()).filter(firstName -> !firstName.isEmpty())
-					.ifPresent(claimsBuilder::firstName);
+					.ifPresent(firstName -> subjectClaims.put("firstName", firstName));
 		}
 		if (claims.contains("familyName")) {
 			Optional.ofNullable(userModel.getLastName()).filter(lastName -> !lastName.isEmpty())
-					.ifPresent(claimsBuilder::familyName);
+					.ifPresent(familyName -> subjectClaims.put("familyName", familyName));
 		}
 		if (claims.contains("roles")) {
-			Optional.ofNullable(roles).filter(rolesList -> !rolesList.isEmpty()).ifPresent(claimsBuilder::roles);
+			Optional.ofNullable(roles).filter(rolesList -> !rolesList.isEmpty())
+					.map(rolesList -> rolesList.stream()
+							.map(this::toMap)
+							.collect(Collectors.toList()))
+					.ifPresent(r -> subjectClaims.put("roles", r));
 		}
+
 		Map<String, String> additionalClaims = getAdditionalClaims(clients).map(claimsMap ->
 				claimsMap.entrySet().stream().filter(entry -> claims.contains(entry.getKey()))
 						.collect(Collectors.toMap(
 								Map.Entry::getKey, Map.Entry::getValue))
 		).orElse(Map.of());
 
-		var vcConfigBuilder = VCConfig.builder();
 		if (additionalClaims.containsKey(SUBJECT_DID)) {
 			LOGGER.infof("Set subject did to %s", additionalClaims.get(SUBJECT_DID));
-			vcConfigBuilder.subjectDid(additionalClaims.get(SUBJECT_DID));
+			subjectBuilder.id(URI.create(additionalClaims.get(SUBJECT_DID)));
 			additionalClaims.remove(SUBJECT_DID);
 		} else {
-			// we have to set something
-			vcConfigBuilder.subjectDid(UUID.randomUUID().toString());
+			subjectBuilder.id(URI.create(String.format("urn:uuid:%s", UUID.randomUUID())));
 		}
 
-		claimsBuilder.additionalClaims(additionalClaims);
-		VCClaims vcClaims = claimsBuilder.build();
-		vcConfigBuilder.issuerDid(issuerDid)
-				.proofType(proofType.toString());
+		subjectClaims.putAll(additionalClaims);
+		subjectBuilder.claims(subjectClaims);
 
-		// TODO: reintroduce when walt api is fixed
-		//		optionalMinExpiry
-		//				.map(minExpiry -> Clock.systemUTC()
-		//						.instant()
-		//						.plus(Duration.of(minExpiry, ChronoUnit.MINUTES)))
-		//				.map(FORMATTER::format)
-		//				.ifPresent(vcConfigBuilder::expirationDate);
+		CredentialSubject subject = subjectBuilder.build();
 
-		VCConfig vcConfig = vcConfigBuilder.build();
-		LOGGER.debugf("VC config is %s", vcConfig);
-		return VCRequest.builder().templateId(vcType)
-				.config(vcConfig)
-				.credentialData(VCData.builder()
-						.credentialSubject(vcClaims)
-						.build())
-				.build();
+		var credentialBuilder = VerifiableCredential.builder()
+				.types(List.of(vcType))
+				.context(VerifiableCredentialContexts.JSONLD_CONTEXT_W3C_2018_CREDENTIALS_V1)
+				.id(URI.create(String.format("urn:uuid:%s", UUID.randomUUID())))
+				.issuer(URI.create(issuerDid))
+				.issuanceDate(Date.from(clock.instant()))
+				.credentialSubject(subject);
+		optionalMinExpiry
+				.map(minExpiry -> Clock.systemUTC()
+						.instant()
+						.plus(Duration.of(minExpiry, ChronoUnit.MINUTES)))
+				.map(Date::from)
+				.ifPresent(credentialBuilder::expirationDate);
+
+		return credentialBuilder.build();
 	}
 
 	@NotNull

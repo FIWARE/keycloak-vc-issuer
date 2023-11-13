@@ -5,15 +5,18 @@ import com.danubetech.verifiablecredentials.jwt.JwtVerifiableCredential;
 import com.danubetech.verifiablecredentials.jwt.ToJwtConverter;
 import com.nimbusds.jose.JOSEException;
 import org.bitcoinj.core.ECKey;
-import org.jboss.logging.Logger;
 
 public class JWTSigningService extends SigningService<String> {
 
-	private static final Logger LOGGER = Logger.getLogger(JWTSigningService.class);
+	private final AlgorithmType algorithmType;
 
-	public JWTSigningService(String keyPath,
-			AlgorithmType algorithmType) {
-		super(keyPath, algorithmType);
+	public JWTSigningService(String keyPath){
+		super(keyPath);
+		algorithmType = getAlgorithmType();
+	}
+
+	private AlgorithmType getAlgorithmType() {
+		 return AlgorithmType.getByValue(signingKey.getPrivate().getAlgorithm());
 	}
 
 	@Override
@@ -25,10 +28,10 @@ public class JWTSigningService extends SigningService<String> {
 			return switch (algorithmType) {
 				case RSA -> {
 					String concreteAlgorithm = signingKey.getPrivate().getAlgorithm();
-					if (concreteAlgorithm.equalsIgnoreCase("rs256")) {
-						yield jwtVerifiableCredential.sign_RSA_RS256(signingKey);
-					} else {
+					if (concreteAlgorithm.equalsIgnoreCase("ps256")) {
 						yield jwtVerifiableCredential.sign_RSA_PS256(signingKey);
+					} else {
+						yield jwtVerifiableCredential.sign_RSA_RS256(signingKey);
 					}
 				}
 				case ECDSA_Secp256k1 -> jwtVerifiableCredential.sign_secp256k1_ES256K(

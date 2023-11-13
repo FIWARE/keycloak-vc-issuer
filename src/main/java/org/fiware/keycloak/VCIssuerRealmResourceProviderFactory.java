@@ -1,8 +1,11 @@
 package org.fiware.keycloak;
 
+import com.apicatalog.jsonld.JsonLdError;
+import com.apicatalog.jsonld.document.JsonDocument;
+import com.apicatalog.jsonld.http.media.MediaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.auto.service.AutoService;
-import org.fiware.keycloak.model.DIDKey;
+import info.weboftrust.ldsignatures.jsonld.LDSecurityContexts;
 import org.jboss.logging.Logger;
 import org.keycloak.Config;
 import org.keycloak.models.KeycloakSession;
@@ -11,9 +14,9 @@ import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.resource.RealmResourceProvider;
 import org.keycloak.services.resource.RealmResourceProviderFactory;
 
-import java.io.File;
-import java.io.IOException;
 import java.time.Clock;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -27,128 +30,50 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 	private static final Logger LOGGER = Logger.getLogger(VCIssuerRealmResourceProviderFactory.class);
 	public static final String ID = "verifiable-credential";
 
-	private static final String WALTID_ADDRESS_ENV_VAR = "VCISSUER_WALTID_ADDRESS";
-	private static final String WALTID_CORE_PORT_ENV_VAR = "VCISSUER_WALTID_CORE_PORT";
-	private static final String WALTID_SIGNATORY_PORT_ENV_VAR = "VCISSUER_WALTID_SIGNATORY_PORT";
 	private static final String ISSUER_DID_ENV_VAR = "VCISSUER_ISSUER_DID";
 	private static final String ISSUER_DID_KEY_FILE_ENV_VAR = "VCISSUER_ISSUER_KEY_FILE";
 
+	private final Clock clock = Clock.systemUTC();
 	private String issuerDid;
-	private String waltIdURL;
-	private int corePort = 7000;
-	private int signatoryPort = 7001;
-
-	private WaltIdClient waltIdClient;
 
 	@Override
 	public RealmResourceProvider create(KeycloakSession keycloakSession) {
 		LOGGER.debug("Create vc-issuer resource provider");
 
+		String issuerDid = Optional.ofNullable(keycloakSession.getContext().getRealm().getAttribute("issuerDid"))
+				.orElseThrow(() -> new VCIssuerException("No issuerDid  configured."));
+		String keyPath = Optional.ofNullable(keycloakSession.getContext().getRealm().getAttribute("keyPath"))
+				.orElseThrow(() -> new VCIssuerException("No keyPath configured."));
 		return new VCIssuerRealmResourceProvider(
 				keycloakSession,
-				issuerDid,
-				waltIdClient,
+				issuerDid, keyPath,
 				new AppAuthManager.BearerTokenAuthenticator(
-						keycloakSession),
-				OBJECT_MAPPER,
-				Clock.systemUTC());
+						keycloakSession), OBJECT_MAPPER, clock
+		);
 	}
 
 	@Override
 	public void init(Config.Scope config) {
-		try {
-			// read the address of walt from the realm resource.
-			waltIdURL = System.getenv(WALTID_ADDRESS_ENV_VAR);
-			initializeCorePort();
-			initializeSignatoryPort();
-
-		} catch (RuntimeException e) {
-			LOGGER.warn("Was not able to initialize the VCIssuerRealmResourceProvider. Issuing VCs is not supported.",
-					e);
-		}
-		waltIdClient = new WaltIdClient(waltIdURL, corePort, signatoryPort, OBJECT_MAPPER);
-
-		try {
-			LOGGER.info("Starting to initialization of issuer and key.");
-			// import the issuer key, if present.
-			Optional<String> keyId = importIssuerKey();
-			keyId.ifPresentOrElse(k -> LOGGER.infof("Imported key %s.", keyId),
-					() -> LOGGER.warnf("No key was imported."));
-			initializeIssuerDid(keyId);
-			LOGGER.infof("VCIssuerRealmResourceProviderFactory configured with issuerDID %s and walt-id %s.", issuerDid,
-					waltIdURL);
-		} catch (WaltIdConnectException waltIdConnectException) {
-			LOGGER.error("Was not able to initialize the issuer did. Issuing VCs is not available.",
-					waltIdConnectException);
-		}
-
-	}
-
-	private void initializeCorePort() {
-		try {
-			corePort = Integer.parseInt(System.getenv(WALTID_CORE_PORT_ENV_VAR));
-		} catch (RuntimeException e) {
-			LOGGER.infof("No specific core port configured. Will use the default %d.", corePort);
-		}
-	}
-
-	private void initializeSignatoryPort() {
-		try {
-			signatoryPort = Integer.parseInt(System.getenv(WALTID_SIGNATORY_PORT_ENV_VAR));
-		} catch (RuntimeException e) {
-			LOGGER.infof("No specific signatory port configured. Will use the default %d.", signatoryPort);
-		}
-	}
-
-	private void initializeIssuerDid(Optional<String> keyId) {
-		try {
-			issuerDid = Optional.ofNullable(System.getenv(ISSUER_DID_ENV_VAR))
-					.orElseGet(() -> waltIdClient.createDid());
-			if (!existsDid(issuerDid)) {
-
-				LOGGER.infof("The configured did does not yet exist, we try to import %s with the key %s.", issuerDid,
-						keyId.orElse(""));
-				// issuer does not exist, try to import
-				keyId.ifPresent(key -> waltIdClient.importDid(issuerDid, key));
-			} else {
-				LOGGER.infof("Did %s already exists. Nothing else to import.", issuerDid);
+		var paths = List.of("security-v1.jsonld", "security-v2.jsonld", "security-v3-unstable.jsonld",
+				"security-bbs-v1.jsonld",
+				"suites-secp256k1-2019.jsonld", "suites-ed25519-2018.jsonld", "suites-ed25519-2020.jsonld",
+				"suites-x25519-2019.jsonld", "suites-jws-2020.jsonld");
+		for (String path : paths) {
+			try {
+				JsonDocument.of(MediaType.JSON_LD,
+						Objects.requireNonNull(LDSecurityContexts.class.getResourceAsStream(path)));
+			} catch (JsonLdError e) {
+				LOGGER.warnf("Failed to load %s", path);
+				LOGGER.error("Failed", e);
+				//throw new RuntimeException(e);
 			}
 		}
-		// catch NPE(in case no such env is set and null in case an null string is set.)
-		catch (NullPointerException npe) {
-			LOGGER.info("No issuer did provided, will create one.");
-			issuerDid = waltIdClient.createDid();
-		}
-	}
 
-	private Optional<String> importIssuerKey() {
+		LOGGER.warnf("Stream %s", LDSecurityContexts.class.getResource("suites-jws-2020.jsonld"));
+		LOGGER.warnf("Stream %s", LDSecurityContexts.class.getResourceAsStream("suites-jws-2020.jsonld"));
 
-		Optional<String> keyFileEnv = Optional.ofNullable(System.getenv(ISSUER_DID_KEY_FILE_ENV_VAR));
-		if (keyFileEnv.isEmpty()) {
-			LOGGER.info("No keyfile is provided, skip key import.");
-			return Optional.empty();
-		}
-
-		File keyFile = new File(keyFileEnv.get());
-		if (!keyFile.exists()) {
-			LOGGER.warnf("Despite being configured, no keyfile exists at %s. Skip import.", keyFileEnv.get());
-			return Optional.empty();
-		}
-
-		try {
-			DIDKey keyToImport = OBJECT_MAPPER.readValue(keyFile, DIDKey.class);
-			return Optional.ofNullable(waltIdClient.importDIDKey(keyToImport));
-		} catch (IOException e) {
-			LOGGER.warnf("The keyfile %s is not a valid key. Skip import.", keyFileEnv.get(), e);
-			return Optional.empty();
-		} catch (WaltIdConnectException e) {
-			LOGGER.warnf("Was not able to import the key. Skip import.", e);
-			return Optional.empty();
-		}
-	}
-
-	private boolean existsDid(String issuerDid) {
-		return waltIdClient.getDids().contains(issuerDid);
+		config.getPropertyNames().stream()
+				.forEach(pn -> LOGGER.warnf("%s : %s ", pn, config.get(pn)));
 	}
 
 	@Override

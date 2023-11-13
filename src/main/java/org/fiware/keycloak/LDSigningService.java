@@ -22,27 +22,22 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.time.Clock;
 import java.util.Date;
-import java.util.List;
 import java.util.Optional;
 
 public class LDSigningService extends SigningService<VerifiableCredential> {
 	private static final Logger LOGGER = Logger.getLogger(LDSigningService.class);
 
-	private static final List<AlgorithmType> SUPPORTED_ALGORITHMS = List.of(
-			AlgorithmType.EdDSA_Ed25519, AlgorithmType.ECDSA_Secp256k1, AlgorithmType.ECDSA_Secp256k1,
-			AlgorithmType.RSA);
-
 	private final Clock clock;
 
 	public LDSigningService(String keyPath,
-			AlgorithmType algorithmType, Clock clock) {
-		super(keyPath, algorithmType);
-
+			Clock clock) {
+		super(keyPath);
 		this.clock = clock;
 	}
 
 	@Override
 	public VerifiableCredential signCredential(VerifiableCredential verifiableCredential) {
+		LOGGER.debug("Sign credential with an ld-proof.");
 		String proofType = Optional.ofNullable(verifiableCredential.getLdProof()).map(LdProof::getType)
 				// use a default
 				.orElse(LDSignatureType.RSA_SIGNATURE_2018.getValue());
