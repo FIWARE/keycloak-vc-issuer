@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.fiware.keycloak.model.SupportedCredential;
+import org.keycloak.representations.idm.ProtocolMapperRepresentation;
 
 import java.util.List;
 import java.util.Map;

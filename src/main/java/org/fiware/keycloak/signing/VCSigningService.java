@@ -1,4 +1,4 @@
-package org.fiware.keycloak;
+package org.fiware.keycloak.signing;
 
 import com.danubetech.verifiablecredentials.VerifiableCredential;
 

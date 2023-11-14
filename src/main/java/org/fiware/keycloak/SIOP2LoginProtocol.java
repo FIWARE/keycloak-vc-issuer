@@ -1,5 +1,8 @@
 package org.fiware.keycloak;
 
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriInfo;
 import org.keycloak.events.EventBuilder;
 import org.keycloak.models.AuthenticatedClientSessionModel;
 import org.keycloak.models.ClientSessionContext;
@@ -8,10 +11,6 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.protocol.LoginProtocol;
 import org.keycloak.sessions.AuthenticationSessionModel;
-
-import javax.ws.rs.core.HttpHeaders;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriInfo;
 
 /**
  * Empty implementation of the SIOP2LoginProtocl. Its required to be available for integration with the client-registration.
@@ -31,14 +30,12 @@ public class SIOP2LoginProtocol implements LoginProtocol {
 		return this;
 	}
 
-	@Override
-	public SIOP2LoginProtocol setUriInfo(UriInfo uriInfo) {
-		return this;
+	@Override public LoginProtocol setUriInfo(UriInfo uriInfo) {
+		return null;
 	}
 
-	@Override
-	public SIOP2LoginProtocol setHttpHeaders(HttpHeaders headers) {
-		return this;
+	@Override public LoginProtocol setHttpHeaders(HttpHeaders httpHeaders) {
+		return null;
 	}
 
 	@Override

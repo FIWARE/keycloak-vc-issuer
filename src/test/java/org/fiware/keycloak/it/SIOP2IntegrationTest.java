@@ -15,6 +15,8 @@ import org.fiware.keycloak.it.model.IssuerMetaData;
 import org.fiware.keycloak.it.model.Role;
 import org.fiware.keycloak.it.model.SupportedCredentialMetadata;
 import org.fiware.keycloak.it.model.VerifiableCredential;
+import org.fiware.keycloak.mappers.SIOP2TargetRoleMapper;
+import org.fiware.keycloak.mappers.SIOP2UserAttributeMapper;
 import org.fiware.keycloak.model.SupportedCredential;
 import org.fiware.keycloak.model.TokenResponse;
 import org.fiware.keycloak.model.CredentialOfferURI;
@@ -34,6 +36,7 @@ import org.keycloak.admin.client.KeycloakBuilder;
 import org.keycloak.admin.client.token.TokenManager;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
+import org.keycloak.representations.idm.ProtocolMapperRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
@@ -58,6 +61,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.fiware.keycloak.VCIssuerRealmResourceProvider.GRANT_TYPE_PRE_AUTHORIZED_CODE;
+import static org.fiware.keycloak.mappers.SIOP2TargetRoleMapper.SUBJECT_PROPERTY_CONFIG_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -817,6 +821,25 @@ public class SIOP2IntegrationTest {
 				.realm(TEST_REALM).remove();
 	}
 
+	private ProtocolMapperRepresentation getTargetRoleMapper(String clientId) {
+		ProtocolMapperRepresentation protocolMapperRepresentation = new ProtocolMapperRepresentation();
+		protocolMapperRepresentation.setProtocol(SIOP2LoginProtocolFactory.PROTOCOL_ID);
+		protocolMapperRepresentation.setProtocolMapper(SIOP2TargetRoleMapper.MAPPER_ID);
+		protocolMapperRepresentation.setName("my-target-role-mapper");
+		protocolMapperRepresentation.setConfig(Map.of("subject-property", "roles", "client", clientId));
+		return protocolMapperRepresentation;
+	}
+
+	private ProtocolMapperRepresentation getUserAttributeMapper(String attribute, String property) {
+		ProtocolMapperRepresentation protocolMapperRepresentation = new ProtocolMapperRepresentation();
+		protocolMapperRepresentation.setProtocol(SIOP2LoginProtocolFactory.PROTOCOL_ID);
+		protocolMapperRepresentation.setProtocolMapper(SIOP2UserAttributeMapper.MAPPER_ID);
+		protocolMapperRepresentation.setName(String.format("my-%s-mapper", attribute));
+		protocolMapperRepresentation.setConfig(Map.of("subject-property", property, "user-attribute", attribute));
+		return protocolMapperRepresentation;
+
+	}
+
 	private void assertClientCreation(String clientId,
 			List<SupportedCredential> supportedTypes) {
 		ClientRepresentation clientRepresentation = new ClientRepresentation();
@@ -825,6 +848,12 @@ public class SIOP2IntegrationTest {
 		clientRepresentation.setDescription("My test client.");
 		clientRepresentation.setEnabled(true);
 		clientRepresentation.setProtocol(SIOP2LoginProtocolFactory.PROTOCOL_ID);
+		clientRepresentation.setProtocolMappers(List.of(
+				getTargetRoleMapper(clientId),
+				getUserAttributeMapper("email", "email"),
+				getUserAttributeMapper("firstName", "firstName"),
+				getUserAttributeMapper("lastName", "familyName")
+		));
 		Map<String, String> attributes = new HashMap<>();
 
 		supportedTypes.forEach(st -> {

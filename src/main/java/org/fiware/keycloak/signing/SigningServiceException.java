@@ -1,4 +1,4 @@
-package org.fiware.keycloak;
+package org.fiware.keycloak.signing;
 
 public class SigningServiceException extends RuntimeException{
 

@@ -1,4 +1,4 @@
-package org.fiware.keycloak;
+package org.fiware.keycloak.signing;
 
 import com.danubetech.keyformats.crypto.ByteSigner;
 import com.danubetech.keyformats.crypto.impl.Ed25519_EdDSA_PrivateKeySigner;

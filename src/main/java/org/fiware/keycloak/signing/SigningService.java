@@ -1,4 +1,4 @@
-package org.fiware.keycloak;
+package org.fiware.keycloak.signing;
 
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;

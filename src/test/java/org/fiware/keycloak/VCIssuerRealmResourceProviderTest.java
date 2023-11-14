@@ -1,23 +1,23 @@
 package org.fiware.keycloak;
 
-import com.danubetech.verifiablecredentials.VerifiableCredential;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.nimbusds.jwt.JWT;
-import com.nimbusds.jwt.JWTParser;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.HttpStatus;
 import org.fiware.keycloak.it.SIOP2IntegrationTest;
 import org.fiware.keycloak.it.model.IssuerMetaData;
 import org.fiware.keycloak.it.model.Role;
+import org.fiware.keycloak.mappers.SIOP2StaticClaimMapper;
+import org.fiware.keycloak.mappers.SIOP2SubjectIdMapper;
+import org.fiware.keycloak.mappers.SIOP2TargetRoleMapper;
+import org.fiware.keycloak.mappers.SIOP2UserAttributeMapper;
 import org.fiware.keycloak.model.ErrorResponse;
 import org.fiware.keycloak.model.ErrorType;
 import org.fiware.keycloak.model.SupportedCredential;
-import org.fiware.keycloak.oidcvc.model.CredentialVO;
 import org.fiware.keycloak.oidcvc.model.FormatVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,15 +31,20 @@ import org.keycloak.models.ClientProvider;
 import org.keycloak.models.KeycloakContext;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakUriInfo;
+import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.models.UserSessionModel;
+import org.keycloak.protocol.ProtocolMapper;
 import org.keycloak.representations.JsonWebToken;
 import org.keycloak.services.managers.AppAuthManager;
 import org.keycloak.services.managers.AuthenticationManager;
 
-import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.Response;
+import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.Response;
+import org.mockito.stubbing.Answer;
+
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -61,6 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -151,27 +157,6 @@ public class VCIssuerRealmResourceProviderTest {
 		}
 	}
 
-	@Test
-	public void testGetVCUnauthorizedToken() {
-		KeycloakContext context = mock(KeycloakContext.class);
-		RealmModel realmModel = mock(RealmModel.class);
-		when(keycloakSession.getContext()).thenReturn(context);
-		when(context.getRealm()).thenReturn(realmModel);
-
-		when(bearerTokenAuthenticator.authenticate()).thenReturn(null);
-
-		try {
-			testProvider.issueVerifiableCredential(ISSUER_DID, "MyVC", "myToken");
-			fail("VCs should only be accessible for authorized users.");
-		} catch (WebApplicationException e) {
-			assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), e.getResponse().getStatus(),
-					"The response should be a 400.");
-			ErrorResponse er = OBJECT_MAPPER.convertValue(e.getResponse().getEntity(), ErrorResponse.class);
-			assertEquals(ErrorType.INVALID_TOKEN.getValue(), er.getError(),
-					"The response should have been denied because of the missing token.");
-		}
-	}
-
 	@ParameterizedTest
 	@MethodSource("provideTypesAndClients")
 	public void testGetVCNoSuchType(Stream<ClientModel> clientModelStream,
@@ -190,7 +175,7 @@ public class VCIssuerRealmResourceProviderTest {
 		when(clientProvider.getClientsStream(any())).thenReturn(clientModelStream);
 
 		try {
-			testProvider.issueVerifiableCredential(ISSUER_DID, "MyNonExistentType", null);
+			testProvider.issueVerifiableCredential(ISSUER_DID, "MyNonExistentType", "myToken");
 			fail("Not found types should be a 400");
 		} catch (WebApplicationException e) {
 			assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), e.getResponse().getStatus(),
@@ -293,21 +278,33 @@ public class VCIssuerRealmResourceProviderTest {
 			Map<ClientModel, Stream<RoleModel>> roleModelStreamMap,
 			ExpectedResult<Map> expectedResult, FormatVO requestedFormat)
 			throws JsonProcessingException, VerificationException {
+		List<ClientModel> clientModels = clientModelStream.toList();
+
 		AuthenticationManager.AuthResult authResult = mock(AuthenticationManager.AuthResult.class);
 		KeycloakContext context = mock(KeycloakContext.class);
 		RealmModel realmModel = mock(RealmModel.class);
 		ClientProvider clientProvider = mock(ClientProvider.class);
 
+		UserSessionModel userSessionModel = mock(UserSessionModel.class);
+		when(userSessionModel.getRealm()).thenReturn(realmModel);
+		when(userSessionModel.getUser()).thenReturn(userModel);
+		clientModels.forEach(cm -> when(realmModel.getClientByClientId(eq(cm.getClientId()))).thenReturn(cm));
+		when(realmModel.getClientsStream()).thenReturn(clientModels.stream());
+
 		when(bearerTokenAuthenticator.authenticate()).thenReturn(authResult);
+
 		when(authResult.getUser()).thenReturn(userModel);
+		when(authResult.getSession()).thenReturn(userSessionModel);
+
 		when(keycloakSession.getContext()).thenReturn(context);
 		when(context.getRealm()).thenReturn(realmModel);
+
 		when(keycloakSession.clients()).thenReturn(clientProvider);
-		when(clientProvider.getClientsStream(any())).thenReturn(clientModelStream);
+		when(clientProvider.getClientsStream(any())).thenReturn(clientModels.stream());
 
 		when(userModel.getClientRoleMappingsStream(any())).thenAnswer(i -> roleModelStreamMap.get(i.getArguments()[0]));
 
-		Object credential = testProvider.getCredential("MyType", requestedFormat, null);
+		Object credential = testProvider.getCredential("MyType", requestedFormat);
 		switch (requestedFormat) {
 			case LDP_VC -> {
 				Map verifiableCredential = OBJECT_MAPPER.convertValue(credential, Map.class);
@@ -344,22 +341,30 @@ public class VCIssuerRealmResourceProviderTest {
 	public void testGetVC(UserModel userModel, Stream<ClientModel> clientModelStream,
 			Map<ClientModel, Stream<RoleModel>> roleModelStreamMap,
 			ExpectedResult<Map> expectedResult) throws JsonProcessingException {
+		List<ClientModel> clientModels = clientModelStream.toList();
+
 		AuthenticationManager.AuthResult authResult = mock(AuthenticationManager.AuthResult.class);
 		KeycloakContext context = mock(KeycloakContext.class);
 		RealmModel realmModel = mock(RealmModel.class);
 		ClientProvider clientProvider = mock(ClientProvider.class);
+		UserSessionModel userSessionModel = mock(UserSessionModel.class);
+		when(userSessionModel.getRealm()).thenReturn(realmModel);
+		when(userSessionModel.getUser()).thenReturn(userModel);
+		clientModels.forEach(cm -> when(realmModel.getClientByClientId(eq(cm.getClientId()))).thenReturn(cm));
 
 		when(bearerTokenAuthenticator.authenticate()).thenReturn(authResult);
 		when(authResult.getUser()).thenReturn(userModel);
+		when(authResult.getSession()).thenReturn(userSessionModel);
 		when(keycloakSession.getContext()).thenReturn(context);
 		when(context.getRealm()).thenReturn(realmModel);
 		when(keycloakSession.clients()).thenReturn(clientProvider);
-		when(clientProvider.getClientsStream(any())).thenReturn(clientModelStream);
+		// use then to open a new stream on each invocation
+		when(clientProvider.getClientsStream(any())).then(f -> clientModels.stream());
 
 		when(userModel.getClientRoleMappingsStream(any())).thenAnswer(i -> roleModelStreamMap.get(i.getArguments()[0]));
 
 		Map credentialVO = OBJECT_MAPPER.convertValue(
-				testProvider.issueVerifiableCredential(ISSUER_DID, "MyType", null).getEntity(),
+				testProvider.issueVerifiableCredential(ISSUER_DID, "MyType", "myToken").getEntity(),
 				Map.class);
 
 		verifyLDCredential(expectedResult, credentialVO);
@@ -441,8 +446,7 @@ public class VCIssuerRealmResourceProviderTest {
 		return Stream.of(
 				getArguments(getUserModel("e@mail.org", "Happy", "User"),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
@@ -452,8 +456,7 @@ public class VCIssuerRealmResourceProviderTest {
 				),
 				getArguments(getUserModel("e@mail.org", null, "User"),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
@@ -464,8 +467,7 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel("e@mail.org", null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
@@ -476,8 +478,7 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
@@ -488,8 +489,7 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole"))),
 						new ExpectedResult<>(
@@ -500,8 +500,7 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
@@ -512,13 +511,11 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString()),
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult<>(
@@ -530,13 +527,11 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
-										Map.of("vctypes_AnotherType", FormatVO.JWT_VC.toString(),
-												"AnotherType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_AnotherType", FormatVO.JWT_VC.toString()),
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult<>(
@@ -547,17 +542,14 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
-												"vc_additional", "claim",
-												"MyType_claims", "email,firstName,familyName,roles,additional,more"),
-										List.of("MyRole", "MySecondRole")),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString()),
+										List.of("MyRole", "MySecondRole"),
+										Map.of("more", "claims")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
-												"vc_more", "claims",
-												"MyType_claims",
-												"email,firstName,familyName,roles,additional,more"),
-										List.of("AnotherRole")),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString()),
+										List.of("AnotherRole"),
+										Map.of("additional", "claim")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult<>(
 								Map.of("roles",
@@ -569,16 +561,13 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
-												"vc_additional", "claim",
-												"MyType_claims", "email,firstName,familyName,roles,additional"),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
-										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString(),
-												"vc_additional", "claim",
-												"MyType_claims", "email,firstName,familyName,roles,additional"),
-										List.of("AnotherRole")),
+										Map.of("vctypes_MyType", FormatVO.JWT_VC.toString()),
+										List.of("AnotherRole"),
+										Map.of("additional", "claim")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult<>(
 								Map.of("additional", "claim", "roles",
@@ -593,8 +582,7 @@ public class VCIssuerRealmResourceProviderTest {
 		return Stream.of(
 				getArguments(getUserModel("e@mail.org", "Happy", "User"),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
@@ -604,8 +592,7 @@ public class VCIssuerRealmResourceProviderTest {
 				),
 				getArguments(getUserModel("e@mail.org", null, "User"),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
@@ -616,8 +603,7 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel("e@mail.org", null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
@@ -628,8 +614,7 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("MyRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
@@ -640,8 +625,7 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole"))),
 						new ExpectedResult<>(
@@ -652,8 +636,7 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"))),
 						new ExpectedResult<>(
@@ -664,13 +647,11 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult<>(
@@ -682,13 +663,11 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
-												"MyType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
-										Map.of("vctypes_AnotherType", FormatVO.LDP_VC.toString(),
-												"AnotherType_claims", "email,firstName,familyName,roles"),
+										Map.of("vctypes_AnotherType", FormatVO.LDP_VC.toString()),
 										List.of("AnotherRole")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult<>(
@@ -699,17 +678,14 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
-												"vc_additional", "claim",
-												"MyType_claims", "email,firstName,familyName,roles,additional,more"),
-										List.of("MyRole", "MySecondRole")),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
+										List.of("MyRole", "MySecondRole"),
+										Map.of("more", "claims")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
-												"vc_more", "claims",
-												"MyType_claims",
-												"email,firstName,familyName,roles,additional,more"),
-										List.of("AnotherRole")),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
+										List.of("AnotherRole"),
+										Map.of("additional", "claim")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult<>(
 								Map.of("roles",
@@ -721,16 +697,13 @@ public class VCIssuerRealmResourceProviderTest {
 				getArguments(
 						getUserModel(null, null, null),
 						Map.of(getSiopClient("did:key:1",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
-												"vc_additional", "claim",
-												"MyType_claims", "email,firstName,familyName,roles,additional"),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
 										List.of("MyRole", "MySecondRole")),
 								List.of(getRoleModel("MyRole"), getRoleModel("MySecondRole")),
 								getSiopClient("did:key:2",
-										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString(),
-												"vc_additional", "claim",
-												"MyType_claims", "email,firstName,familyName,roles,additional"),
-										List.of("AnotherRole")),
+										Map.of("vctypes_MyType", FormatVO.LDP_VC.toString()),
+										List.of("AnotherRole"),
+										Map.of("additional", "claim")),
 								List.of(getRoleModel("AnotherRole"))),
 						new ExpectedResult<>(
 								Map.of("additional", "claim", "roles",
@@ -812,6 +785,10 @@ public class VCIssuerRealmResourceProviderTest {
 		when(userModel.getEmail()).thenReturn(email);
 		when(userModel.getFirstName()).thenReturn(firstName);
 		when(userModel.getLastName()).thenReturn(lastName);
+		// use answer to allow multiple invocations
+		when(userModel.getAttributeStream(eq("firstName"))).then(f -> Stream.of(firstName));
+		when(userModel.getAttributeStream(eq("familyName"))).then(f -> Stream.of(lastName));
+		when(userModel.getAttributeStream(eq("email"))).then(f -> Stream.of(email));
 		return userModel;
 	}
 
@@ -833,18 +810,74 @@ public class VCIssuerRealmResourceProviderTest {
 		return clientA;
 	}
 
-	private static ClientModel getSiopClient(String clientId, Map<String, String> attributes, List<String> roles) {
+	private static ClientModel getSiopClient(String clientId, Map<String, String> attributes, List<String> roles,
+			Map<String, String> additionalClaims) {
 		Stream<RoleModel> roleModelStream = roles.stream().map(role -> {
 			RoleModel roleModel = mock(RoleModel.class);
 			when(roleModel.getName()).thenReturn(role);
 			return roleModel;
 		});
+		List<ProtocolMapperModel> mapperModels = new ArrayList<>();
+		ProtocolMapperModel idMapperModel = mock(ProtocolMapperModel.class);
+		when(idMapperModel.getProtocolMapper()).thenReturn(SIOP2SubjectIdMapper.MAPPER_ID);
+		when(idMapperModel.getProtocol()).thenReturn(SIOP2LoginProtocolFactory.PROTOCOL_ID);
+		when(idMapperModel.getConfig()).thenReturn(Map.of(SIOP2SubjectIdMapper.ID_KEY, "urn:uuid:dummy-id"));
+		mapperModels.add(idMapperModel);
+
+		if (clientId != null) {
+			ProtocolMapperModel roleMapperModel = mock(ProtocolMapperModel.class);
+			when(roleMapperModel.getProtocol()).thenReturn(SIOP2LoginProtocolFactory.PROTOCOL_ID);
+			when(roleMapperModel.getProtocolMapper()).thenReturn(SIOP2TargetRoleMapper.MAPPER_ID);
+			when(roleMapperModel.getConfig()).thenReturn(
+					Map.of(SIOP2TargetRoleMapper.SUBJECT_PROPERTY_CONFIG_KEY, "roles",
+							SIOP2TargetRoleMapper.CLIENT_CONFIG_KEY, clientId));
+			mapperModels.add(roleMapperModel);
+		}
+
+		ProtocolMapperModel familyNameMapper = mock(ProtocolMapperModel.class);
+		when(familyNameMapper.getProtocolMapper()).thenReturn(SIOP2UserAttributeMapper.MAPPER_ID);
+		when(familyNameMapper.getProtocol()).thenReturn(SIOP2LoginProtocolFactory.PROTOCOL_ID);
+		when(familyNameMapper.getConfig()).thenReturn(Map.of(SIOP2UserAttributeMapper.USER_ATTRIBUTE_KEY, "familyName",
+				SIOP2UserAttributeMapper.SUBJECT_PROPERTY_CONFIG_KEY, "familyName",
+				SIOP2UserAttributeMapper.AGGREGATE_ATTRIBUTES_KEY, "false"));
+		mapperModels.add(familyNameMapper);
+
+		ProtocolMapperModel firstNameMapper = mock(ProtocolMapperModel.class);
+		when(firstNameMapper.getProtocolMapper()).thenReturn(SIOP2UserAttributeMapper.MAPPER_ID);
+		when(firstNameMapper.getProtocol()).thenReturn(SIOP2LoginProtocolFactory.PROTOCOL_ID);
+		when(firstNameMapper.getConfig()).thenReturn(Map.of(SIOP2UserAttributeMapper.USER_ATTRIBUTE_KEY, "firstName",
+				SIOP2UserAttributeMapper.SUBJECT_PROPERTY_CONFIG_KEY, "firstName",
+				SIOP2UserAttributeMapper.AGGREGATE_ATTRIBUTES_KEY, "false"));
+		mapperModels.add(firstNameMapper);
+
+		ProtocolMapperModel emailMapper = mock(ProtocolMapperModel.class);
+		when(emailMapper.getProtocolMapper()).thenReturn(SIOP2UserAttributeMapper.MAPPER_ID);
+		when(emailMapper.getProtocol()).thenReturn(SIOP2LoginProtocolFactory.PROTOCOL_ID);
+		when(emailMapper.getConfig()).thenReturn(Map.of(SIOP2UserAttributeMapper.USER_ATTRIBUTE_KEY, "email",
+				SIOP2UserAttributeMapper.SUBJECT_PROPERTY_CONFIG_KEY, "email",
+				SIOP2UserAttributeMapper.AGGREGATE_ATTRIBUTES_KEY, "false"));
+		mapperModels.add(emailMapper);
+
+		additionalClaims.entrySet().forEach(entry -> {
+			ProtocolMapperModel claimMapper = mock(ProtocolMapperModel.class);
+			when(claimMapper.getProtocolMapper()).thenReturn(SIOP2StaticClaimMapper.MAPPER_ID);
+			when(claimMapper.getProtocol()).thenReturn(SIOP2LoginProtocolFactory.PROTOCOL_ID);
+			when(claimMapper.getConfig()).thenReturn(Map.of(SIOP2StaticClaimMapper.STATIC_CLAIM_KEY, entry.getValue(),
+					SIOP2StaticClaimMapper.SUBJECT_PROPERTY_CONFIG_KEY, entry.getKey()));
+			mapperModels.add(claimMapper);
+		});
+
 		ClientModel clientA = mock(ClientModel.class);
 		when(clientA.getProtocol()).thenReturn(SIOP2LoginProtocolFactory.PROTOCOL_ID);
-		when(clientA.getAttributes()).thenReturn(attributes);
 		when(clientA.getClientId()).thenReturn(clientId);
+		when(clientA.getAttributes()).thenReturn(attributes);
+		when(clientA.getProtocolMappersStream()).thenReturn(mapperModels.stream());
 		when(clientA.getRolesStream()).thenReturn(roleModelStream);
 		return clientA;
+	}
+
+	private static ClientModel getSiopClient(String clientId, Map<String, String> attributes, List<String> roles) {
+		return getSiopClient(clientId, attributes, roles, Map.of());
 	}
 
 	private static ClientModel getSiopClient(Map<String, String> attributes) {

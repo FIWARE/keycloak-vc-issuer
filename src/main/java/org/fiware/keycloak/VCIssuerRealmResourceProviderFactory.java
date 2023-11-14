@@ -50,7 +50,6 @@ public class VCIssuerRealmResourceProviderFactory implements RealmResourceProvid
 
 	@Override
 	public void init(Config.Scope config) {
-
 	}
 
 	@Override

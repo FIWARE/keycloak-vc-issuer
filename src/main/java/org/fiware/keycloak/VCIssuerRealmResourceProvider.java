@@ -10,8 +10,25 @@ import foundation.identity.jsonld.JsonLDObject;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
+import jakarta.ws.rs.BadRequestException;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.FormParam;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.NotAuthorizedException;
+import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.OPTIONS;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.fiware.keycloak.mappers.SIOP2Mapper;
+import org.fiware.keycloak.mappers.SIOP2MapperFactory;
 import org.fiware.keycloak.model.CredentialOfferURI;
 import org.fiware.keycloak.model.ErrorResponse;
 import org.fiware.keycloak.model.ErrorType;
@@ -30,6 +47,10 @@ import org.fiware.keycloak.oidcvc.model.PreAuthorizedVO;
 import org.fiware.keycloak.oidcvc.model.ProofTypeVO;
 import org.fiware.keycloak.oidcvc.model.ProofVO;
 import org.fiware.keycloak.oidcvc.model.SupportedCredentialVO;
+import org.fiware.keycloak.signing.JWTSigningService;
+import org.fiware.keycloak.signing.LDSigningService;
+import org.fiware.keycloak.signing.SigningServiceException;
+import org.fiware.keycloak.signing.VCSigningService;
 import org.jboss.logging.Logger;
 import org.json.JSONObject;
 import org.keycloak.OAuth2Constants;
@@ -39,6 +60,8 @@ import org.keycloak.models.AuthenticatedClientSessionModel;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakContext;
 import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.ProtocolMapperContainerModel;
+import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionModel;
@@ -55,21 +78,6 @@ import org.keycloak.services.util.DefaultClientSessionContext;
 import org.keycloak.urls.UrlType;
 
 import javax.validation.constraints.NotNull;
-import javax.ws.rs.BadRequestException;
-import javax.ws.rs.Consumes;
-import javax.ws.rs.FormParam;
-import javax.ws.rs.GET;
-import javax.ws.rs.NotAuthorizedException;
-import javax.ws.rs.NotFoundException;
-import javax.ws.rs.OPTIONS;
-import javax.ws.rs.POST;
-import javax.ws.rs.Path;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
-import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
 import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
@@ -265,7 +273,6 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	private String getCredentialEndpoint() {
-
 		return getIssuer() + "/" + CREDENTIAL_PATH;
 	}
 
@@ -518,8 +525,12 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 			token) {
 		LOGGER.debugf("Get a VC of type %s. Token parameter is %s.", vcType, token);
 		assertIssuerDid(issuerDidParam);
+		if (token != null) {
+			// authenticate with the token
+			bearerTokenAuthenticator.setTokenString(token);
+		}
 		return Response.ok().
-				entity(getCredential(vcType, FormatVO.LDP_VC, token)).
+				entity(getCredential(vcType, FormatVO.LDP_VC)).
 				header(ACCESS_CONTROL_HEADER, "*").
 				build();
 	}
@@ -573,7 +584,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		// keep the originally requested here.
 		responseVO.format(credentialRequestVO.getFormat());
 
-		Object theCredential = getCredential(vcType, credentialRequestVO.getFormat(), null);
+		Object theCredential = getCredential(vcType, credentialRequestVO.getFormat());
 		switch (requestedFormat) {
 			case LDP_VC -> responseVO.setCredential(theCredential);
 			case JWT_VC_JSON -> responseVO.setCredential(theCredential);
@@ -591,11 +602,14 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		//TODO: validate proof
 	}
 
-	protected Object getCredential(String vcType, FormatVO format, String token) {
-
-		UserModel userModel = getUserFromSession(Optional.ofNullable(token));
-
+	protected Object getCredential(String vcType, FormatVO format) {
+		// do first to fail fast on auth
+		UserSessionModel userSessionModel = getUserSessionModel();
 		List<ClientModel> clients = getClientsOfType(vcType, format);
+		List<SIOP2Mapper> protocolMappers = getProtocolMappers(clients)
+				.stream()
+				.map(SIOP2MapperFactory::createSiop2Mapper)
+				.toList();
 
 		// get the smallest expiry, to not generate VCs with to long lifetimes.
 		Optional<Long> optionalMinExpiry = clients.stream()
@@ -610,14 +624,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				minExpiry -> LOGGER.debugf("The min expiry is %d.", minExpiry),
 				() -> LOGGER.debugf("No min-expiry found. VC will not expire."));
 
-		Set<Role> roles = clients.stream()
-				.map(cm -> new ClientRoleModel(cm.getClientId(),
-						userModel.getClientRoleMappingsStream(cm).collect(Collectors.toList())))
-				.map(this::toRolesClaim)
-				.filter(role -> !role.getNames().isEmpty())
-				.collect(Collectors.toSet());
-
-		var credentialToSign = getVCToSign(vcType, format, userModel, clients, roles, optionalMinExpiry);
+		var credentialToSign = getVCToSign(protocolMappers, vcType, userSessionModel);
 
 		return switch (format) {
 			case LDP_VC -> signingServiceMap.get(FormatVO.LDP_VC).signCredential(credentialToSign);
@@ -626,6 +633,13 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 			default -> throw new IllegalArgumentException(
 					String.format("Requested format %s is not supported.", format));
 		};
+	}
+
+	private List<ProtocolMapperModel> getProtocolMappers(List<ClientModel> clientModels) {
+		return clientModels.stream()
+				.flatMap(ProtocolMapperContainerModel::getProtocolMappersStream)
+				.toList();
+
 	}
 
 	@NotNull
@@ -653,7 +667,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 								.anyMatch(formatString -> Arrays.asList(attributes.get(prefixedType).split(","))
 										.contains(formatString)))
 						.isPresent())
-				.collect(Collectors.toList());
+				.toList();
 
 		if (vcClients.isEmpty()) {
 			LOGGER.infof("No SIOP-2-Client supporting type %s registered.", vcType);
@@ -663,11 +677,8 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 	}
 
 	@NotNull
-	private UserModel getUserFromSession(Optional<String> optionalToken) {
+	private UserModel getUserFromSession() {
 		LOGGER.debugf("Extract user form session. Realm in context is %s.", session.getContext().getRealm());
-		// set the token in the context if its specifically provided. If empty, the authorization header will
-		// automatically be evaluated
-		optionalToken.ifPresent(bearerTokenAuthenticator::setTokenString);
 
 		UserModel userModel = getUserModel();
 		LOGGER.debugf("Authorized user is %s.", userModel.getId());
@@ -679,7 +690,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		return session.clients().getClientsStream(session.getContext().getRealm())
 				.filter(clientModel -> clientModel.getProtocol() != null)
 				.filter(clientModel -> clientModel.getProtocol().equals(SIOP2LoginProtocolFactory.PROTOCOL_ID))
-				.collect(Collectors.toList());
+				.toList();
 	}
 
 	@NotNull
@@ -692,76 +703,18 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		return new Role(roleNames, crm.getClientId());
 	}
 
-	private Map toMap(Object o) {
-		return objectMapper.convertValue(o, Map.class);
-	}
-
-	private JsonLDObject toJsonLDObject(Object o) {
-		try {
-			return JsonLDObject.fromJson(objectMapper.writeValueAsString(o));
-		} catch (JsonProcessingException e) {
-			LOGGER.warnf("Was not able to convert %s to a JsonLDObject.", o, e);
-			throw new VCIssuerException(String.format("Was not able to convert %s to a JsonLDObject.", o), e);
-		}
-	}
-
-	private JSONObject toJsonObject(Object o) {
-		try {
-			return new JSONObject(objectMapper.writeValueAsString(o));
-		} catch (JsonProcessingException e) {
-			LOGGER.warnf("Was not able to convert %s to a JSONObject.", o, e);
-			throw new VCIssuerException(String.format("Was not able to convert %s to a JSONObject.", o), e);
-		}
-	}
-
 	@NotNull
-	private VerifiableCredential getVCToSign(String vcType, FormatVO format, UserModel userModel,
-			List<ClientModel> clients,
-			Set<Role> roles,
-			Optional<Long> optionalMinExpiry) {
+	private VerifiableCredential getVCToSign(List<SIOP2Mapper> protocolMappers, String vcType,
+			UserSessionModel userSessionModel) {
 
 		var subjectBuilder = CredentialSubject.builder();
 
 		Map<String, Object> subjectClaims = new HashMap<>();
 
-		LOGGER.infof("Will set roles %s", roles);
-		List<String> claims = getClaimsToSet(vcType, clients);
-		LOGGER.infof("Will set %s", claims);
-		if (claims.contains("email")) {
-			Optional.ofNullable(userModel.getEmail()).filter(email -> !email.isEmpty())
-					.ifPresent(email -> subjectClaims.put("email", email));
-		}
-		if (claims.contains("firstName")) {
-			Optional.ofNullable(userModel.getFirstName()).filter(firstName -> !firstName.isEmpty())
-					.ifPresent(firstName -> subjectClaims.put("firstName", firstName));
-		}
-		if (claims.contains("familyName")) {
-			Optional.ofNullable(userModel.getLastName()).filter(lastName -> !lastName.isEmpty())
-					.ifPresent(familyName -> subjectClaims.put("familyName", familyName));
-		}
-		if (claims.contains("roles")) {
-			Optional.ofNullable(roles).filter(rolesList -> !rolesList.isEmpty())
-					.map(rolesList -> rolesList.stream()
-							.map(this::toMap)
-							.collect(Collectors.toList()))
-					.ifPresent(r -> subjectClaims.put("roles", r));
-		}
+		protocolMappers
+				.forEach(mapper -> mapper.setClaimsForSubject(subjectClaims, userSessionModel));
 
-		Map<String, String> additionalClaims = getAdditionalClaims(clients).map(claimsMap ->
-				claimsMap.entrySet().stream().filter(entry -> claims.contains(entry.getKey()))
-						.collect(Collectors.toMap(
-								Map.Entry::getKey, Map.Entry::getValue))
-		).orElse(Map.of());
-
-		if (additionalClaims.containsKey(SUBJECT_DID)) {
-			LOGGER.infof("Set subject did to %s", additionalClaims.get(SUBJECT_DID));
-			subjectBuilder.id(URI.create(additionalClaims.get(SUBJECT_DID)));
-			additionalClaims.remove(SUBJECT_DID);
-		} else {
-			subjectBuilder.id(URI.create(String.format("urn:uuid:%s", UUID.randomUUID())));
-		}
-
-		subjectClaims.putAll(additionalClaims);
+		LOGGER.infof("Will set %s", subjectClaims);
 		subjectBuilder.claims(subjectClaims);
 
 		CredentialSubject subject = subjectBuilder.build();
@@ -773,12 +726,17 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 				.issuer(URI.create(issuerDid))
 				.issuanceDate(Date.from(clock.instant()))
 				.credentialSubject(subject);
-		optionalMinExpiry
-				.map(minExpiry -> Clock.systemUTC()
-						.instant()
-						.plus(Duration.of(minExpiry, ChronoUnit.MINUTES)))
-				.map(Date::from)
-				.ifPresent(credentialBuilder::expirationDate);
+		// use the mappers after the default
+		protocolMappers
+				.forEach(mapper -> mapper.setClaimsForCredential(credentialBuilder, userSessionModel));
+
+		// TODO: replace with expiry mapper
+		//		optionalMinExpiry
+		//				.map(minExpiry -> Clock.systemUTC()
+		//						.instant()
+		//						.plus(Duration.of(minExpiry, ChronoUnit.MINUTES)))
+		//				.map(Date::from)
+		//				.ifPresent(credentialBuilder::expirationDate);
 
 		return credentialBuilder.build();
 	}
@@ -847,7 +805,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 		String type = typesEntry.getKey().replaceFirst(VC_TYPES_PREFIX, "");
 		Set<FormatVO> supportedFormats = getFormatsFromString(typesEntry.getValue());
 		return supportedFormats.stream().map(formatVO -> new SupportedCredential(type, formatVO))
-				.collect(Collectors.toList());
+				.toList();
 	}
 
 	private List<SupportedCredentialVO> mapAttributeEntryToScVO(Map.Entry<String, String> typesEntry) {
@@ -862,7 +820,7 @@ public class VCIssuerRealmResourceProvider implements RealmResourceProvider {
 							.cryptographicBindingMethodsSupported(List.of("did"))
 							.cryptographicSuitesSupported(List.of("Ed25519Signature2018"));
 				}
-		).collect(Collectors.toList());
+		).toList();
 	}
 
 	private String buildIdFromType(FormatVO formatVO, String type) {
