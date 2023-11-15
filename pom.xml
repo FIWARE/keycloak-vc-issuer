@@ -5,7 +5,7 @@
 
     <groupId>org.fiware.keycloak</groupId>
     <artifactId>vc-issuer</artifactId>
-    <version>SNAPSHOT-2</version>
+    <version>0.0.1</version>
 
     <packaging>jar</packaging>
 

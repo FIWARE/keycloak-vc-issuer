@@ -14,8 +14,8 @@ public class SIOP2StaticClaimMapper extends SIOP2Mapper {
 
 	public static final String MAPPER_ID = "siop-2-static-claim-mapper";
 
-	public static final String SUBJECT_PROPERTY_CONFIG_KEY = "subject-property";
-	public static final String STATIC_CLAIM_KEY = "static-value";
+	public static final String SUBJECT_PROPERTY_CONFIG_KEY = "subjectProperty";
+	public static final String STATIC_CLAIM_KEY = "staticValue";
 
 	public SIOP2StaticClaimMapper(ProtocolMapperModel mapperModel) {
 		super(mapperModel);

@@ -61,11 +61,9 @@ public class SIOP2LoginProtocolFactory implements LoginProtocolFactory {
 	}
 
 	@Override public void postInit(KeycloakSessionFactory factory) {
-
 	}
 
 	@Override public void close() {
-
 	}
 
 	@Override
@@ -80,40 +78,21 @@ public class SIOP2LoginProtocolFactory implements LoginProtocolFactory {
 
 	@Override public void createDefaultClientScopes(RealmModel newRealm, boolean addScopesToExistingClients) {
 		LOGGER.debugf("Create default scopes for realm %s", newRealm.getName());
-		ClientScopeModel targetRolesScope = KeycloakModelUtils.getClientScopeByName(newRealm, "Siop2TargetRoleScope");
-		if (targetRolesScope == null) {
-			LOGGER.debug("Add target roles scope");
-			targetRolesScope = newRealm.addClientScope("Siop2TargetRoleScope");
-			targetRolesScope.setDescription(
-					"SIOP-2 Target Role Scope, that adds the roles for all SIOP-2 clients to the credential subject.");
-			targetRolesScope.setProtocol(PROTOCOL_ID);
-			targetRolesScope.addProtocolMapper(builtins.get(CLIENT_ROLES_MAPPER));
-			newRealm.addDefaultClientScope(targetRolesScope, false);
-		}
-		ClientScopeModel subjectIdModelScope = KeycloakModelUtils.getClientScopeByName(newRealm, "Siop2SubjectIdScope");
-		if (subjectIdModelScope == null) {
-			LOGGER.debug("Add subject id scope");
-			subjectIdModelScope = newRealm.addClientScope("Siop2SubjectIdScope");
-			subjectIdModelScope.setDescription(
-					"SIOP-2 Subject Id Scope, that adds an id to the credential subject.");
-			subjectIdModelScope.setProtocol(PROTOCOL_ID);
-			subjectIdModelScope.addProtocolMapper(builtins.get(SUBJECT_ID_MAPPER));
-			newRealm.addDefaultClientScope(subjectIdModelScope, true);
-		}
-		ClientScopeModel attributesScope = KeycloakModelUtils.getClientScopeByName(newRealm, "Siop2AttributesScope");
-		if (attributesScope == null) {
-			LOGGER.debug("Add user attributes scope");
-			subjectIdModelScope = newRealm.addClientScope("Siop2AttributesScope");
-			subjectIdModelScope.setDescription(
-					"SIOP-2 User Attributes Scope, that adds various user attributes to the credentials subject.");
-			subjectIdModelScope.setProtocol(PROTOCOL_ID);
-			subjectIdModelScope.addProtocolMapper(builtins.get(USERNAME_MAPPER));
-			subjectIdModelScope.addProtocolMapper(builtins.get(FIRST_NAME_MAPPER));
-			subjectIdModelScope.addProtocolMapper(builtins.get(LAST_NAME_MAPPER));
-			subjectIdModelScope.addProtocolMapper(builtins.get(EMAIL_MAPPER));
-			newRealm.addDefaultClientScope(subjectIdModelScope, true);
-		}
 
+		ClientScopeModel naturalPersonScope = KeycloakModelUtils.getClientScopeByName(newRealm, "natural_person");
+		if (naturalPersonScope == null) {
+			LOGGER.debug("Add natural person scope");
+			naturalPersonScope = newRealm.addClientScope("natural_person");
+			naturalPersonScope.setDescription(
+					"SIOP-2 Scope, that adds all properties required for a natural person.");
+			naturalPersonScope.setProtocol(PROTOCOL_ID);
+			naturalPersonScope.addProtocolMapper(builtins.get(SUBJECT_ID_MAPPER));
+			naturalPersonScope.addProtocolMapper(builtins.get(CLIENT_ROLES_MAPPER));
+			naturalPersonScope.addProtocolMapper(builtins.get(EMAIL_MAPPER));
+			naturalPersonScope.addProtocolMapper(builtins.get(FIRST_NAME_MAPPER));
+			naturalPersonScope.addProtocolMapper(builtins.get(LAST_NAME_MAPPER));
+			newRealm.addDefaultClientScope(naturalPersonScope, true);
+		}
 	}
 
 	@Override

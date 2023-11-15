@@ -17,9 +17,9 @@ import java.util.Optional;
 public class SIOP2UserAttributeMapper extends SIOP2Mapper {
 
 	public static final String MAPPER_ID = "siop-2-user-attribute-mapper";
-	public static final String SUBJECT_PROPERTY_CONFIG_KEY = "subject-property";
-	public static final String USER_ATTRIBUTE_KEY = "user-attribute";
-	public static final String AGGREGATE_ATTRIBUTES_KEY = "aggregate-attributes";
+	public static final String SUBJECT_PROPERTY_CONFIG_KEY = "subjectProperty";
+	public static final String USER_ATTRIBUTE_KEY = "userAttribute";
+	public static final String AGGREGATE_ATTRIBUTES_KEY = "aggregateAttributes";
 
 	public SIOP2UserAttributeMapper(ProtocolMapperModel mapperModel) {
 		super(mapperModel);

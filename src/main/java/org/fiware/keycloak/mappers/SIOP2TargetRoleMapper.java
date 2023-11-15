@@ -27,8 +27,8 @@ public class SIOP2TargetRoleMapper extends SIOP2Mapper {
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
 	public static final String MAPPER_ID = "siop-2-target-role-mapper";
-	public static final String SUBJECT_PROPERTY_CONFIG_KEY = "subject-property";
-	public static final String CLIENT_CONFIG_KEY = "client";
+	public static final String SUBJECT_PROPERTY_CONFIG_KEY = "subjectProperty";
+	public static final String CLIENT_CONFIG_KEY = "clientId";
 
 	public SIOP2TargetRoleMapper(ProtocolMapperModel mapperModel) {
 		super(mapperModel);

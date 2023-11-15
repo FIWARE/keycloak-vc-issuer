@@ -821,21 +821,32 @@ public class SIOP2IntegrationTest {
 				.realm(TEST_REALM).remove();
 	}
 
-	private ProtocolMapperRepresentation getTargetRoleMapper(String clientId) {
+	private ProtocolMapperRepresentation getTargetRoleMapper(String clientId,
+			List<SupportedCredential> supportedTypes) {
+		String supportedTypesString = supportedTypes.stream().map(SupportedCredential::getType)
+				.collect(Collectors.joining(","));
+
 		ProtocolMapperRepresentation protocolMapperRepresentation = new ProtocolMapperRepresentation();
 		protocolMapperRepresentation.setProtocol(SIOP2LoginProtocolFactory.PROTOCOL_ID);
 		protocolMapperRepresentation.setProtocolMapper(SIOP2TargetRoleMapper.MAPPER_ID);
 		protocolMapperRepresentation.setName("my-target-role-mapper");
-		protocolMapperRepresentation.setConfig(Map.of("subject-property", "roles", "client", clientId));
+		protocolMapperRepresentation.setConfig(
+				Map.of("subjectProperty", "roles", "clientId", clientId, "supportedCredentialsTypes",
+						supportedTypesString));
 		return protocolMapperRepresentation;
 	}
 
-	private ProtocolMapperRepresentation getUserAttributeMapper(String attribute, String property) {
+	private ProtocolMapperRepresentation getUserAttributeMapper(String attribute, String property,
+			List<SupportedCredential> supportedTypes) {
+		String supportedTypesString = supportedTypes.stream().map(SupportedCredential::getType)
+				.collect(Collectors.joining(","));
 		ProtocolMapperRepresentation protocolMapperRepresentation = new ProtocolMapperRepresentation();
 		protocolMapperRepresentation.setProtocol(SIOP2LoginProtocolFactory.PROTOCOL_ID);
 		protocolMapperRepresentation.setProtocolMapper(SIOP2UserAttributeMapper.MAPPER_ID);
 		protocolMapperRepresentation.setName(String.format("my-%s-mapper", attribute));
-		protocolMapperRepresentation.setConfig(Map.of("subject-property", property, "user-attribute", attribute));
+		protocolMapperRepresentation.setConfig(
+				Map.of("subjectProperty", property, "userAttribute", attribute, "supportedCredentialsTypes",
+						supportedTypesString));
 		return protocolMapperRepresentation;
 
 	}
@@ -849,10 +860,10 @@ public class SIOP2IntegrationTest {
 		clientRepresentation.setEnabled(true);
 		clientRepresentation.setProtocol(SIOP2LoginProtocolFactory.PROTOCOL_ID);
 		clientRepresentation.setProtocolMappers(List.of(
-				getTargetRoleMapper(clientId),
-				getUserAttributeMapper("email", "email"),
-				getUserAttributeMapper("firstName", "firstName"),
-				getUserAttributeMapper("lastName", "familyName")
+				getTargetRoleMapper(clientId, supportedTypes),
+				getUserAttributeMapper("email", "email", supportedTypes),
+				getUserAttributeMapper("firstName", "firstName", supportedTypes),
+				getUserAttributeMapper("lastName", "familyName", supportedTypes)
 		));
 		Map<String, String> attributes = new HashMap<>();
 

@@ -14,7 +14,7 @@ import java.util.UUID;
 public class SIOP2SubjectIdMapper extends SIOP2Mapper {
 
 	public static final String MAPPER_ID = "siop-2-subject-id-mapper";
-	public static final String ID_KEY = "subject-id";
+	public static final String ID_KEY = "subjectIdProperty";
 
 	public SIOP2SubjectIdMapper(ProtocolMapperModel mapperModel) {
 		super(mapperModel);
@@ -25,6 +25,7 @@ public class SIOP2SubjectIdMapper extends SIOP2Mapper {
 		mapperModel.setName(name);
 		Map<String, String> configMap = new HashMap<>();
 		configMap.put(ID_KEY, subjectId);
+		configMap.put(SUPPORTED_CREDENTIALS_KEY, "VerifiableCredential");
 		mapperModel.setConfig(configMap);
 		mapperModel.setProtocol(SIOP2LoginProtocolFactory.PROTOCOL_ID);
 		mapperModel.setProtocolMapper(MAPPER_ID);
