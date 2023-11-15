@@ -192,7 +192,7 @@ public class VCIssuerRealmResourceProviderTest {
 			throws URISyntaxException {
 		KeycloakContext context = mock(KeycloakContext.class);
 		RealmModel realmModel = mock(RealmModel.class);
-		when(realmModel.getId()).thenReturn("test");
+		when(realmModel.getName()).thenReturn("test");
 		when(realmModel.getClientsStream()).thenReturn(clientModelStream);
 		KeycloakUriInfo keycloakUriInfo = mock(KeycloakUriInfo.class);
 		when(keycloakUriInfo.getBaseUri()).thenReturn(new URI("http://localhost:8080"));
