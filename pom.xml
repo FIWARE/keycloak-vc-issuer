@@ -416,6 +416,8 @@
                                     <excludes>
                                         <exclude>**/src/**</exclude>
                                         <exclude>**/META-INF/**</exclude>
+                                        <exclude>**/*.woff2</exclude>
+                                        <exclude>**/*.woff</exclude>
                                     </excludes>
                                 </resource>
                             </resources>
